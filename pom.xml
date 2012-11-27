@@ -1,0 +1,180 @@
+<!--
+ ===Begin Copyright Notice===
+
+ NOTICE
+
+ THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
+ LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
+ WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
+ THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
+ SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
+
+ (c) COPYRIGHT 2011 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
+ MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
+ LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
+ ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
+ OWNERS.
+
+ ===End Copyright Notice===
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>com.lifecosys</groupId>
+		<artifactId>lifecosys-parent</artifactId>
+		<version>1.0-SNAPSHOT</version>
+	</parent>
+	<groupId>com.lifecosys.toolkit</groupId>
+	<artifactId>lifecosys-toolkit</artifactId>
+	<name>Lifecosys toolkit</name>
+	<version>1.0-SNAPSHOT</version>
+	<packaging>apk</packaging>
+
+	<description>
+		Lifecosys toolkit system, include toolkit, aggregate different SNS service such as facebook, twitter, sina weibo
+		etc.
+	</description>
+	<url>https://lifecosys.com/lifecosys-toolkit</url>
+
+	<properties>
+		<project-id>lifecosys-toolkit</project-id>
+	</properties>
+
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>1.6</source>
+					<target>1.6</target>
+					<encoding>${file.encoding}</encoding>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>com.jayway.maven.plugins.android.generation2</groupId>
+				<artifactId>android-maven-plugin</artifactId>
+				<version>3.4.0</version>
+				<configuration>
+					<androidManifestFile>${project.basedir}/src/main/AndroidManifest.xml</androidManifestFile>
+					<assetsDirectory>${project.basedir}/src/main/assets</assetsDirectory>
+					<resourceDirectory>${project.basedir}/src/main/res</resourceDirectory>
+					<apkDebug>true</apkDebug>
+					<!--<manifest>-->
+					<!--<debuggable>true</debuggable>-->
+					<!--</manifest>-->
+					<emulator>
+						<avd>JellyBean</avd>
+					</emulator>
+					<undeployBeforeDeploy>true</undeployBeforeDeploy>
+					<proguard>
+						<skip>false</skip>
+					</proguard>
+					<sign>
+						<debug>false</debug>
+					</sign>
+				</configuration>
+				<extensions>true</extensions>
+			</plugin>
+
+			<plugin>
+				<groupId>net.alchim31.maven</groupId>
+				<artifactId>scala-maven-plugin</artifactId>
+			</plugin>
+
+		</plugins>
+
+	</build>
+
+
+	<dependencies>
+
+		<!--<dependency>-->
+		<!--<groupId>commons-lang</groupId>-->
+		<!--<artifactId>commons-lang</artifactId>-->
+		<!--<version>2.6</version>-->
+		<!--</dependency>-->
+		<!--<dependency>-->
+		<!--<groupId>commons-io</groupId>-->
+		<!--<artifactId>commons-io</artifactId>-->
+		<!--<version>2.0.1</version>-->
+		<!--</dependency>-->
+		<!--<dependency>-->
+		<!--<groupId>commons-codec</groupId>-->
+		<!--<artifactId>commons-codec</artifactId>-->
+		<!--<version>1.5</version>-->
+		<!--</dependency>-->
+
+		<!--<dependency>-->
+		<!--<groupId>javolution</groupId>-->
+		<!--<artifactId>javolution</artifactId>-->
+		<!--<version>5.5.1</version>-->
+		<!--</dependency>-->
+
+
+		<!--<dependency>-->
+		<!--<groupId>org.slf4j</groupId>-->
+		<!--<artifactId>slf4j-api</artifactId>-->
+		<!--<version>1.6.1</version>-->
+		<!--<optional>true</optional>-->
+		<!--</dependency>-->
+		<!--<dependency>-->
+		<!--<groupId>org.slf4j</groupId>-->
+		<!--<artifactId>slf4j-log4j12</artifactId>-->
+		<!--<version>1.6.1</version>-->
+		<!--<optional>true</optional>-->
+		<!--</dependency>-->
+
+
+		<dependency>
+			<groupId>com.google.android</groupId>
+			<artifactId>android</artifactId>
+			<version>4.1.1.4</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.google.android</groupId>
+			<artifactId>annotations</artifactId>
+			<version>4.1.1.4</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.google.android</groupId>
+			<artifactId>support-v4</artifactId>
+			<version>r7</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>com.google.android</groupId>
+			<artifactId>android-test</artifactId>
+			<version>4.1.1.4</version>
+			<scope>provided</scope>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.scala-lang</groupId>
+			<artifactId>scala-library</artifactId>
+			<version>2.9.2</version>
+			<!--<scope>provided</scope>-->
+		</dependency>
+
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.8.2</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>4.1.2</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+</project>

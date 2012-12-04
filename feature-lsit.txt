@@ -1,0 +1,11 @@
+Lifecosys Toolkit Feature List
+
+
+1. Proxy support.
+    Support local proxy.
+    Support remote proxy.
+    Support chain proxy.
+    Support connection reuse for same remote server.
+    Support proxy vendor priority dynamic adjust.
+    Support HTTPS.
+    Support PC and android.

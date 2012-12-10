@@ -1,17 +1,13 @@
 package com.lifecosys.toolkit.functional
 
-import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.apache.http.client.fluent.{Executor, Request}
 import com.lifecosys.toolkit.proxy._
-import org.apache.http.{NoHttpResponseException, HttpHost}
+import org.apache.http.HttpHost
 import org.apache.commons.lang.StringUtils
-import org.scalatest.junit.ShouldMatchersForJUnit
-import java.net.{SocketTimeoutException, InetSocketAddress}
-import io.netty.channel.ChannelException
+import java.net.InetSocketAddress
 import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
 import ssl.SecureChatSslContextFactory
-import org.apache.http.conn.HttpHostConnectException
 import org.junit.{Assert, Test, After, Before}
 
 /**

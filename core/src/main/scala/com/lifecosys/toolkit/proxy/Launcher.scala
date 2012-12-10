@@ -9,7 +9,7 @@ package com.lifecosys.toolkit.proxy
  */
 object Launcher {
   def main(args: Array[String]) {
-    new Proxy(8080) start
+    ProxyServer(8080) start
   }
 }
 

@@ -7,13 +7,15 @@ import org.apache.commons.lang.StringUtils
 import java.net.InetSocketAddress
 import org.jboss.netty.channel._
 import collection.mutable
+import group.{DefaultChannelGroup, ChannelGroupFuture}
 import org.jboss.netty.handler.logging.LoggingHandler
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
 import socket.nio.{NioClientSocketChannelFactory, NioServerSocketChannelFactory}
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import scala.Some
-import scala.Some
+import java.util.concurrent.atomic.AtomicBoolean
+import scala.collection.JavaConversions._
 
 
 /**
@@ -31,6 +33,10 @@ object ProxyServer {
   val logger = LoggerFactory.getLogger(getClass)
 
   def apply(port: Int): Proxy = new Proxy(port)
+
+  val serverSocketChannelFactory=new NioServerSocketChannelFactory()
+  val clientSocketChannelFactory=new NioClientSocketChannelFactory()
+  val allChannels= new DefaultChannelGroup("HTTP-Proxy-Server")
 
   private val HTTP_PREFIX: Pattern = Pattern.compile("http.*", Pattern.CASE_INSENSITIVE)
   private val HTTPS_PREFIX: Pattern = Pattern.compile("https.*", Pattern.CASE_INSENSITIVE)
@@ -64,36 +70,67 @@ object ProxyServer {
     }
   }
 
-//
-//  implicit def channelPipelineInitializer(f: ChannelPipeline => Any): ChannelInitializer[SocketChannel] = {
-//    new ChannelInitializer[SocketChannel] {
-//      def initChannel(ch: SocketChannel) {
-//        f(ch.pipeline())
-//      }
-//    }
-//  }
+
+  implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = {
+    new ChannelPipelineFactory {
+      def getPipeline: ChannelPipeline = {
+        val pipeline: ChannelPipeline = Channels.pipeline()
+        f(pipeline)
+        pipeline
+      }
+    }
+  }
 
 
-  class Proxy(port: Int) {
+  class Proxy(port: Int,val stopped: AtomicBoolean = new AtomicBoolean(false) ) {
     implicit val chainProxies = mutable.MutableList[InetSocketAddress]()
 
-    def clientToProxyPipeline = (pipeline: ChannelPipeline) => {
+    def proxyServerPipeline = (pipeline: ChannelPipeline) => {
       // Uncomment the following line if you want HTTPS
       //SSLEngine engine = SecureChatSslContextFactory.getServerContext().createSSLEngine();
       //engine.setUseClientMode(false);
       //clientToProxyPipeline.addLast("ssl", new SslHandler(engine));
       pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG));
       pipeline.addLast("decoder", new HttpRequestDecoder());
-//      pipeline.addLast("aggregator", new HttpChunkAggregator(65536));
+      //      pipeline.addLast("aggregator", new HttpChunkAggregator(65536));
       pipeline.addLast("encoder", new HttpResponseEncoder());
-//      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler());
+      //      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler());
       pipeline.addLast("proxyHandler", new ProxyHandler);
     }
 
 
-    val serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory())
+    val serverBootstrap = new ServerBootstrap(serverSocketChannelFactory)
 
-    def shutdown ={} // serverBootstrap shutdown
+    def shutdown ={
+      logger.info("Shutting down proxy")
+      stopped.get match {
+        case true =>logger.info("Already stopped")
+        case _ => shutdown
+      }
+      def shutdown
+      {
+        stopped.set(true)
+
+        logger.info("Closing all channels...")
+        val future: ChannelGroupFuture = allChannels.close
+        future.awaitUninterruptibly(10 * 1000)
+
+        if (!future.isCompleteSuccess)
+        {
+          future.iterator().filterNot(_.isSuccess).foreach
+          {
+            channelFuture =>
+              logger.warn("Can't close {}, case by {}", channelFuture.getChannel, channelFuture.getCause)
+          }
+
+          serverSocketChannelFactory.releaseExternalResources()
+          clientSocketChannelFactory.releaseExternalResources()
+          logger.info("Done shutting down proxy")
+        }
+      }
+
+
+    } // serverBootstrap shutdown
 
     def start = {
       logger.info("Starting proxy server on " + port)
@@ -122,12 +159,12 @@ object ProxyServer {
         }
       })
 
-      serverBootstrap.bind(new InetSocketAddress(port))
+      allChannels.add(serverBootstrap.bind(new InetSocketAddress(port)))
 
       Runtime.getRuntime.addShutdownHook(new Thread(new Runnable {
         def run {
           logger.info("Shutdown proxy server now.............")
-//          serverBootstrap shutdown
+          shutdown
         }
       }))
       logger.info("Proxy server started on " + port)
@@ -163,7 +200,7 @@ object ProxyServer {
             case None => {
 
               ctx.getChannel.setReadable(false)
-              val b = new ClientBootstrap(new NioClientSocketChannelFactory())
+              val b = new ClientBootstrap(clientSocketChannelFactory)
               b.setPipelineFactory(new ChannelPipelineFactory
               {
                 def getPipeline: ChannelPipeline =
@@ -240,7 +277,7 @@ object ProxyServer {
               //              ctx.readable(false)
 
 
-              val b = new ClientBootstrap(new NioClientSocketChannelFactory())
+              val b = new ClientBootstrap(clientSocketChannelFactory)
               b.setPipelineFactory(new ChannelPipelineFactory
               {
                 def getPipeline: ChannelPipeline =
@@ -322,8 +359,13 @@ object ProxyServer {
 ////      pipeline.addLast("aggregator", new HttpChunkAggregator(1048576));
 //      pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
 //    }
+    override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent)
+    {
+      logger.debug("New channel opened: {}", e.getChannel)
+      allChannels.add(e.getChannel)
+      super.channelOpen(ctx, e)
 
-
+    }
   }
 
 
@@ -341,6 +383,14 @@ object ProxyServer {
           e.getChannel.close
         }
       }
+    }
+
+    override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent)
+    {
+      logger.debug("New channel opened: {}", e.getChannel)
+      allChannels.add(e.getChannel)
+      super.channelOpen(ctx, e)
+
     }
   }
 
@@ -375,10 +425,11 @@ object ProxyServer {
 //      }
     }
 
-    override def channelOpen(ctx: ChannelHandlerContext, cse: ChannelStateEvent)
+    override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent)
     {
-      val ch: Channel = cse.getChannel
+      val ch: Channel = e.getChannel
       logger.info("New CONNECT channel opened from proxy to web: {}", ch)
+      allChannels.add(e.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent)

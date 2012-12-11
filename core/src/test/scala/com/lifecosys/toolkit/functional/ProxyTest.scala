@@ -9,6 +9,7 @@ import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
 import ssl.SecureChatSslContextFactory
 import org.junit.{Assert, Test, After, Before}
+import org.jboss.netty.channel.ChannelException
 
 /**
  * Created with IntelliJ IDEA.
@@ -42,7 +43,7 @@ class ProxyTest {
   }
 
 
-  @Test //(expected = classOf[ChannelException])
+  @Test (expected = classOf[ChannelException])
   def testShutdown {
     proxy.start
     proxy.shutdown

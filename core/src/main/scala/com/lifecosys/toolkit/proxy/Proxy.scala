@@ -36,6 +36,7 @@ import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
 import javax.net.ssl.{TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.{SecureRandom, KeyStore}
+import java.util.concurrent.{SynchronousQueue, TimeUnit, ThreadPoolExecutor}
 
 
 /**
@@ -49,14 +50,14 @@ object ProxyServer {
   val logger = LoggerFactory.getLogger(getClass)
   var isDebugged: InternalLogLevel = InternalLogLevel.INFO
 
-  val serverSocketChannelFactory = new NioServerSocketChannelFactory()
+  val serverSocketChannelFactory = new NioServerSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
 
-  val clientSocketChannelFactory = new NioClientSocketChannelFactory()
+  val clientSocketChannelFactory = new NioClientSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
 
   val allChannels = new DefaultChannelGroup("HTTP-Proxy-Server")
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
 
-  def apply(port: Int, serverSSLEnable: Boolean = false, proxyToServerSSLEnable: Boolean = false) = new Proxy(port, serverSSLEnable)(proxyToServerSSLEnable)
+  def apply(port: Int = 9050, serverSSLEnable: Boolean = false, proxyToServerSSLEnable: Boolean = false) = new Proxy(port, serverSSLEnable)(proxyToServerSSLEnable)
 
 
   def parseHostAndPort(uri: String) = {

@@ -23,7 +23,6 @@ package com.lifecosys.toolkit.functional
 import org.apache.http.client.fluent.{Executor, Request}
 import com.lifecosys.toolkit.proxy._
 import org.apache.http.HttpHost
-import org.apache.commons.lang.StringUtils
 import java.net.InetSocketAddress
 import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
@@ -235,7 +234,7 @@ class ProxyTest {
   }
 
   def zip(proxyContent: Any): String = {
-    StringUtils.deleteWhitespace(proxyContent.toString).replace("\n", "").replace("\r", "")
+    proxyContent.toString.filter(_.isWhitespace).replace("\n", "").replace("\r", "")
   }
 
 

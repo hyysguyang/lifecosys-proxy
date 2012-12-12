@@ -20,8 +20,6 @@
 
 package com.lifecosys.toolkit.proxy
 
-import java.io.FileInputStream
-
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -30,26 +28,25 @@ import java.io.FileInputStream
  */
 object Launcher {
   def main(args: Array[String]) {
-    //    ProxyServer(8080) start
+    ProxyServer() start
 
 
-    val dl = new scala.collection.mutable.MutableList[String]()
-    val dlb = new scala.collection.mutable.MutableList[Byte]()
-    val fin = new FileInputStream("/Develop/Project/office/lifecosys-toolkit/core/src/conf/lifecosys-proxy-server-keystore.jks");
-    var ch: Int = -1
-    do {
-      ch = fin.read();
-      dl.+=("0x%02X ".format(ch))
-      dlb.+=(ch.asInstanceOf[Byte])
-    } while (ch != -1);
-
-    dlb.+=(-1.asInstanceOf[Byte])
-    fin.close();
-
-    println(dl.length)
-    println(dlb.length)
-    println(dlb.mkString(","))
-
+    //    val dl = new scala.collection.mutable.MutableList[String]()
+    //    val dlb = new scala.collection.mutable.MutableList[Byte]()
+    //    val fin = new FileInputStream("/Develop/Project/office/lifecosys-toolkit/core/src/conf/lifecosys-proxy-server-keystore.jks");
+    //    var ch: Int = -1
+    //    do {
+    //      ch = fin.read();
+    //      dl.+=("0x%02X ".format(ch))
+    //      dlb.+=(ch.asInstanceOf[Byte])
+    //    } while (ch != -1);
+    //
+    //    dlb.+=(-1.asInstanceOf[Byte])
+    //    fin.close();
+    //
+    //    println(dl.length)
+    //    println(dlb.length)
+    //    println(dlb.mkString(","))
 
 
     //    val array: Array[Byte] = IOUtils.toByteArray(new FileInputStream("/Develop/Project/office/lifecosys-toolkit/core/src/conf/lifecosys-proxy-server-keystore.jks"))

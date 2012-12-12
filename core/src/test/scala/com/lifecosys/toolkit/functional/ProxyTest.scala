@@ -1,4 +1,4 @@
-/**
+/*
  * ===Begin Copyright Notice===
  *
  * NOTICE
@@ -27,10 +27,11 @@ import org.apache.commons.lang.StringUtils
 import java.net.InetSocketAddress
 import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
-import ssl.SecureChatSslContextFactory
 import org.junit.{Assert, Test, After, Before}
 import org.jboss.netty.channel.ChannelException
 import org.jboss.netty.logging.InternalLogLevel
+import javax.net.ssl.{X509TrustManager, SSLContext}
+import java.security.cert.X509Certificate
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -107,14 +108,14 @@ class ProxyTest {
   @Test
   def testSimplePage {
     proxy start
-    val proxyContent = Request.Get("http://www.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    val proxyContent = request("http://www.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
   }
 
   @Test
   def testAnotherSimplePage {
     proxy start
-    val proxyContent = Request.Get("http://store.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    val proxyContent = request("http://store.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
   }
 
@@ -127,13 +128,14 @@ class ProxyTest {
 
     proxy start
 
-    var proxyContent = Request.Get("http://apple.com/").viaProxy(new HttpHost("localhost", 8081)).execute.returnContent
+    var proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8081)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
-    proxyContent = Request.Get("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }
+
 
   @Test
   def testAccessViaUnavailableChainedProxy {
@@ -142,7 +144,7 @@ class ProxyTest {
     chainProxy.start
     proxy.start
     try {
-      Request.Get("http://apple.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+      request("http://apple.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     } catch {
       case _: Throwable => Assert.assertTrue(true)
     }
@@ -153,11 +155,11 @@ class ProxyTest {
   def testAccessHttps {
     proxy.start
 
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(SecureChatSslContextFactory.getClientContext)))
-    val content = Request.Get("https://developer.apple.com/").execute.returnContent
+    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
+    val content = request("https://developer.apple.com/").execute.returnContent
     Assert.assertTrue(content.toString.length > 0)
 
-    var proxyContent = Request.Get("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    var proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
 
     Assert.assertTrue(proxyContent.toString.length > 0)
 
@@ -175,12 +177,12 @@ class ProxyTest {
 
     ProxyServer.isDebugged = InternalLogLevel.DEBUG;
 
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(SecureChatSslContextFactory.getClientContext)))
+    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
 
-    var proxyContent = Request.Get("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8081)).execute.returnContent
+    var proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8081)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
-    proxyContent = Request.Get("https://developer.apple.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }
@@ -199,9 +201,9 @@ class ProxyTest {
 
     ProxyServer.isDebugged = InternalLogLevel.DEBUG;
 
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(SecureChatSslContextFactory.getClientContext)))
+    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
 
-    var proxyContent = Request.Get("http://apple.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    var proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }
@@ -219,18 +221,43 @@ class ProxyTest {
 
     ProxyServer.isDebugged = InternalLogLevel.DEBUG;
 
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(SecureChatSslContextFactory.getClientContext)))
+    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
 
-    var proxyContent = Request.Get("https://developer.apple.com/").socketTimeout(5000 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    var proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
 
   }
 
 
+  def request(url: String): Request = {
+    Request.Get(url).socketTimeout(60 * 1000)
+  }
+
   def zip(proxyContent: Any): String = {
     StringUtils.deleteWhitespace(proxyContent.toString).replace("\n", "").replace("\r", "")
   }
+
+
+  def createStubSSLClientContext = {
+    val clientContext = SSLContext.getInstance("TLS")
+    clientContext.init(null, Array(new X509TrustManager {
+      def getAcceptedIssuers: Array[X509Certificate] = {
+        return new Array[X509Certificate](0)
+      }
+
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all client" + chain(0).getSubjectDN)
+      }
+
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all server" + chain(0).getSubjectDN)
+      }
+    }), null)
+
+    clientContext
+  }
+
 
 }
 

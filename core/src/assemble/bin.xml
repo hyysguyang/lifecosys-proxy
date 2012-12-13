@@ -40,20 +40,22 @@
                 <include>license/**</include>
             </includes>
         </fileSet>
+
+        <!--NOTE: a trick to create the logs directory to avoid the error when jsw write the pid file-->
         <fileSet>
-            <directory>${project.basedir}/src/bin</directory>
-            <outputDirectory>/bin</outputDirectory>
-        </fileSet>
-        <fileSet>
-            <directory>${project.basedir}/src/conf</directory>
-            <outputDirectory>/conf</outputDirectory>
-        </fileSet>
-        <fileSet>
-            <directory>${project.build.directory}</directory>
-            <outputDirectory>/lib</outputDirectory>
+            <directory>${project.build.directory}/appassembler/conf</directory>
+            <outputDirectory>/logs</outputDirectory>
             <includes>
-                <include>*.jar</include>
+                <include>readme.txt</include>
             </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.build.directory}/appassembler/jsw/lifecosys-proxy</directory>
+            <outputDirectory>.</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.build.directory}/appassembler/bin</directory>
+            <outputDirectory>/bin</outputDirectory>
         </fileSet>
     </fileSets>
 

@@ -66,6 +66,131 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>appassembler-maven-plugin</artifactId>
+                <version>1.3</version>
+                <configuration>
+                    <!-- Set the target configuration directory to be used in the bin scripts -->
+                    <configurationDirectory>conf</configurationDirectory>
+                    <!-- Copy the contents from "/src/main/config" to the target
+                    configuration directory in the assembled application -->
+                    <copyConfigurationDirectory>true</copyConfigurationDirectory>
+                    <!-- Include the target configuration directory in the beginning of
+                    the classpath declaration in the bin scripts -->
+                    <includeConfigurationDirectoryInClasspath>true</includeConfigurationDirectoryInClasspath>
+                    <!-- set alternative assemble directory -->
+                    <target>${project.build.directory}/appassembler</target>
+                    <assembleDirectory>${project.build.directory}/appassembler</assembleDirectory>
+                    <environmentSetupFileName>setenv</environmentSetupFileName>
+
+                    <repositoryLayout>flat</repositoryLayout>
+                    <repositoryName>lib</repositoryName>
+
+                    <!-- Extra JVM arguments that will be included in the bin scripts -->
+                    <!-- set some sane defaults for memory -->
+                    <!--<extraJvmArguments>${jvm.system-property1} -Xms128m -Xmx512m ${jmx.system-properties} ${javamail.system-properties} ${james.system-properties}</extraJvmArguments>-->
+                    <!-- Generate bin scripts for windows and unix per default -->
+                    <platforms>
+                        <platform>windows</platform>
+                        <platform>unix</platform>
+                    </platforms>
+
+                    <programs>
+                        <program>
+                            <mainClass>com.lifecosys.toolkit.proxy.Launcher</mainClass>
+                            <name>run</name>
+                        </program>
+                    </programs>
+
+
+                    <daemons>
+                        <daemon>
+                            <id>lifecosys-proxy</id>
+                            <mainClass>com.lifecosys.toolkit.proxy.Launcher</mainClass>
+                            <commandLineArguments>
+                                <commandLineArgument>start</commandLineArgument>
+                            </commandLineArguments>
+                            <platforms>
+                                <platform>jsw</platform>
+                            </platforms>
+                            <generatorConfigurations>
+                                <generatorConfiguration>
+                                    <generator>jsw</generator>
+                                    <includes>
+                                        <include>linux-x86-32</include>
+                                        <include>linux-x86-64</include>
+                                        <include>linux-ppc-64</include>
+                                        <include>macosx-x86-universal-32</include>
+                                        <include>macosx-ppc-32</include>
+                                        <include>solaris-sparc-32</include>
+                                        <include>solaris-sparc-64</include>
+                                        <include>solaris-x86-32</include>
+                                        <include>windows-x86-32</include>
+                                    </includes>
+
+                                    <configuration>
+                                        <!-- add to to the classpath in this order: config files, james jars, user jars.-->
+                                        <property>
+                                            <name>configuration.directory.in.classpath.first</name>
+                                            <value>../conf</value>
+                                        </property>
+                                        <property>
+                                            <name>configuration.directory.in.classpath.last</name>
+                                            <value>../conf/lib/*</value>
+                                        </property>
+                                        <property>
+                                            <name>set.default.REPO_DIR</name>
+                                            <value>../lib</value>
+                                        </property>
+                                        <property>
+                                            <name>wrapper.working.dir</name>
+                                            <value>.</value>
+                                        </property>
+                                        <property>
+                                            <name>wrapper.logfile</name>
+                                            <value>log/wrapper.log</value>
+                                        </property>
+                                        <property>
+                                            <name>wrapper.java.library.path</name>
+                                            <value>../lib</value>
+                                        </property>
+                                        <property>
+                                            <name>wrapper.java.classpath.1</name>
+                                            <value>%REPO_DIR%/wrapper.jar</value>
+                                        </property>
+                                        <property>
+                                            <name>wrapper.java.initmemory</name>
+                                            <value>64</value>
+                                        </property>
+                                        <property>
+                                            <name>wrapper.java.maxmemory</name>
+                                            <value>128</value>
+                                        </property>
+                                        <!--<property>-->
+                                        <!--<name>wrapper.java.additional.1</name>-->
+                                        <!--<value>${jvm.system-property1}</value>-->
+                                        <!--</property>-->
+                                    </configuration>
+                                </generatorConfiguration>
+                            </generatorConfigurations>
+
+                        </daemon>
+                    </daemons>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-appassemble</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>assemble</goal>
+                            <goal>generate-daemons</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
 
     </build>

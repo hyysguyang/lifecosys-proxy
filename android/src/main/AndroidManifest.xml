@@ -1,26 +1,48 @@
+<!--
+  ~ ===Begin Copyright Notice===
+  ~
+  ~ NOTICE
+  ~
+  ~ THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
+  ~ LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
+  ~ WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
+  ~ THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
+  ~ SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
+  ~
+  ~ (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
+  ~ MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
+  ~ LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
+  ~ ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
+  ~ OWNERS.
+  ~
+  ~ ===End Copyright Notice===
+  -->
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-		  package="com.lifecosys.toolkit"
-		  android:installLocation="auto">
+          package="com.lifecosys.toolkit"
+          android:installLocation="auto">
 
-	<application android:icon="@drawable/icon"
-				 android:label="@string/app_name"
-				 android:theme="@android:style/Theme.Light.NoTitleBar">
+    <application android:icon="@drawable/icon"
+                 android:label="@string/app_name"
+                 android:theme="@android:style/Theme.Light.NoTitleBar">
 
 
-		<activity android:name=".Launcher" android:label="Lifecosys Toolkit">
-			<intent-filter>
-				<action android:name="android.intent.action.MAIN"/>
-				<category android:name="android.intent.category.LAUNCHER"/>
-			</intent-filter>
-		</activity>
-	</application>
+        <activity android:name=".Main" android:label="Lifecosys Toolkit">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <service android:name=".ProxyService"/>
+    </application>
 
-	<supports-screens android:anyDensity="true"/>
-	<uses-sdk android:minSdkVersion="7" android:targetSdkVersion="10"/>
+    <supports-screens android:anyDensity="true"/>
+    <uses-sdk android:minSdkVersion="12" android:targetSdkVersion="16"/>
 
-	<uses-permission android:name="android.permission.INTERNET"/>
-	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-	<uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS"/>
-	<uses-permission android:name="android.permission.GET_ACCOUNTS"/>
-	<uses-permission android:name="android.permission.MANAGE_ACCOUNTS"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS"/>
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
+    <uses-permission android:name="android.permission.MANAGE_ACCOUNTS"/>
 </manifest>

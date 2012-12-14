@@ -28,7 +28,7 @@ import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
 import org.junit.{Assert, Test, After, Before}
 import org.jboss.netty.channel.ChannelException
-import org.jboss.netty.logging.InternalLogLevel
+import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory, InternalLogLevel}
 import javax.net.ssl.{X509TrustManager, SSLContext}
 import java.security.cert.X509Certificate
 
@@ -38,6 +38,7 @@ import java.security.cert.X509Certificate
  * @version 1.0 12/2/12 12:56 AM
  */
 class ProxyTest {
+  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   var proxy: ProxyServer.Proxy = null
   var chainProxy: ProxyServer.Proxy = null
 

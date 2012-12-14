@@ -121,7 +121,7 @@ object ProxyServer {
 
         if (!future.isCompleteSuccess) {
           future.iterator().filterNot(_.isSuccess).foreach {
-            channelFuture => logger.warn("Can't close {}, case by {}", channelFuture.getChannel, channelFuture.getCause)
+            channelFuture => logger.warn("Can't close {}, case by {}", Array(channelFuture.getChannel, channelFuture.getCause))
           }
 
           serverSocketChannelFactory.releaseExternalResources()
@@ -157,7 +157,7 @@ object ProxyServer {
 
     override def messageReceived(ctx: ChannelHandlerContext, me: MessageEvent) {
       val httpRequest = me.getMessage().asInstanceOf[HttpRequest]
-      logger.debug("Receive request: {} {}", httpRequest.getMethod + " " + httpRequest.getUri, ctx.getChannel())
+      logger.debug("Receive request: {} {} {}", httpRequest.getMethod, httpRequest.getUri, ctx.getChannel())
       val browserToProxyChannel = ctx.getChannel
       val host = chainProxies.get(0).getOrElse(parseHostAndPort(httpRequest.getUri))
       def newClientBootstrap = {
@@ -204,14 +204,14 @@ object ProxyServer {
                 future.getChannel.write(httpRequest).addListener {
                   future: ChannelFuture => {
                     future.getChannel.getPipeline.remove("encoder")
-                    logger.info("Finished write request to {} \n {} ", future.getChannel, httpRequest)
+                    logger.info("Finished write request to {} \n {} ", Array(future.getChannel, httpRequest))
                   }
                 }
               }
               case None => {
                 val wf = browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
                 wf.addListener {
-                  future: ChannelFuture => logger.info("Finished write request to {} \n {} ", future.getChannel, connectProxyResponse)
+                  future: ChannelFuture => logger.info("Finished write request to {} \n {} ", Array(future.getChannel, connectProxyResponse))
                 }
               }
             }
@@ -343,7 +343,7 @@ object ProxyServer {
 
   class ConnectionRequestHandler(relayChannel: Channel) extends SimpleChannelUpstreamHandler {
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      logger.debug("ConnectionRequestHandler-{} receive message:\n {}", ctx.getChannel, e.getMessage)
+      logger.debug("ConnectionRequestHandler-{} receive message:\n {}", Array(ctx.getChannel, e.getMessage))
       val msg: ChannelBuffer = e.getMessage.asInstanceOf[ChannelBuffer]
       if (relayChannel.isConnected) {
         relayChannel.write(msg)

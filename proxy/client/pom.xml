@@ -17,33 +17,40 @@
   ~
   ~ ===End Copyright Notice===
   -->
+
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.lifecosys</groupId>
-        <artifactId>lifecosys-parent</artifactId>
+        <groupId>com.lifecosys.toolkit.proxy</groupId>
+        <artifactId>lifecosys-toolkit-proxy</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <groupId>com.lifecosys.toolkit-parent</groupId>
-    <artifactId>lifecosys-toolkit-parent</artifactId>
-    <name>Lifecosys toolkit Parent</name>
+    <groupId>com.lifecosys.toolkit.proxy</groupId>
+    <artifactId>lifecosys-toolkit-proxyclient</artifactId>
+    <name>Lifecosys toolkit proxy client</name>
     <version>1.0-SNAPSHOT</version>
-    <packaging>pom</packaging>
+    <packaging>jar</packaging>
 
     <description>
-        Lifecosys toolkit system, include toolkit, aggregate different SNS service such as facebook, twitter, sina weibo
-        etc.
+        Lifecosys toolkit proxy client.
     </description>
     <url>https://lifecosys.com/lifecosys-toolkit</url>
 
     <properties>
-        <project-id>lifecosys-toolkit</project-id>
+        <project-id>lifecosys-toolkit-proxyclient</project-id>
     </properties>
 
-    <modules>
-        <module>core</module>
-        <module>proxy</module>
-        <module>android</module>
-    </modules>
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>appassembler-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 </project>

@@ -22,7 +22,7 @@
           package="com.lifecosys.toolkit"
           android:installLocation="auto">
 
-    <application android:icon="@drawable/icon"
+    <application android:icon="@drawable/android_proxy_logo"
                  android:label="@string/app_name"
                  android:theme="@android:style/Theme.Light.NoTitleBar">
 

@@ -37,6 +37,7 @@ import org.jboss.netty.handler.ssl.SslHandler
 import javax.net.ssl.{TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.{SecureRandom, KeyStore}
 import java.util.concurrent.{SynchronousQueue, TimeUnit, ThreadPoolExecutor}
+import java.io.InputStream
 
 
 /**
@@ -57,7 +58,7 @@ object ProxyServer {
   val allChannels = new DefaultChannelGroup("HTTP-Proxy-Server")
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
 
-  def apply(port: Int = 9050, serverSSLEnable: Boolean = false, proxyToServerSSLEnable: Boolean = false) = new Proxy(port, serverSSLEnable)(proxyToServerSSLEnable)
+  def apply(port: Int = 9050, serverSSLEnable: Boolean = false, proxyToServerSSLEnable: Boolean = false) = new Proxy(port, serverSSLEnable, proxyToServerSSLEnable)
 
 
   def parseHostAndPort(uri: String) = {
@@ -80,30 +81,41 @@ object ProxyServer {
   }
 
 
-  class Proxy(port: Int = 9050, serverSSLEnable: Boolean = false)(implicit proxyToServerSSLEnable: Boolean = false) {
+  class Proxy(port: Int = 9050, serverSSLEnable: Boolean = false, proxyToServerSSLEnable: Boolean = false) {
     val chainProxies = mutable.MutableList[InetSocketAddress]()
 
     val stopped: AtomicBoolean = new AtomicBoolean(false)
 
     val serverBootstrap = new ServerBootstrap(serverSocketChannelFactory)
 
+    val serverSSLManager = new SSLManager {
+      def keyManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-server-keystore.jks")
+
+      def trustManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-client-for-server-trust-keystore.jks")
+    }
+
+    val clientSSLManager = new SSLManager {
+      def keyManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-client-keystore.jks")
+
+      def trustManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-server-for-client-trust-keystore.jks")
+    }
+
     def proxyServerPipeline = (pipeline: ChannelPipeline) => {
       if (isDebugged == InternalLogLevel.DEBUG) {
         pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
       }
-      // Uncomment the following line if you want HTTPS
       if (serverSSLEnable) {
-        val engine = getServerContext.createSSLEngine();
-        engine.setUseClientMode(false);
+        val engine = serverSSLManager.getSSLContext.createSSLEngine()
+        engine.setUseClientMode(false)
         engine.setNeedClientAuth(true)
-        pipeline.addLast("ssl", new SslHandler(engine));
+        pipeline.addLast("ssl", new SslHandler(engine))
       }
 
-      pipeline.addLast("decoder", new HttpRequestDecoder());
-      //      pipeline.addLast("aggregator", new HttpChunkAggregator(65536));
-      pipeline.addLast("encoder", new HttpResponseEncoder());
-      //      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler());
-      pipeline.addLast("proxyHandler", new ProxyHandler(chainProxies)(proxyToServerSSLEnable));
+      pipeline.addLast("decoder", new HttpRequestDecoder())
+      //      pipeline.addLast("aggregator", new HttpChunkAggregator(65536))
+      pipeline.addLast("encoder", new HttpResponseEncoder())
+      //      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler())
+      pipeline.addLast("proxyHandler", new ProxyHandler(chainProxies, proxyToServerSSLEnable)(clientSSLManager))
     }
 
     def shutdown = {
@@ -150,7 +162,7 @@ object ProxyServer {
 
   }
 
-  class ProxyHandler(chainProxies: mutable.MutableList[InetSocketAddress])(implicit proxyToServerSSLEnable: Boolean) extends SimpleChannelUpstreamHandler {
+  class ProxyHandler(chainProxies: mutable.MutableList[InetSocketAddress], proxyToServerSSLEnable: Boolean)(implicit clientSSLManager: SSLManager) extends SimpleChannelUpstreamHandler {
 
     val hostToChannelFuture = mutable.Map[InetSocketAddress, ChannelFuture]()
 
@@ -176,7 +188,7 @@ object ProxyServer {
                   pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
                 }
                 if (proxyToServerSSLEnable) {
-                  val engine = getClientContext.createSSLEngine
+                  val engine = clientSSLManager.getSSLContext.createSSLEngine
                   engine.setUseClientMode(true)
                   pipeline.addLast("ssl", new SslHandler(engine))
                 }
@@ -275,7 +287,7 @@ object ProxyServer {
         pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
       }
       if (proxyToServerSSLEnable) {
-        val engine = getClientContext.createSSLEngine
+        val engine = clientSSLManager.getSSLContext.createSSLEngine
         engine.setUseClientMode(true)
         pipeline.addLast("ssl", new SslHandler(engine))
       }
@@ -283,7 +295,7 @@ object ProxyServer {
       // Remove the following line if you don't want automatic content decompression.
       pipeline.addLast("inflater", new HttpContentDecompressor)
       // Uncomment the following line if you don't want to handle HttpChunks.
-      //      pipeline.addLast("aggregator", new HttpChunkAggregator(1048576));
+      //      pipeline.addLast("aggregator", new HttpChunkAggregator(1048576))
       pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
     }
 
@@ -371,48 +383,24 @@ object ProxyServer {
     }
   }
 
+}
 
-  def getServerContext: SSLContext = {
-    var serverContext: SSLContext = null
-    try {
-      val ks: KeyStore = KeyStore.getInstance("JKS")
-      ks.load(getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-server-keystore.jks"), "killccp-server".toCharArray)
-      val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
-      kmf.init(ks, "killccp-server".toCharArray)
-      val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
-      val tks: KeyStore = KeyStore.getInstance("JKS")
-      tks.load(getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-client-for-server-trust-keystore.jks"), "killccp-server".toCharArray)
-      tmf.init(tks)
-      serverContext = SSLContext.getInstance("SSL")
-      serverContext.init(kmf.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
-    }
-    catch {
-      case e: Exception => {
-        e.printStackTrace
-      }
-    }
-    return serverContext
-  }
+trait SSLManager {
+  def keyManagerKeyStoreInputStream: InputStream
 
-  def getClientContext: SSLContext = {
-    var clientContext: SSLContext = null
-    try {
-      val ks: KeyStore = KeyStore.getInstance("JKS")
-      ks.load(getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-client-keystore.jks"), "killccp-server".toCharArray)
-      val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
-      kmf.init(ks, "killccp-server".toCharArray)
-      val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
-      val tks: KeyStore = KeyStore.getInstance("JKS")
-      tks.load(getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-server-for-client-trust-keystore.jks"), "killccp-server".toCharArray)
-      tmf.init(tks)
-      clientContext = SSLContext.getInstance("SSL")
-      clientContext.init(kmf.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
-    }
-    catch {
-      case e: Exception => {
-        e.printStackTrace
-      }
-    }
-    return clientContext
+  def trustManagerKeyStoreInputStream: InputStream
+
+  def getSSLContext = {
+    val ks: KeyStore = KeyStore.getInstance("JKS")
+    ks.load(keyManagerKeyStoreInputStream, "killccp-server".toCharArray)
+    val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+    kmf.init(ks, "killccp-server".toCharArray)
+    val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
+    val tks: KeyStore = KeyStore.getInstance("JKS")
+    tks.load(trustManagerKeyStoreInputStream, "killccp-server".toCharArray)
+    tmf.init(tks)
+    val clientContext = SSLContext.getInstance("SSL")
+    clientContext.init(kmf.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
+    clientContext
   }
 }

@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import org.jboss.netty.channel._
 import collection.mutable
-import group.{DefaultChannelGroup, ChannelGroupFuture}
+import group.{ChannelGroup, DefaultChannelGroup, ChannelGroupFuture}
 import org.jboss.netty.handler.logging.LoggingHandler
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
@@ -37,7 +37,9 @@ import org.jboss.netty.handler.ssl.SslHandler
 import javax.net.ssl.{TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.{SecureRandom, KeyStore}
 import java.util.concurrent.{SynchronousQueue, TimeUnit, ThreadPoolExecutor}
-import java.io.InputStream
+import java.io.{FileInputStream, File, InputStream}
+import com.typesafe.config.{ConfigFactory, Config}
+import socket.{ClientSocketChannelFactory, ServerSocketChannelFactory}
 
 
 /**
@@ -48,24 +50,9 @@ import java.io.InputStream
 object ProxyServer {
 
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-  val logger = LoggerFactory.getLogger(getClass)
-  var isDebugged: InternalLogLevel = InternalLogLevel.INFO
-
-  val serverSocketChannelFactory = new NioServerSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
-
-  val clientSocketChannelFactory = new NioClientSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
-
-  val allChannels = new DefaultChannelGroup("HTTP-Proxy-Server")
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
 
-  def apply(port: Int = 9050, serverSSLEnable: Boolean = false, proxyToServerSSLEnable: Boolean = false) = new Proxy(port, serverSSLEnable, proxyToServerSSLEnable)
-
-
-  def parseHostAndPort(uri: String) = {
-    val hostPortPattern = """(.*//|^)([a-zA-Z\d.]+)\:*(\d*).*""".r
-    val hostPortPattern(prefix, host, port) = uri
-    new InetSocketAddress(host, Some(port).filter(_.trim.length > 0).getOrElse("80").toInt)
-  }
+  val logger = LoggerFactory.getLogger(getClass)
 
 
   implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
@@ -80,32 +67,26 @@ object ProxyServer {
     def operationComplete(future: ChannelFuture) = f(future)
   }
 
+  def parseHostAndPort(uri: String) = {
+    val hostPortPattern = """(.*//|^)([a-zA-Z\d.]+)\:*(\d*).*""".r
+    val hostPortPattern(prefix, host, port) = uri
+    new InetSocketAddress(host, Some(port).filter(_.trim.length > 0).getOrElse("80").toInt)
+  }
 
-  class Proxy(port: Int = 9050, serverSSLEnable: Boolean = false, proxyToServerSSLEnable: Boolean = false) {
-    val chainProxies = mutable.MutableList[InetSocketAddress]()
 
-    val stopped: AtomicBoolean = new AtomicBoolean(false)
+  class Proxy(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
+    implicit val currentProxyConfig = proxyConfig
 
-    val serverBootstrap = new ServerBootstrap(serverSocketChannelFactory)
+    val isStarted: AtomicBoolean = new AtomicBoolean(false)
 
-    val serverSSLManager = new SSLManager {
-      def keyManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-server-keystore.jks")
-
-      def trustManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-client-for-server-trust-keystore.jks")
-    }
-
-    val clientSSLManager = new SSLManager {
-      def keyManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-client-keystore.jks")
-
-      def trustManagerKeyStoreInputStream = getClass.getResourceAsStream("/binary/keystore/lifecosys-proxy-server-for-client-trust-keystore.jks")
-    }
+    val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
 
     def proxyServerPipeline = (pipeline: ChannelPipeline) => {
-      if (isDebugged == InternalLogLevel.DEBUG) {
+      if (proxyConfig.loggerLevel == InternalLogLevel.DEBUG) {
         pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
       }
-      if (serverSSLEnable) {
-        val engine = serverSSLManager.getSSLContext.createSSLEngine()
+      if (proxyConfig.serverSSLEnable) {
+        val engine = proxyConfig.serverSSLContext.createSSLEngine()
         engine.setUseClientMode(false)
         engine.setNeedClientAuth(true)
         pipeline.addLast("ssl", new SslHandler(engine))
@@ -115,20 +96,20 @@ object ProxyServer {
       //      pipeline.addLast("aggregator", new HttpChunkAggregator(65536))
       pipeline.addLast("encoder", new HttpResponseEncoder())
       //      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler())
-      pipeline.addLast("proxyHandler", new ProxyHandler(chainProxies, proxyToServerSSLEnable)(clientSSLManager))
+      pipeline.addLast("proxyHandler", new ProxyHandler)
     }
 
     def shutdown = {
       logger.info("Shutting down proxy")
-      stopped.get match {
-        case true => logger.info("Already stopped")
-        case _ => shutdown
+      isStarted.get match {
+        case true => shutdown
+        case _ => logger.info("Already stopped")
       }
       def shutdown {
-        stopped.set(true)
+        isStarted.set(false)
 
         logger.info("Closing all channels...")
-        val future: ChannelGroupFuture = allChannels.close
+        val future: ChannelGroupFuture = proxyConfig.allChannels.close
         future.awaitUninterruptibly(10 * 1000)
 
         if (!future.isCompleteSuccess) {
@@ -136,8 +117,8 @@ object ProxyServer {
             channelFuture => logger.warn("Can't close {}, case by {}", Array(channelFuture.getChannel, channelFuture.getCause))
           }
 
-          serverSocketChannelFactory.releaseExternalResources()
-          clientSocketChannelFactory.releaseExternalResources()
+          proxyConfig.serverSocketChannelFactory.releaseExternalResources()
+          proxyConfig.clientSocketChannelFactory.releaseExternalResources()
           logger.info("Done shutting down proxy")
         }
       }
@@ -145,10 +126,10 @@ object ProxyServer {
     }
 
     def start = {
-      logger.info("Starting proxy server on " + port)
+      logger.info("Starting proxy server on " + proxyConfig.port)
       serverBootstrap.setPipelineFactory(proxyServerPipeline)
 
-      allChannels.add(serverBootstrap.bind(new InetSocketAddress(port)))
+      proxyConfig.allChannels.add(serverBootstrap.bind(new InetSocketAddress(proxyConfig.port)))
 
       Runtime.getRuntime.addShutdownHook(new Thread(new Runnable {
         def run {
@@ -156,13 +137,19 @@ object ProxyServer {
           shutdown
         }
       }))
-      logger.info("Proxy server started on " + port)
+
+      isStarted.set(true)
+
+      logger.info("Proxy server started on " + proxyConfig.port)
     }
 
 
   }
 
-  class ProxyHandler(chainProxies: mutable.MutableList[InetSocketAddress], proxyToServerSSLEnable: Boolean)(implicit clientSSLManager: SSLManager) extends SimpleChannelUpstreamHandler {
+  class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+
+    val proxyToServerSSLEnable = proxyConfig.proxyToServerSSLEnable
+    val chainProxies = proxyConfig.chainProxies
 
     val hostToChannelFuture = mutable.Map[InetSocketAddress, ChannelFuture]()
 
@@ -173,7 +160,7 @@ object ProxyServer {
       val browserToProxyChannel = ctx.getChannel
       val host = chainProxies.get(0).getOrElse(parseHostAndPort(httpRequest.getUri))
       def newClientBootstrap = {
-        val proxyToServerBootstrap = new ClientBootstrap(clientSocketChannelFactory)
+        val proxyToServerBootstrap = new ClientBootstrap(proxyConfig.clientSocketChannelFactory)
         proxyToServerBootstrap.setOption("connectTimeoutMillis", 40 * 1000)
         proxyToServerBootstrap
       }
@@ -184,11 +171,11 @@ object ProxyServer {
             val proxyToServerBootstrap: ClientBootstrap = newClientBootstrap
             proxyToServerBootstrap.setPipelineFactory {
               pipeline: ChannelPipeline =>
-                if (isDebugged == InternalLogLevel.DEBUG) {
+                if (proxyConfig.loggerLevel == InternalLogLevel.DEBUG) {
                   pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
                 }
                 if (proxyToServerSSLEnable) {
-                  val engine = clientSSLManager.getSSLContext.createSSLEngine
+                  val engine = proxyConfig.clientSSLContext.createSSLEngine
                   engine.setUseClientMode(true)
                   pipeline.addLast("ssl", new SslHandler(engine))
                 }
@@ -277,17 +264,17 @@ object ProxyServer {
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       logger.debug("New channel opened: {}", e.getChannel)
-      allChannels.add(e.getChannel)
+      proxyConfig.allChannels.add(e.getChannel)
       super.channelOpen(ctx, e)
 
     }
 
     def proxyToServerPipeline(browserToProxyChannel: Channel) = (pipeline: ChannelPipeline) => {
-      if (isDebugged == InternalLogLevel.DEBUG) {
+      if (proxyConfig.loggerLevel == InternalLogLevel.DEBUG) {
         pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
       }
       if (proxyToServerSSLEnable) {
-        val engine = clientSSLManager.getSSLContext.createSSLEngine
+        val engine = proxyConfig.clientSSLContext.createSSLEngine
         engine.setUseClientMode(true)
         pipeline.addLast("ssl", new SslHandler(engine))
       }
@@ -315,7 +302,7 @@ object ProxyServer {
   }
 
 
-  class HttpRelayingHandler(val browserToProxyChannel: Channel) extends SimpleChannelUpstreamHandler {
+  class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       logger.debug("============================================================\n {}", e.getMessage.toString)
 
@@ -331,7 +318,7 @@ object ProxyServer {
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       logger.debug("New channel opened: {}", e.getChannel)
-      allChannels.add(e.getChannel)
+      proxyConfig.allChannels.add(e.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -353,7 +340,7 @@ object ProxyServer {
   }
 
 
-  class ConnectionRequestHandler(relayChannel: Channel) extends SimpleChannelUpstreamHandler {
+  class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       logger.debug("ConnectionRequestHandler-{} receive message:\n {}", Array(ctx.getChannel, e.getMessage))
       val msg: ChannelBuffer = e.getMessage.asInstanceOf[ChannelBuffer]
@@ -365,7 +352,7 @@ object ProxyServer {
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       val ch: Channel = e.getChannel
       logger.info("CONNECT channel opened on: {}", ch)
-      allChannels.add(e.getChannel)
+      proxyConfig.allChannels.add(e.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -386,21 +373,148 @@ object ProxyServer {
 }
 
 trait SSLManager {
+  def keyStorePassword: String
   def keyManagerKeyStoreInputStream: InputStream
 
+  def trustKeyStorePassword: String
   def trustManagerKeyStoreInputStream: InputStream
 
   def getSSLContext = {
-    val ks: KeyStore = KeyStore.getInstance("JKS")
-    ks.load(keyManagerKeyStoreInputStream, "killccp-server".toCharArray)
-    val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
-    kmf.init(ks, "killccp-server".toCharArray)
-    val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
-    val tks: KeyStore = KeyStore.getInstance("JKS")
-    tks.load(trustManagerKeyStoreInputStream, "killccp-server".toCharArray)
-    tmf.init(tks)
+    val keyStore: KeyStore = KeyStore.getInstance("JKS")
+    keyStore.load(keyManagerKeyStoreInputStream, keyStorePassword.toCharArray)
+    val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+    keyManagerFactory.init(keyStore, keyStorePassword.toCharArray)
+    val trustKeyStore: KeyStore = KeyStore.getInstance("JKS")
+    trustKeyStore.load(trustManagerKeyStoreInputStream, trustKeyStorePassword.toCharArray)
+    val trustManagerFactory: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
+    trustManagerFactory.init(trustKeyStore)
     val clientContext = SSLContext.getInstance("SSL")
-    clientContext.init(kmf.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
+    clientContext.init(keyManagerFactory.getKeyManagers, trustManagerFactory.getTrustManagers, new SecureRandom)
     clientContext
   }
+}
+
+trait ProxyConfig {
+
+  def port: Int
+
+  def serverSSLEnable: Boolean
+
+  def proxyToServerSSLEnable: Boolean
+
+  def loggerLevel: InternalLogLevel
+
+  def chainProxies: mutable.MutableList[InetSocketAddress]
+
+  def serverSocketChannelFactory: ServerSocketChannelFactory
+
+  def clientSocketChannelFactory: ClientSocketChannelFactory
+
+  def serverSSLContext: SSLContext
+
+  def clientSSLContext: SSLContext
+
+
+  val allChannels: ChannelGroup = new DefaultChannelGroup("HTTP-Proxy-Server")
+}
+
+
+class SimpleProxyConfig extends ProxyConfig {
+
+  override val port = 9050
+
+  override val serverSSLEnable = false
+
+  override val proxyToServerSSLEnable = false
+
+  override val loggerLevel: InternalLogLevel = InternalLogLevel.INFO
+
+  override val chainProxies = mutable.MutableList[InetSocketAddress]()
+
+
+  override val serverSocketChannelFactory = new NioServerSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
+
+  override val clientSocketChannelFactory = new NioClientSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
+
+
+  override val serverSSLContext = new SSLManager {
+    override val keyStorePassword="killccp"
+    override val keyManagerKeyStoreInputStream = classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-server-keystore.jks")
+    override val trustKeyStorePassword="killccp"
+    override val trustManagerKeyStoreInputStream = classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-client-for-server-trust-keystore.jks")
+  }.getSSLContext
+
+  override val clientSSLContext = new SSLManager {
+    override val keyStorePassword="killccp"
+    override val keyManagerKeyStoreInputStream = classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-client-keystore.jks")
+    override val trustKeyStorePassword="killccp"
+    override val trustManagerKeyStoreInputStream = classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-server-for-client-trust-keystore.jks")
+  }.getSSLContext
+}
+
+
+class DefaultProxyConfig(config: Option[Config] = None) extends ProxyConfig {
+
+  val thisConfig = config.getOrElse(ConfigFactory.load())
+
+  val name = thisConfig.getString("name")
+
+  val serverThreadCorePoolSize = thisConfig.getInt("proxy-server.thread.corePoolSize")
+  val serverThreadMaximumPoolSize = thisConfig.getInt("proxy-server.thread.maximumPoolSize")
+  val serverSSLKeystorePassword = thisConfig.getString("proxy-server.ssl.keystore-password")
+  val serverSSLKeystorePath = thisConfig.getString("proxy-server.ssl.keystore-path")
+  val serverSSLTrustKeystorePath = thisConfig.getString("proxy-server.ssl.trust-keystore-path")
+
+  val proxyToServerThreadCorePoolSize = thisConfig.getInt("proxy-server-to-remote.thread.corePoolSize")
+  val proxyToServerThreadMaximumPoolSize = thisConfig.getInt("proxy-server-to-remote.thread.maximumPoolSize")
+  val proxyToServerSSLKeystorePassword = thisConfig.getString("proxy-server-to-remote.ssl.keystore-password")
+  val proxyToServerSSLKeystorePath = thisConfig.getString("proxy-server-to-remote.ssl.keystore-path")
+  val proxyToServerSSLTrustKeystorePath = thisConfig.getString("proxy-server-to-remote.ssl.trust-keystore-path")
+
+  //  require(thisConfig.getInt("port") > 0&&thisConfig.getInt("port")<65535)
+  //
+  //  require(serverThreadCorePoolSize > 0)
+  //  require(serverThreadMaximumPoolSize > 0)
+  //  if (thisConfig.getBoolean("proxy-server.ssl.enabled")) {
+  //    require(serverSSLKeystorePath != null)
+  //    require(serverSSLTrustKeystorePath != null)
+  //  }
+  //  require(proxyToServerThreadCorePoolSize > 0)
+  //  require(proxyToServerThreadMaximumPoolSize > 0)
+  //  if (thisConfig.getBoolean("proxy-server-to-remote.ssl.enabled")) {
+  //    require((proxyToServerSSLKeystorePath) != null)
+  //    require(proxyToServerSSLTrustKeystorePath != null)
+  //  }
+
+  val serverExecutor = new ThreadPoolExecutor(serverThreadCorePoolSize, serverThreadMaximumPoolSize, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
+  val clientExecutor = new ThreadPoolExecutor(proxyToServerThreadCorePoolSize, proxyToServerThreadMaximumPoolSize, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
+
+
+  override val port = thisConfig.getInt("port")
+  override val serverSSLEnable = thisConfig.getBoolean("proxy-server.ssl.enabled")
+  override val proxyToServerSSLEnable = thisConfig.getBoolean("proxy-server-to-remote.ssl.enabled")
+
+  override def loggerLevel = InternalLogLevel.valueOf(thisConfig.getString("logger-level"))
+
+  override val serverSocketChannelFactory = new NioServerSocketChannelFactory(serverExecutor, serverExecutor)
+  override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor);
+
+  override def chainProxies = thisConfig.getString("chain-proxy.host") match {
+    case host: String if host.trim.length > 0 => mutable.MutableList[InetSocketAddress](ProxyServer.parseHostAndPort(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
+    case _ => mutable.MutableList[InetSocketAddress]()
+  }
+
+  override val serverSSLContext = new SSLManager {
+    override val keyStorePassword=serverSSLKeystorePassword
+    override val keyManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(serverSSLKeystorePath).getPath)
+    override val trustKeyStorePassword=serverSSLKeystorePassword
+    override val trustManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(serverSSLTrustKeystorePath).getPath)
+  }.getSSLContext
+
+  override val clientSSLContext = new SSLManager {
+    override val keyStorePassword=proxyToServerSSLKeystorePassword
+    override val keyManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(proxyToServerSSLKeystorePath).getPath)
+    override val trustKeyStorePassword=proxyToServerSSLKeystorePassword
+    override val trustManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(proxyToServerSSLTrustKeystorePath).getPath)
+  }.getSSLContext
 }

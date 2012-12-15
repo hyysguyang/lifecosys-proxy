@@ -26,7 +26,8 @@ import android.content.Intent
 import android.os._
 import android.widget.Toast
 import org.slf4j.LoggerFactory
-import proxy.ProxyServer
+import proxy.{DefaultProxyConfig, ProxyServer}
+import scala.None
 
 
 /**
@@ -36,6 +37,7 @@ import proxy.ProxyServer
  */
 class ProxyService extends Service {
   val logger = LoggerFactory.getLogger(classOf[ProxyService])
+  var proxyServer:ProxyServer.Proxy=null
   val isRunning = false
   var mServiceLooper: Looper = null
   var mServiceHandler: ServiceHandler = null
@@ -45,7 +47,8 @@ class ProxyService extends Service {
 
     override def handleMessage(msg: Message) {
       logger.error("Proxy service starting..........{}.................", msg)
-      ProxyServer().start
+      proxyServer=new ProxyServer.Proxy(new DefaultProxyConfig())
+      proxyServer.start
     }
   }
 
@@ -72,6 +75,9 @@ class ProxyService extends Service {
 
   override def onDestroy() {
     logger.error("Proxy service shudown..............................")
+    if (proxyServer!=null){
+      proxyServer.shutdown
+    }
     Toast.makeText(this, "Proxy service shudown..............................", Toast.LENGTH_LONG).show()
   }
 }

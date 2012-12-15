@@ -20,7 +20,7 @@
 
 package com.lifecosys.toolkit.proxy.client
 
-import com.lifecosys.toolkit.proxy.ProxyServer
+import com.lifecosys.toolkit.proxy.{DefaultProxyConfig, ProxyServer}
 
 /**
  *
@@ -29,10 +29,9 @@ import com.lifecosys.toolkit.proxy.ProxyServer
  * @author <a href="mailto:Young.Gu@lifecosys.com">Young Gu</a>
  * @version 1.0 12/15/12 2:44 AM
  */
-object ProxyClientLauncher {
+object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    val proxy = ProxyServer(proxyToServerSSLEnable = true)
-    proxy.start
+    new ProxyServer.Proxy(new DefaultProxyConfig()).start
   }
 }

@@ -21,44 +21,94 @@
 package com.lifecosys.toolkit.functional
 
 import org.apache.http.client.fluent.{Executor, Request}
-import com.lifecosys.toolkit.proxy._
 import org.apache.http.HttpHost
 import java.net.InetSocketAddress
 import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
 import org.junit.{Assert, Test, After, Before}
 import org.jboss.netty.channel.ChannelException
-import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory, InternalLogLevel}
+import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
 import javax.net.ssl.{X509TrustManager, SSLContext}
 import java.security.cert.X509Certificate
+import collection.mutable
+import ProxyTestUtils._
+import com.lifecosys.toolkit.proxy.{ProxyServer, SimpleProxyConfig}
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
  * @author <a href="mailto:Young.Gu@lifecosys.com">Young Gu</a>
  * @version 1.0 12/2/12 12:56 AM
  */
-class ProxyTest {
+
+object ProxyTestUtils {
+
+  Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
+
+  def request(url: String): Request = {
+    Request.Get(url).socketTimeout(60 * 1000)
+  }
+
+  def zip(proxyContent: Any): String = {
+    proxyContent.toString.filter(_.isWhitespace).replace("\n", "").replace("\r", "")
+  }
+
+
+  def createStubSSLClientContext = {
+    val clientContext = SSLContext.getInstance("TLS")
+    clientContext.init(null, Array(new X509TrustManager {
+      def getAcceptedIssuers: Array[X509Certificate] = {
+        return new Array[X509Certificate](0)
+      }
+
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all client" + chain(0).getSubjectDN)
+      }
+
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all server" + chain(0).getSubjectDN)
+      }
+    }), null)
+
+    clientContext
+  }
+
+
+  def createProxyConfig(bindPort: Int = 8080, chainedPort: Option[Int] = None, isServerSSLEnable: Boolean = false, isClientSSLEnable: Boolean = false) = {
+    new SimpleProxyConfig {
+      override val port = bindPort
+
+      override val chainProxies = {
+        chainedPort match {
+          case Some(port) => mutable.MutableList[InetSocketAddress](new InetSocketAddress(port))
+          case None => mutable.MutableList[InetSocketAddress]()
+        }
+      }
+
+      override val serverSSLEnable = isServerSSLEnable
+      override val proxyToServerSSLEnable = isClientSSLEnable
+    }
+  }
+
+
+
+
+
+}
+
+class SimpleProxyTest {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   var proxy: ProxyServer.Proxy = null
-  var chainProxy: ProxyServer.Proxy = null
 
   @Before
   def before() {
-    proxy = ProxyServer(8080)
-    chainProxy = ProxyServer(8081)
-
+    proxy =  new ProxyServer.Proxy(createProxyConfig())
   }
 
   @After
   def after() {
     proxy shutdown
 
-    if (chainProxy != null) {
-      chainProxy shutdown
-    }
-
     proxy = null
-    chainProxy = null
 
   }
 
@@ -68,10 +118,10 @@ class ProxyTest {
     proxy.start
     proxy.shutdown
 
-    proxy = ProxyServer(8080)
+    proxy = new ProxyServer.Proxy(createProxyConfig())
     proxy.start
 
-    ProxyServer(8080).start
+    new ProxyServer.Proxy(createProxyConfig()).start
 
   }
 
@@ -108,21 +158,55 @@ class ProxyTest {
   @Test
   def testSimplePage {
     proxy start
-    val proxyContent = request("http://www.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
+
+    Assert.assertTrue(request("http://www.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
 
   @Test
   def testAnotherSimplePage {
     proxy start
-    val proxyContent = request("http://store.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
+
+    Assert.assertTrue(request("http://store.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
+
+
+  @Test
+  def testAccessHttps {
+    proxy start
+
+    Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+  }
+
+}
+
+
+class ChainedProxyTest {
+  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+  var proxy: ProxyServer.Proxy = null
+  var chainProxy: ProxyServer.Proxy = null
+
+  @Before
+  def before() {
+
+
+  }
+
+  @After
+  def after() {
+    proxy shutdown
+
+    chainProxy shutdown
+
+    proxy = null
+    chainProxy = null
+
+  }
+
 
   @Test
   def testAccessViaChainedProxy {
-
-    proxy.chainProxies += new InetSocketAddress(8081)
+    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081))
 
     chainProxy start
 
@@ -139,8 +223,9 @@ class ProxyTest {
 
   @Test
   def testAccessViaUnavailableChainedProxy {
+    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081))
 
-    proxy.chainProxies.+=(new InetSocketAddress(8083))
     chainProxy.start
     proxy.start
     try {
@@ -151,33 +236,15 @@ class ProxyTest {
 
   }
 
-  @Test
-  def testAccessHttps {
-    proxy.start
-
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
-    val content = request("https://developer.apple.com/").execute.returnContent
-    Assert.assertTrue(content.toString.length > 0)
-
-    var proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-
-    Assert.assertTrue(proxyContent.toString.length > 0)
-
-  }
-
 
   @Test
   def testAccessViaChainedProxyForHttps {
-
-    proxy.chainProxies += new InetSocketAddress(8081)
+    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081))
 
     chainProxy start
 
     proxy start
-
-    ProxyServer.isDebugged = InternalLogLevel.DEBUG;
-
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
 
     var proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8081)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
@@ -190,74 +257,29 @@ class ProxyTest {
 
   @Test
   def testAccessViaChainedProxy_withSSLSupport {
-    after()
-    proxy = ProxyServer(8080, false, true)
-    chainProxy = ProxyServer(8081, true, false)
-    proxy.chainProxies += new InetSocketAddress(8081)
+    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
+    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
 
     chainProxy start
 
     proxy start
 
-    ProxyServer.isDebugged = InternalLogLevel.DEBUG;
-
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
-
-    var proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
-
+    Assert.assertTrue(request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
 
   @Test
   def testAccessViaChainedProxyForHttps_withSSLSupport {
-    after()
-    proxy = ProxyServer(8080, false, true)
-    chainProxy = ProxyServer(8081, true, false)
-    proxy.chainProxies += new InetSocketAddress(8081)
+
+    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
+    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
 
     chainProxy start
 
     proxy start
 
-    ProxyServer.isDebugged = InternalLogLevel.DEBUG;
+    Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
 
-    Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
-
-    var proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
-
-
-  }
-
-
-  def request(url: String): Request = {
-    Request.Get(url).socketTimeout(60 * 1000)
-  }
-
-  def zip(proxyContent: Any): String = {
-    proxyContent.toString.filter(_.isWhitespace).replace("\n", "").replace("\r", "")
-  }
-
-
-  def createStubSSLClientContext = {
-    val clientContext = SSLContext.getInstance("TLS")
-    clientContext.init(null, Array(new X509TrustManager {
-      def getAcceptedIssuers: Array[X509Certificate] = {
-        return new Array[X509Certificate](0)
-      }
-
-      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all client" + chain(0).getSubjectDN)
-      }
-
-      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all server" + chain(0).getSubjectDN)
-      }
-    }), null)
-
-    clientContext
   }
 
 
 }
-

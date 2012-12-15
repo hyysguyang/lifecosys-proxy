@@ -41,14 +41,6 @@
             </includes>
         </fileSet>
 
-        <!--NOTE: a trick to create the logs directory to avoid the error when jsw write the pid file-->
-        <fileSet>
-            <directory>${project.build.directory}/appassembler/conf</directory>
-            <outputDirectory>/logs</outputDirectory>
-            <includes>
-                <include>readme.txt</include>
-            </includes>
-        </fileSet>
         <fileSet>
             <directory>${project.build.directory}/appassembler/jsw/lifecosys-proxy</directory>
             <outputDirectory>.</outputDirectory>
@@ -56,6 +48,19 @@
         <fileSet>
             <directory>${project.build.directory}/appassembler/bin</directory>
             <outputDirectory>/bin</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/src/main/config</directory>
+            <outputDirectory>/conf</outputDirectory>
+        </fileSet>
+
+        <!--NOTE: a trick to create the logs directory to avoid the error when jsw write the pid file-->
+        <fileSet>
+            <directory>${project.build.directory}/appassembler/conf</directory>
+            <outputDirectory>/logs</outputDirectory>
+            <includes>
+                <include>readme.txt</include>
+            </includes>
         </fileSet>
     </fileSets>
 

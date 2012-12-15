@@ -107,7 +107,7 @@
 
                         <programs>
                             <program>
-                                <mainClass>com.lifecosys.toolkit.proxy.Launcher</mainClass>
+                                <mainClass>com.lifecosys.toolkit.proxy.server.ProxyServerLauncher</mainClass>
                                 <name>run</name>
                             </program>
                         </programs>
@@ -116,7 +116,7 @@
                         <daemons>
                             <daemon>
                                 <id>lifecosys-proxy</id>
-                                <mainClass>com.lifecosys.toolkit.proxy.Launcher</mainClass>
+                                <mainClass>com.lifecosys.toolkit.proxy.server.ProxyServerLauncher</mainClass>
                                 <commandLineArguments>
                                     <commandLineArgument>start</commandLineArgument>
                                 </commandLineArguments>

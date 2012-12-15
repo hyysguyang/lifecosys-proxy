@@ -20,7 +20,12 @@
 
 package com.lifecosys.toolkit.proxy.server
 
-import com.lifecosys.toolkit.proxy.ProxyServer
+import com.lifecosys.toolkit.proxy.{DefaultProxyConfig, ProxyServer}
+import com.typesafe.config.ConfigFactory
+import org.jboss.netty.logging.InternalLogLevel
+import scala.Some
+import scala.Predef._
+import scala.Some
 
 /**
  *
@@ -32,6 +37,6 @@ import com.lifecosys.toolkit.proxy.ProxyServer
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    ProxyServer(serverSSLEnable = true).start
+    new ProxyServer.Proxy(new DefaultProxyConfig()).start
   }
 }

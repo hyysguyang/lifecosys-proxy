@@ -18,7 +18,7 @@
  * ===End Copyright Notice===
  */
 
-package com.lifecosys.toolkit.proxy.client
+package com.lifecosys.toolkit.proxy.server
 
 import com.lifecosys.toolkit.proxy.{DefaultProxyConfig, ProxyServer}
 

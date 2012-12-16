@@ -21,11 +21,7 @@
 package com.lifecosys.toolkit.proxy.server
 
 import com.lifecosys.toolkit.proxy.{DefaultProxyConfig, ProxyServer}
-import com.typesafe.config.ConfigFactory
-import org.jboss.netty.logging.InternalLogLevel
-import scala.Some
 import scala.Predef._
-import scala.Some
 
 /**
  *

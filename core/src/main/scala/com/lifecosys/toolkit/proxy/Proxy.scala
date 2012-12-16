@@ -88,7 +88,9 @@ object ProxyServer {
       if (proxyConfig.serverSSLEnable) {
         val engine = proxyConfig.serverSSLContext.createSSLEngine()
         engine.setUseClientMode(false)
-        engine.setNeedClientAuth(true)
+
+        //FIXME:Need client auth to more secure
+//        engine.setNeedClientAuth(true)
         pipeline.addLast("ssl", new SslHandler(engine))
       }
 
@@ -396,23 +398,23 @@ trait SSLManager {
 
 trait ProxyConfig {
 
-  def port: Int
+  val port: Int
 
-  def serverSSLEnable: Boolean
+  val serverSSLEnable: Boolean
 
-  def proxyToServerSSLEnable: Boolean
+  val proxyToServerSSLEnable: Boolean
 
-  def loggerLevel: InternalLogLevel
+  val loggerLevel: InternalLogLevel
 
-  def chainProxies: mutable.MutableList[InetSocketAddress]
+  val chainProxies: mutable.MutableList[InetSocketAddress]
 
-  def serverSocketChannelFactory: ServerSocketChannelFactory
+  val serverSocketChannelFactory: ServerSocketChannelFactory
 
-  def clientSocketChannelFactory: ClientSocketChannelFactory
+  val clientSocketChannelFactory: ClientSocketChannelFactory
 
-  def serverSSLContext: SSLContext
+  val serverSSLContext: SSLContext
 
-  def clientSSLContext: SSLContext
+  val clientSSLContext: SSLContext
 
 
   val allChannels: ChannelGroup = new DefaultChannelGroup("HTTP-Proxy-Server")
@@ -494,27 +496,68 @@ class DefaultProxyConfig(config: Option[Config] = None) extends ProxyConfig {
   override val serverSSLEnable = thisConfig.getBoolean("proxy-server.ssl.enabled")
   override val proxyToServerSSLEnable = thisConfig.getBoolean("proxy-server-to-remote.ssl.enabled")
 
-  override def loggerLevel = InternalLogLevel.valueOf(thisConfig.getString("logger-level"))
+  override val loggerLevel = InternalLogLevel.valueOf(thisConfig.getString("logger-level"))
 
   override val serverSocketChannelFactory = new NioServerSocketChannelFactory(serverExecutor, serverExecutor)
   override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor);
 
-  override def chainProxies = thisConfig.getString("chain-proxy.host") match {
+  override val chainProxies = thisConfig.getString("chain-proxy.host") match {
     case host: String if host.trim.length > 0 => mutable.MutableList[InetSocketAddress](ProxyServer.parseHostAndPort(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
     case _ => mutable.MutableList[InetSocketAddress]()
   }
 
-  override val serverSSLContext = new SSLManager {
-    override val keyStorePassword=serverSSLKeystorePassword
-    override val keyManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(serverSSLKeystorePath).getPath)
-    override val trustKeyStorePassword=serverSSLKeystorePassword
-    override val trustManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(serverSSLTrustKeystorePath).getPath)
-  }.getSSLContext
+  override val serverSSLContext = serverSSLManager.getSSLContext
 
-  override val clientSSLContext = new SSLManager {
-    override val keyStorePassword=proxyToServerSSLKeystorePassword
-    override val keyManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(proxyToServerSSLKeystorePath).getPath)
-    override val trustKeyStorePassword=proxyToServerSSLKeystorePassword
-    override val trustManagerKeyStoreInputStream = new FileInputStream(classOf[DefaultProxyConfig].getResource(proxyToServerSSLTrustKeystorePath).getPath)
-  }.getSSLContext
+  override val clientSSLContext = clientSSLManager.getSSLContext
+
+
+  def serverSSLManager= {
+    new SSLManager {
+      override val keyStorePassword = serverSSLKeystorePassword
+      override val keyManagerKeyStoreInputStream = classOf[DefaultProxyConfig].getResourceAsStream(serverSSLKeystorePath)
+      //FIXME: Trust all client, but we need trust manager
+      override val trustKeyStorePassword = null
+      override val trustManagerKeyStoreInputStream = null
+
+//      override val trustKeyStorePassword = serverSSLKeystorePassword
+//      override val trustManagerKeyStoreInputStream = classOf[DefaultProxyConfig].getResourceAsStream(serverSSLTrustKeystorePath)
+      override def getSSLContext = {
+        val keyStore: KeyStore = KeyStore.getInstance("JKS")
+        keyStore.load(keyManagerKeyStoreInputStream, keyStorePassword.toCharArray)
+        val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+        keyManagerFactory.init(keyStore, keyStorePassword.toCharArray)
+        val clientContext = SSLContext.getInstance("SSL")
+        clientContext.init(keyManagerFactory.getKeyManagers, null, new SecureRandom)
+        clientContext
+      }
+    }
+  }
+
+  def clientSSLManager= {
+    new SSLManager {
+      override val keyStorePassword=null
+      override val keyManagerKeyStoreInputStream = null
+//      override val keyStorePassword=proxyToServerSSLKeystorePassword
+//      override val keyManagerKeyStoreInputStream = classOf[DefaultProxyConfig].getResourceAsStream(proxyToServerSSLKeystorePath)
+      override val trustKeyStorePassword=proxyToServerSSLKeystorePassword
+      override val trustManagerKeyStoreInputStream = classOf[DefaultProxyConfig].getResourceAsStream(proxyToServerSSLTrustKeystorePath)
+      //FIXME: Trust all client, but we need trust manager
+      override def getSSLContext = {
+//        val keyStore: KeyStore = KeyStore.getInstance("JKS")
+//        keyStore.load(keyManagerKeyStoreInputStream, keyStorePassword.toCharArray)
+//        val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+//        keyManagerFactory.init(keyStore, keyStorePassword.toCharArray)
+        val trustKeyStore: KeyStore = KeyStore.getInstance("JKS")
+        trustKeyStore.load(trustManagerKeyStoreInputStream, trustKeyStorePassword.toCharArray)
+        val trustManagerFactory: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
+        trustManagerFactory.init(trustKeyStore)
+        val clientContext = SSLContext.getInstance("SSL")
+        clientContext.init(null, trustManagerFactory.getTrustManagers, new SecureRandom)
+        clientContext
+      }
+    }
+  }
+
+
+
 }

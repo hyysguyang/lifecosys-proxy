@@ -26,8 +26,12 @@ import android.content.Intent
 import android.os._
 import android.widget.Toast
 import org.slf4j.LoggerFactory
-import proxy.{DefaultProxyConfig, ProxyServer}
+import proxy.{SSLManager, DefaultProxyConfig, ProxyServer}
 import scala.None
+import com.typesafe.config.{Config, ConfigFactory}
+import java.io.InputStream
+import java.security.{SecureRandom, KeyStore}
+import javax.net.ssl.{SSLContext, TrustManagerFactory, KeyManagerFactory}
 
 
 /**
@@ -37,7 +41,7 @@ import scala.None
  */
 class ProxyService extends Service {
   val logger = LoggerFactory.getLogger(classOf[ProxyService])
-  var proxyServer:ProxyServer.Proxy=null
+  var proxyServer: ProxyServer.Proxy = null
   val isRunning = false
   var mServiceLooper: Looper = null
   var mServiceHandler: ServiceHandler = null
@@ -47,8 +51,44 @@ class ProxyService extends Service {
 
     override def handleMessage(msg: Message) {
       logger.error("Proxy service starting..........{}.................", msg)
-      proxyServer=new ProxyServer.Proxy(new DefaultProxyConfig())
+      proxyServer = new ProxyServer.Proxy(new DefaultProxyConfig {
+
+
+        override def serverSSLManager = clientSSLManager
+        override def clientSSLManager = {
+          new SSLManager {
+            override val keyStorePassword = null
+            override val keyManagerKeyStoreInputStream = null
+//            override val keyStorePassword = proxyToServerSSLKeystorePassword
+//            override val keyManagerKeyStoreInputStream = classOf[DefaultProxyConfig].getResourceAsStream(proxyToServerSSLKeystorePath)
+            override val trustKeyStorePassword = null
+            override val trustManagerKeyStoreInputStream = null
+//            override val trustKeyStorePassword = proxyToServerSSLKeystorePassword
+//            override val trustManagerKeyStoreInputStream = classOf[DefaultProxyConfig].getResourceAsStream(proxyToServerSSLTrustKeystorePath)
+
+            override def getSSLContext = {
+              //FIXME: Trust all client, but we need trust manager
+//              val keyStore: KeyStore = KeyStore.getInstance("BKS")
+//              keyStore.load(keyManagerKeyStoreInputStream, keyStorePassword.toCharArray)
+//              val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("X509")
+//              keyManagerFactory.init(keyStore, keyStorePassword.toCharArray)
+
+              val trustKeyStore: KeyStore = KeyStore.getInstance("BKS")
+              trustKeyStore.load(getResources.openRawResource(R.raw.proxy_server_android_trust_keystore), "killccp-server".toCharArray)
+              val trustManagerFactory: TrustManagerFactory = TrustManagerFactory.getInstance("X509")
+              trustManagerFactory.init(trustKeyStore)
+
+              val clientContext = SSLContext.getInstance("SSL")
+              clientContext.init(null, trustManagerFactory.getTrustManagers, new SecureRandom)
+              clientContext
+            }
+          }
+        }
+      }
+      )
+
       proxyServer.start
+
     }
   }
 
@@ -75,7 +115,7 @@ class ProxyService extends Service {
 
   override def onDestroy() {
     logger.error("Proxy service shudown..............................")
-    if (proxyServer!=null){
+    if (proxyServer != null) {
       proxyServer.shutdown
     }
     Toast.makeText(this, "Proxy service shudown..............................", Toast.LENGTH_LONG).show()

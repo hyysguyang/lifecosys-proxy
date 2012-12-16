@@ -37,7 +37,7 @@ import org.jboss.netty.handler.ssl.SslHandler
 import javax.net.ssl.{TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.{SecureRandom, KeyStore}
 import java.util.concurrent.{SynchronousQueue, TimeUnit, ThreadPoolExecutor}
-import java.io.{FileInputStream, File, InputStream}
+import java.io.InputStream
 import com.typesafe.config.{ConfigFactory, Config}
 import socket.{ClientSocketChannelFactory, ServerSocketChannelFactory}
 
@@ -158,7 +158,7 @@ object ProxyServer {
 
     override def messageReceived(ctx: ChannelHandlerContext, me: MessageEvent) {
       val httpRequest = me.getMessage().asInstanceOf[HttpRequest]
-      logger.debug("Receive request: {} {} {}", httpRequest.getMethod, httpRequest.getUri, ctx.getChannel())
+      if(logger.isDebugEnabled())logger.debug("Receive request: {} {} {}", httpRequest.getMethod, httpRequest.getUri, ctx.getChannel())
       val browserToProxyChannel = ctx.getChannel
       val host = chainProxies.get(0).getOrElse(parseHostAndPort(httpRequest.getUri))
       def newClientBootstrap = {
@@ -189,11 +189,11 @@ object ProxyServer {
           def connectProcess(future: ChannelFuture): Unit = {
             future.isSuccess match {
               case true => connectSuccessProcess(future)
-              case false => logger.info("Close browser connection..."); browserToProxyChannel.close
+              case false => if(logger.isDebugEnabled())logger.debug("Close browser connection..."); browserToProxyChannel.close
             }
           }
           def connectSuccessProcess(future: ChannelFuture) {
-            logger.info("Connection successful: {}", future.getChannel)
+            if(logger.isDebugEnabled())logger.debug("Connection successful: {}", future.getChannel)
 
             val pipeline = browserToProxyChannel.getPipeline
             pipeline.getNames.filterNot(List("logger", "ssl").contains(_)).foreach(pipeline remove _)
@@ -205,14 +205,14 @@ object ProxyServer {
                 future.getChannel.write(httpRequest).addListener {
                   future: ChannelFuture => {
                     future.getChannel.getPipeline.remove("encoder")
-                    logger.info("Finished write request to {} \n {} ", Array(future.getChannel, httpRequest))
+                    if(logger.isDebugEnabled())logger.debug("Finished write request to {} \n {} ", Array(future.getChannel, httpRequest))
                   }
                 }
               }
               case None => {
                 val wf = browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
                 wf.addListener {
-                  future: ChannelFuture => logger.info("Finished write request to {} \n {} ", Array(future.getChannel, connectProxyResponse))
+                  future: ChannelFuture => if(logger.isDebugEnabled())logger.debug("Finished write request to {} \n {} ", Array(future.getChannel, connectProxyResponse))
                 }
               }
             }
@@ -221,7 +221,7 @@ object ProxyServer {
           }
 
           ctx.getChannel.setReadable(false)
-          logger.debug("Starting new connection to: {}", host)
+          if(logger.isDebugEnabled())logger.debug("Starting new connection to: {}", host)
           createProxyToServerBootstrap.connect(host).addListener(connectProcess _)
         }
 
@@ -241,11 +241,11 @@ object ProxyServer {
               future.isSuccess match {
                 case true => {
                   future.getChannel().write(request).addListener {
-                    future: ChannelFuture => logger.info("Write request to remote server {} completed.", future.getChannel)
+                    future: ChannelFuture => if(logger.isDebugEnabled())logger.debug("Write request to remote server {} completed.", future.getChannel)
                   }
                   ctx.getChannel.setReadable(true)
                 }
-                case false => logger.info("Close browser connection..."); browserToProxyChannel.close
+                case false => if(logger.isDebugEnabled())logger.debug("Close browser connection..."); browserToProxyChannel.close
               }
             }
 
@@ -265,7 +265,7 @@ object ProxyServer {
 
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      logger.debug("New channel opened: {}", e.getChannel)
+      if(logger.isDebugEnabled())logger.debug("New channel opened: {}", e.getChannel)
       proxyConfig.allChannels.add(e.getChannel)
       super.channelOpen(ctx, e)
 
@@ -290,12 +290,12 @@ object ProxyServer {
 
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      logger.info("Got closed event on : {}", e.getChannel)
+      if(logger.isDebugEnabled())logger.debug("Got closed event on : {}", e.getChannel)
     }
 
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-      logger.info("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
+      logger.warn("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
 
       if (e.getChannel.isConnected) {
         e.getChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
@@ -306,13 +306,13 @@ object ProxyServer {
 
   class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      logger.debug("============================================================\n {}", e.getMessage.toString)
+      if(logger.isDebugEnabled())logger.debug("============================================================\n {}", e.getMessage.toString)
 
       if (browserToProxyChannel.isConnected) {
         browserToProxyChannel.write(e.getMessage)
       } else {
         if (e.getChannel.isConnected) {
-          logger.info("Closing channel to remote server {}", e.getChannel)
+          if(logger.isDebugEnabled())logger.debug("Closing channel to remote server {}", e.getChannel)
           e.getChannel.close
         }
       }
@@ -324,7 +324,7 @@ object ProxyServer {
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      logger.info("Got closed event on : {}", e.getChannel)
+      if(logger.isDebugEnabled())logger.debug("Got closed event on : {}", e.getChannel)
       if (browserToProxyChannel.isConnected) {
         browserToProxyChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
       }
@@ -333,7 +333,7 @@ object ProxyServer {
 
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-      logger.info("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
+      if(logger.isDebugEnabled())logger.debug("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
 
       if (e.getChannel.isConnected) {
         e.getChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
@@ -344,7 +344,7 @@ object ProxyServer {
 
   class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      logger.debug("ConnectionRequestHandler-{} receive message:\n {}", Array(ctx.getChannel, e.getMessage))
+      if(logger.isDebugEnabled())logger.debug("ConnectionRequestHandler-{} receive message:\n {}", Array(ctx.getChannel, e.getMessage))
       val msg: ChannelBuffer = e.getMessage.asInstanceOf[ChannelBuffer]
       if (relayChannel.isConnected) {
         relayChannel.write(msg)
@@ -353,19 +353,19 @@ object ProxyServer {
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       val ch: Channel = e.getChannel
-      logger.info("CONNECT channel opened on: {}", ch)
+      if(logger.isDebugEnabled())logger.debug("CONNECT channel opened on: {}", ch)
       proxyConfig.allChannels.add(e.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      logger.info("Got closed event on : {}", e.getChannel)
+      if(logger.isDebugEnabled())logger.debug("Got closed event on : {}", e.getChannel)
       if (relayChannel.isConnected) {
         relayChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
       }
     }
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-      logger.info("Exception on: " + e.getChannel, e.getCause)
+      logger.warn("Exception on: " + e.getChannel, e.getCause)
       if (e.getChannel.isConnected) {
         e.getChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
       }

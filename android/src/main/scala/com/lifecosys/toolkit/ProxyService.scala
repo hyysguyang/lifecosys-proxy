@@ -27,11 +27,8 @@ import android.os._
 import android.widget.Toast
 import org.slf4j.LoggerFactory
 import proxy.{SSLManager, DefaultProxyConfig, ProxyServer}
-import scala.None
-import com.typesafe.config.{Config, ConfigFactory}
-import java.io.InputStream
 import java.security.{SecureRandom, KeyStore}
-import javax.net.ssl.{SSLContext, TrustManagerFactory, KeyManagerFactory}
+import javax.net.ssl.{SSLContext, TrustManagerFactory}
 
 
 /**

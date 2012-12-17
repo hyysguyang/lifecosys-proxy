@@ -21,14 +21,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.lifecosys</groupId>
-        <artifactId>lifecosys-parent</artifactId>
-        <version>1.0-alpha1</version>
+        <groupId>com.lifecosys.toolkit</groupId>
+        <artifactId>lifecosys-toolkit-parent</artifactId>
+        <version>1.0-alpha2</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
-    <groupId>com.lifecosys.toolkit.android</groupId>
+    <groupId>com.lifecosys.toolkit</groupId>
     <artifactId>lifecosys-toolkit-android</artifactId>
     <name>Lifecosys toolkit android</name>
-    <version>1.0-alpha1</version>
+    <version>1.0-alpha2</version>
     <packaging>apk</packaging>
 
     <description>
@@ -85,9 +86,9 @@
     <dependencies>
 
         <dependency>
-            <groupId>com.lifecosys.toolkit.core</groupId>
+            <groupId>com.lifecosys.toolkit</groupId>
             <artifactId>lifecosys-toolkit-core</artifactId>
-            <version>1.0-alpha1</version>
+            <version>1.0-alpha2</version>
         </dependency>
 
         <dependency>

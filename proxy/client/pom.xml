@@ -22,14 +22,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.lifecosys.toolkit.proxy</groupId>
+        <groupId>com.lifecosys.toolkit</groupId>
         <artifactId>lifecosys-toolkit-proxy</artifactId>
-        <version>1.0-alpha1</version>
+        <version>1.0-alpha2</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
-    <groupId>com.lifecosys.toolkit.proxy</groupId>
+    <groupId>com.lifecosys.toolkit</groupId>
     <artifactId>lifecosys-toolkit-proxyclient</artifactId>
     <name>Lifecosys toolkit proxy client</name>
-    <version>1.0-alpha1</version>
+    <version>1.0-alpha2</version>
     <packaging>jar</packaging>
 
     <description>

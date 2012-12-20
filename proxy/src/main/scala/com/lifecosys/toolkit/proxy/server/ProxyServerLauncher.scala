@@ -20,7 +20,7 @@
 
 package com.lifecosys.toolkit.proxy.server
 
-import com.lifecosys.toolkit.proxy.{DefaultProxyConfig, ProxyServer}
+import com.lifecosys.toolkit.proxy.{ProgrammaticCertificationProxyConfig, ProxyServer}
 import scala.Predef._
 
 /**
@@ -33,6 +33,6 @@ import scala.Predef._
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    new ProxyServer.Proxy(new DefaultProxyConfig()).start
+    new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig()).start
   }
 }

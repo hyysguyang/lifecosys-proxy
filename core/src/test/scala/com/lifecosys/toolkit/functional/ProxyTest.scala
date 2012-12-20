@@ -32,7 +32,8 @@ import javax.net.ssl.{X509TrustManager, SSLContext}
 import java.security.cert.X509Certificate
 import collection.mutable
 import ProxyTestUtils._
-import com.lifecosys.toolkit.proxy.{ProxyServer, SimpleProxyConfig}
+import com.lifecosys.toolkit.proxy.{ProgrammaticCertificationProxyConfig, ProxyServer, SimpleProxyConfig}
+import com.typesafe.config.ConfigFactory
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -90,9 +91,6 @@ object ProxyTestUtils {
   }
 
 
-
-
-
 }
 
 class SimpleProxyTest {
@@ -101,7 +99,7 @@ class SimpleProxyTest {
 
   @Before
   def before() {
-    proxy =  new ProxyServer.Proxy(createProxyConfig())
+    proxy = new ProxyServer.Proxy(createProxyConfig())
   }
 
   @After
@@ -185,11 +183,6 @@ class ChainedProxyTest {
   var proxy: ProxyServer.Proxy = null
   var chainProxy: ProxyServer.Proxy = null
 
-  @Before
-  def before() {
-
-
-  }
 
   @After
   def after() {
@@ -279,6 +272,63 @@ class ChainedProxyTest {
 
     Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
 
+  }
+
+
+  @Test
+  def testAccessViaChainedProxy_withSSLSupport_forProgrammaticCertification {
+
+    val config =
+      """
+        |port = 8080
+        |chain-proxy{
+        |    host ="localhost:8081"
+        |}
+        |
+        |proxy-server{
+        |    ssl {
+        |            enabled = false
+        |    }
+        |}
+        |
+        |proxy-server-to-remote{
+        |    ssl {
+        |            enabled = true
+        |    }
+        |}
+      """.stripMargin
+
+    val chainedConfig =
+      """
+        |port = 8081
+        |chain-proxy{
+        |    host =""
+        |}
+        |
+        |proxy-server{
+        |    ssl {
+        |            enabled = true
+        |    }
+        |}
+        |
+        |proxy-server-to-remote{
+        |    ssl {
+        |            enabled = false
+        |    }
+        |}
+      """.stripMargin
+
+
+    proxy = new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    chainProxy = new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(chainedConfig)))))
+
+    chainProxy start
+
+    proxy start
+
+    Assert.assertTrue(request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+
+    Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
 
 

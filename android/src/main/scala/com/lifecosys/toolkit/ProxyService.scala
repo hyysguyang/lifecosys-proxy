@@ -26,10 +26,7 @@ import android.content.Intent
 import android.os._
 import android.widget.Toast
 import org.slf4j.LoggerFactory
-import proxy.{DefaultProxyConfig, ProxyServer}
-import java.security.{SecureRandom, KeyStore}
-import javax.net.ssl.{SSLContext, TrustManagerFactory}
-import ssl.SSLManager
+import proxy.{ProgrammaticCertificationProxyConfig, ProxyServer}
 
 
 /**
@@ -44,35 +41,11 @@ class ProxyService extends Service {
   var mServiceLooper: Looper = null
   var mServiceHandler: ServiceHandler = null
 
-  // Handler that receives messages from the thread
   class ServiceHandler(looper: Looper) extends Handler(looper) {
 
     override def handleMessage(msg: Message) {
       logger.error("Proxy service starting..........{}.................", msg)
-      proxyServer = new ProxyServer.Proxy(new DefaultProxyConfig {
-        override def sslManger: SSLManager = new SSLManager {
-          def getServerSSLContext: SSLContext = null
-
-          def getProxyToServerSSLContext: SSLContext = {
-            //FIXME: Trust all client, but we need trust manager
-            //              val keyStore: KeyStore = KeyStore.getInstance("BKS")
-            //              keyStore.load(keyManagerKeyStoreInputStream, keyStorePassword.toCharArray)
-            //              val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("X509")
-            //              keyManagerFactory.init(keyStore, keyStorePassword.toCharArray)
-
-            val trustKeyStore: KeyStore = KeyStore.getInstance("BKS")
-            trustKeyStore.load(getResources.openRawResource(R.raw.proxy_server_android_trust_keystore), "killccp-server".toCharArray)
-            val trustManagerFactory: TrustManagerFactory = TrustManagerFactory.getInstance("X509")
-            trustManagerFactory.init(trustKeyStore)
-
-            val clientContext = SSLContext.getInstance("SSL")
-            clientContext.init(null, trustManagerFactory.getTrustManagers, new SecureRandom)
-            clientContext
-          }
-        }
-      }
-      )
-
+      proxyServer = new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig())
       proxyServer.start
 
     }

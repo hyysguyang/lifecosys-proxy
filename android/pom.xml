@@ -84,14 +84,6 @@
 
 
     <dependencies>
-
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-library</artifactId>
-            <version>2.9.2</version>
-            <scope>provided</scope>
-        </dependency>
-
         <dependency>
             <groupId>com.lifecosys.toolkit</groupId>
             <artifactId>lifecosys-toolkit-core</artifactId>
@@ -104,11 +96,6 @@
             <version>1.6.1-RC1</version>
         </dependency>
 
-        <!--<dependency>-->
-        <!--<groupId>org.slf4j</groupId>-->
-        <!--<artifactId>slf4j-nop</artifactId>-->
-        <!--<version>1.7.2</version>-->
-        <!--</dependency>-->
         <dependency>
             <groupId>com.google.android</groupId>
             <artifactId>android</artifactId>
@@ -174,14 +161,17 @@
                                     <includes>
                                         <include>${project.build.directory}/${project.artifactId}.apk</include>
                                     </includes>
-                                    <keystore>/Develop/Project/office/lifecosys-toolkit/proxy/server/src/main/config/keystore/lifecosys-proxy-server-keystore.jks</keystore>
+                                    <keystore>/Develop/Project/office/lifecosys-toolkit/proxy/server/src/main/config/keystore/lifecosys-proxy-server-keystore.jks
+                                    </keystore>
                                     <alias>lifecosys-proxy-server</alias>
                                     <storepass>killccp-server</storepass>
                                     <keypass>killccp-server</keypass>
                                     <verbose>true</verbose>
                                     <arguments>
-                                        <argument>-sigalg</argument><argument>MD5withRSA</argument>
-                                        <argument>-digestalg</argument><argument>SHA1</argument>
+                                        <argument>-sigalg</argument>
+                                        <argument>MD5withRSA</argument>
+                                        <argument>-digestalg</argument>
+                                        <argument>SHA1</argument>
                                     </arguments>
                                 </configuration>
                             </execution>

@@ -25,22 +25,14 @@ import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import org.jboss.netty.channel._
 import collection.mutable
-import group.{ChannelGroup, DefaultChannelGroup, ChannelGroupFuture}
+import group.ChannelGroupFuture
 import org.jboss.netty.handler.logging.LoggingHandler
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
-import socket.nio.{NioClientSocketChannelFactory, NioServerSocketChannelFactory}
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
-import javax.net.ssl.{TrustManagerFactory, KeyManagerFactory, SSLContext}
-import java.security.{SecureRandom, KeyStore}
-import java.util.concurrent.{SynchronousQueue, TimeUnit, ThreadPoolExecutor}
-import java.io.InputStream
-import com.typesafe.config.{ConfigFactory, Config}
-import socket.{ClientSocketChannelFactory, ServerSocketChannelFactory}
-import com.lifecosys.toolkit.ssl.SSLManager
 
 
 /**
@@ -95,7 +87,7 @@ object ProxyServer {
         pipeline.addLast("ssl", new SslHandler(engine))
       }
 
-      pipeline.addLast("decoder", new HttpRequestDecoder())
+      pipeline.addLast("decoder", new HttpRequestDecoder(4096, 8192 * 4, 8192 * 4))
       //      pipeline.addLast("aggregator", new HttpChunkAggregator(65536))
       pipeline.addLast("encoder", new HttpResponseEncoder())
       //      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler())
@@ -281,7 +273,7 @@ object ProxyServer {
         engine.setUseClientMode(true)
         pipeline.addLast("ssl", new SslHandler(engine))
       }
-      pipeline.addLast("codec", new HttpClientCodec(8192, 8192 * 2, 8192 * 2))
+      pipeline.addLast("codec", new HttpClientCodec(4096, 8192 * 4, 8192 * 4))
       // Remove the following line if you don't want automatic content decompression.
       pipeline.addLast("inflater", new HttpContentDecompressor)
       // Uncomment the following line if you don't want to handle HttpChunks.
@@ -372,164 +364,5 @@ object ProxyServer {
       }
     }
   }
-
-}
-
-
-trait ProxyConfig {
-
-  val port: Int
-
-  val serverSSLEnable: Boolean
-
-  val proxyToServerSSLEnable: Boolean
-
-  val loggerLevel: InternalLogLevel
-
-  val chainProxies: mutable.MutableList[InetSocketAddress]
-
-  val serverSocketChannelFactory: ServerSocketChannelFactory
-
-  val clientSocketChannelFactory: ClientSocketChannelFactory
-
-  val serverSSLContext: SSLContext
-
-  val clientSSLContext: SSLContext
-
-
-  val allChannels: ChannelGroup = new DefaultChannelGroup("HTTP-Proxy-Server")
-}
-
-
-class SimpleProxyConfig extends ProxyConfig {
-
-  override val port = 9050
-
-  override val serverSSLEnable = false
-
-  override val proxyToServerSSLEnable = false
-
-  override val loggerLevel: InternalLogLevel = InternalLogLevel.INFO
-
-  override val chainProxies = mutable.MutableList[InetSocketAddress]()
-
-
-  override val serverSocketChannelFactory = new NioServerSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
-
-  override val clientSocketChannelFactory = new NioClientSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
-
-  val sslManger = new SSLManager {
-    val keyStorePassword = "killccp"
-    val keyManagerKeyStoreInputStream = classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-server-keystore.jks")
-    val trustKeyStorePassword = "killccp"
-    val trustManagerKeyStoreInputStream = classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-client-for-server-trust-keystore.jks")
-
-    def getServerSSLContext: SSLContext = getSSLContext(classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-server-keystore.jks"), "killccp", classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-client-for-server-trust-keystore.jks"), "killccp")
-
-    def getProxyToServerSSLContext: SSLContext = getSSLContext(classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-client-keystore.jks"), "killccp", classOf[SimpleProxyConfig].getResourceAsStream("/binary/keystore/lifecosys-proxy-server-for-client-trust-keystore.jks"), "killccp")
-
-    def getSSLContext(keyManagerKeyStoreInputStream: InputStream,
-                      keyStorePassword: String,
-                      trustManagerKeyStoreInputStream: InputStream,
-                      trustKeyStorePassword: String,
-                      keystoreType: String = "JKS",
-                      algorithm: String = "SunX509"): SSLContext = {
-      val keyStore: KeyStore = KeyStore.getInstance(keystoreType)
-      keyStore.load(keyManagerKeyStoreInputStream, keyStorePassword.toCharArray)
-      val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance(algorithm)
-      keyManagerFactory.init(keyStore, keyStorePassword.toCharArray)
-      val trustKeyStore: KeyStore = KeyStore.getInstance(keystoreType)
-      trustKeyStore.load(trustManagerKeyStoreInputStream, trustKeyStorePassword.toCharArray)
-      val trustManagerFactory: TrustManagerFactory = TrustManagerFactory.getInstance(algorithm)
-      trustManagerFactory.init(trustKeyStore)
-      val clientContext = SSLContext.getInstance("SSL")
-      clientContext.init(keyManagerFactory.getKeyManagers, trustManagerFactory.getTrustManagers, new SecureRandom)
-      clientContext
-    }
-  }
-
-  override val serverSSLContext = sslManger.getServerSSLContext
-
-  override val clientSSLContext = sslManger.getProxyToServerSSLContext
-}
-
-
-class DefaultProxyConfig(config: Option[Config] = None) extends ProxyConfig {
-
-  val thisConfig = config.getOrElse(ConfigFactory.load())
-
-  val name = thisConfig.getString("name")
-
-  val serverThreadCorePoolSize = thisConfig.getInt("proxy-server.thread.corePoolSize")
-  val serverThreadMaximumPoolSize = thisConfig.getInt("proxy-server.thread.maximumPoolSize")
-  val serverSSLKeystorePassword = thisConfig.getString("proxy-server.ssl.keystore-password")
-  val serverSSLKeystorePath = thisConfig.getString("proxy-server.ssl.keystore-path")
-  val serverSSLTrustKeystorePath = thisConfig.getString("proxy-server.ssl.trust-keystore-path")
-
-  val proxyToServerThreadCorePoolSize = thisConfig.getInt("proxy-server-to-remote.thread.corePoolSize")
-  val proxyToServerThreadMaximumPoolSize = thisConfig.getInt("proxy-server-to-remote.thread.maximumPoolSize")
-  val proxyToServerSSLKeystorePassword = thisConfig.getString("proxy-server-to-remote.ssl.keystore-password")
-  val proxyToServerSSLKeystorePath = thisConfig.getString("proxy-server-to-remote.ssl.keystore-path")
-  val proxyToServerSSLTrustKeystorePath = thisConfig.getString("proxy-server-to-remote.ssl.trust-keystore-path")
-
-  //  require(thisConfig.getInt("port") > 0&&thisConfig.getInt("port")<65535)
-  //
-  //  require(serverThreadCorePoolSize > 0)
-  //  require(serverThreadMaximumPoolSize > 0)
-  //  if (thisConfig.getBoolean("proxy-server.ssl.enabled")) {
-  //    require(serverSSLKeystorePath != null)
-  //    require(serverSSLTrustKeystorePath != null)
-  //  }
-  //  require(proxyToServerThreadCorePoolSize > 0)
-  //  require(proxyToServerThreadMaximumPoolSize > 0)
-  //  if (thisConfig.getBoolean("proxy-server-to-remote.ssl.enabled")) {
-  //    require((proxyToServerSSLKeystorePath) != null)
-  //    require(proxyToServerSSLTrustKeystorePath != null)
-  //  }
-
-  val serverExecutor = new ThreadPoolExecutor(serverThreadCorePoolSize, serverThreadMaximumPoolSize, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
-  val clientExecutor = new ThreadPoolExecutor(proxyToServerThreadCorePoolSize, proxyToServerThreadMaximumPoolSize, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
-
-
-  override val port = thisConfig.getInt("port")
-  override val serverSSLEnable = thisConfig.getBoolean("proxy-server.ssl.enabled")
-  override val proxyToServerSSLEnable = thisConfig.getBoolean("proxy-server-to-remote.ssl.enabled")
-
-  override val loggerLevel = InternalLogLevel.valueOf(thisConfig.getString("logger-level"))
-
-  override val serverSocketChannelFactory = new NioServerSocketChannelFactory(serverExecutor, serverExecutor)
-  override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor);
-
-  override val chainProxies = thisConfig.getString("chain-proxy.host") match {
-    case host: String if host.trim.length > 0 => mutable.MutableList[InetSocketAddress](ProxyServer.parseHostAndPort(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
-    case _ => mutable.MutableList[InetSocketAddress]()
-  }
-
-
-  def sslManger = new SSLManager {
-    def getServerSSLContext: SSLContext = {
-      val keyStore: KeyStore = KeyStore.getInstance("JKS")
-      keyStore.load(classOf[DefaultProxyConfig].getResourceAsStream(serverSSLKeystorePath), serverSSLKeystorePassword.toCharArray)
-      val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
-      keyManagerFactory.init(keyStore, serverSSLKeystorePassword.toCharArray)
-      val clientContext = SSLContext.getInstance("SSL")
-      clientContext.init(keyManagerFactory.getKeyManagers, null, new SecureRandom)
-      clientContext
-    }
-
-    def getProxyToServerSSLContext: SSLContext = {
-      val trustKeyStore: KeyStore = KeyStore.getInstance("JKS")
-      trustKeyStore.load(classOf[DefaultProxyConfig].getResourceAsStream(proxyToServerSSLTrustKeystorePath), proxyToServerSSLKeystorePassword.toCharArray)
-      val trustManagerFactory: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
-      trustManagerFactory.init(trustKeyStore)
-      val clientContext = SSLContext.getInstance("SSL")
-      clientContext.init(null, trustManagerFactory.getTrustManagers, new SecureRandom)
-      clientContext
-    }
-  }
-
-  override val serverSSLContext = sslManger.getServerSSLContext
-
-  override val clientSSLContext = sslManger.getProxyToServerSSLContext
 
 }

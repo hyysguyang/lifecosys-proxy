@@ -188,7 +188,7 @@ object ProxyServer {
           def connectProcess(future: ChannelFuture): Unit = {
             future.isSuccess match {
               case true => connectSuccessProcess(future)
-              case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); browserToProxyChannel.close
+              case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); closeChannel(browserToProxyChannel)
             }
           }
           def connectSuccessProcess(future: ChannelFuture) {
@@ -246,7 +246,7 @@ object ProxyServer {
                   }
                   ctx.getChannel.setReadable(true)
                 }
-                case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); closeChannel(browserToProxyChannel)
+                case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection...");  ctx.getChannel.setReadable(true);closeChannel(browserToProxyChannel)
               }
             }
 
@@ -283,7 +283,8 @@ object ProxyServer {
       }
       pipeline.addLast("codec", new HttpClientCodec(8192 * 2, 8192 * 4, 8192 * 4))
       // Remove the following line if you don't want automatic content decompression.
-      pipeline.addLast("inflater", new HttpContentDecompressor)
+      //NOTE: Don't add inflater handler which result image can't be load...
+//      pipeline.addLast("inflater", new HttpContentDecompressor)
       // Uncomment the following line if you don't want to handle HttpChunks.
       //            pipeline.addLast("aggregator", new HttpChunkAggregator(1024 * 10))
       pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
@@ -311,7 +312,7 @@ object ProxyServer {
       } else {
         if (e.getChannel.isConnected) {
           if (logger.isDebugEnabled()) logger.debug("Closing channel to remote server {}", e.getChannel)
-          e.getChannel.close
+          closeChannel(e.getChannel)
         }
       }
     }

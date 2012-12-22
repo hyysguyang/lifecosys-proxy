@@ -5,6 +5,7 @@ import java.security._
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
 import java.math.BigInteger
+import java.net.InetSocketAddress
 import com.lifecosys.toolkit.proxy.Utils
 
 /**
@@ -42,5 +43,39 @@ class UtilsTest {
     Assert.assertTrue(keyPair.getPublic == keyFactory.generatePublic(actualPublicKeySpec))
     Assert.assertTrue(keyPair.getPrivate == keyFactory.generatePrivate(actualPrivateSpec))
 
+  }
+
+
+  @Test
+  def testParseHost {
+    var host = Utils.parseHostAndPort("http://127.0.0.1:8990/")
+    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
+
+    host = Utils.parseHostAndPort("https://127.0.0.1:8990/")
+    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
+
+    host = Utils.parseHostAndPort("127.0.0.1:8990/")
+    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
+
+    host = Utils.parseHostAndPort("127.0.0.1:8990")
+    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
+
+    host = Utils.parseHostAndPort("127.0.0.1")
+    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
+
+    host = Utils.parseHostAndPort("127.0.0.1/test/sss/tyty/8989")
+    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
+
+    host = Utils.parseHostAndPort("127.0.0.1/test/sss/tyty/89:89")
+    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
+
+    host = Utils.parseHostAndPort("http://download-ln.jetbrains.com/idea/ideaIC-12.0.1.tar.gz")
+    Assert.assertEquals(new InetSocketAddress("download-ln.jetbrains.com", 80), host)
+
+    try {
+      Utils.parseHostAndPort("127.0.0.1:899000")
+    } catch {
+      case e: IllegalArgumentException => Assert.assertEquals("port out of range:899000", e.getMessage)
+    }
   }
 }

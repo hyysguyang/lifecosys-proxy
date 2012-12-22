@@ -1,9 +1,10 @@
 package com.lifecosys.toolkit.proxy
 
-import java.lang.String
 import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
 import java.security.{KeyPairGenerator, Security, KeyFactory}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import scala.Some
+import java.net.InetSocketAddress
 
 /**
  *
@@ -12,6 +13,21 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
+
+  def parseHostAndPort(uri: String) = {
+    val hostPortPattern = """(.*//|^)([^/\:]+)\:*(\d*).*""".r
+
+    //    val hostPortPattern = """(.+)\:*(\d*).*""".r
+    //
+    //    val hostPort=uri.stripPrefix("https*://") match {
+    //      case u if u.indexOf('/')>0 => u.substring(0,u.indexOf('/'))
+    //      case _ => _
+    //    }
+    //
+    val hostPortPattern(prefix, host, port) = uri
+    new InetSocketAddress(host, Some(port).filter(_.trim.length > 0).getOrElse("80").toInt)
+  }
+
   def toHex(data: Array[Byte]): String = {
     val digits = "0123456789abcdef"
     var result = ""

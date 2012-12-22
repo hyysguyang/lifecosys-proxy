@@ -137,7 +137,7 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor)
 
   override val chainProxies = thisConfig.getString("chain-proxy.host") match {
-    case host: String if host.trim.length > 0 => mutable.MutableList[InetSocketAddress](ProxyServer.parseHostAndPort(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
+    case host: String if host.trim.length > 0 => mutable.MutableList[InetSocketAddress](Utils.parseHostAndPort(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
     case _ => mutable.MutableList[InetSocketAddress]()
   }
 

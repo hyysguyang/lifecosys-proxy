@@ -47,6 +47,7 @@ object ProxyServer {
 
   val logger = LoggerFactory.getLogger(getClass)
 
+  val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
 
   implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
     def getPipeline: ChannelPipeline = {
@@ -60,10 +61,10 @@ object ProxyServer {
     def operationComplete(future: ChannelFuture) = f(future)
   }
 
-  def parseHostAndPort(uri: String) = {
-    val hostPortPattern = """(.*//|^)([a-zA-Z\d.]+)\:*(\d*).*""".r
-    val hostPortPattern(prefix, host, port) = uri
-    new InetSocketAddress(host, Some(port).filter(_.trim.length > 0).getOrElse("80").toInt)
+
+  def closeChannel(channel: Channel) {
+    if (logger.isDebugEnabled()) logger.debug("Closing channel: {}", channel)
+    if (channel.isConnected) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
   }
 
 
@@ -87,7 +88,7 @@ object ProxyServer {
         pipeline.addLast("ssl", new SslHandler(engine))
       }
 
-      pipeline.addLast("decoder", new HttpRequestDecoder(4096, 8192 * 4, 8192 * 4))
+      pipeline.addLast("decoder", new HttpRequestDecoder(8192 * 2, 8192 * 4, 8192 * 4))
       //      pipeline.addLast("aggregator", new HttpChunkAggregator(65536))
       pipeline.addLast("encoder", new HttpResponseEncoder())
       //      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler())
@@ -123,6 +124,11 @@ object ProxyServer {
     def start = {
       logger.info("Starting proxy server on " + proxyConfig.port)
       serverBootstrap.setPipelineFactory(proxyServerPipeline)
+      serverBootstrap.setOption("tcpNoDelay", true);
+      serverBootstrap.setOption("keepAlive", true);
+      serverBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
+      serverBootstrap.setOption("child.keepAlive", true);
+      serverBootstrap.setOption("child.connectTimeoutMillis", 60 * 1000)
 
       proxyConfig.allChannels.add(serverBootstrap.bind(new InetSocketAddress(proxyConfig.port)))
 
@@ -146,17 +152,17 @@ object ProxyServer {
     val proxyToServerSSLEnable = proxyConfig.proxyToServerSSLEnable
     val chainProxies = proxyConfig.chainProxies
 
-    val hostToChannelFuture = mutable.Map[InetSocketAddress, ChannelFuture]()
-
-
     override def messageReceived(ctx: ChannelHandlerContext, me: MessageEvent) {
       val httpRequest = me.getMessage().asInstanceOf[HttpRequest]
-      if (logger.isDebugEnabled()) logger.debug("Receive request: {} {} {}", httpRequest.getMethod, httpRequest.getUri, ctx.getChannel())
+      //      if (logger.isDebugEnabled()) logger.debug("Receive request: {} {} {}", httpRequest.getMethod, httpRequest.getUri, ctx.getChannel())
+      if (logger.isDebugEnabled()) logger.debug("Receive request: {} ", httpRequest)
       val browserToProxyChannel = ctx.getChannel
-      val host = chainProxies.get(0).getOrElse(parseHostAndPort(httpRequest.getUri))
+      val requestTargetHost = Utils.parseHostAndPort(httpRequest.getUri)
+      val host = chainProxies.get(0).getOrElse(requestTargetHost)
       def newClientBootstrap = {
         val proxyToServerBootstrap = new ClientBootstrap(proxyConfig.clientSocketChannelFactory)
-        proxyToServerBootstrap.setOption("connectTimeoutMillis", 40 * 1000)
+        proxyToServerBootstrap.setOption("keepAlive", true)
+        proxyToServerBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
         proxyToServerBootstrap
       }
 
@@ -218,27 +224,29 @@ object ProxyServer {
           createProxyToServerBootstrap.connect(host).addListener(connectProcess _)
         }
 
-        hostToChannelFuture.get(host) match {
-          case Some(channelFuture) => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
+        hostToChannelFuture.get(requestTargetHost) match {
+          case Some(channel) => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
           case None => initializeConnectProcess
         }
       }
 
       def processRequest(request: HttpRequest) {
-        hostToChannelFuture.get(host) match {
-          case Some(channelFuture) => {
-            channelFuture.getChannel().write(request)
+        hostToChannelFuture.get(requestTargetHost) match {
+          case Some(channel) if channel.isConnected => {
+            logger.error("###########Use existed Proxy toserver conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
+            channel.write(request)
           }
-          case None => {
+          case _ => {
             def connectProcess(future: ChannelFuture) {
               future.isSuccess match {
                 case true => {
+                  //                  hostToChannelFuture.put(host, future.getChannel)
                   future.getChannel().write(request).addListener {
                     future: ChannelFuture => if (logger.isDebugEnabled()) logger.debug("Write request to remote server {} completed.", future.getChannel)
                   }
                   ctx.getChannel.setReadable(true)
                 }
-                case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); browserToProxyChannel.close
+                case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); closeChannel(browserToProxyChannel)
               }
             }
 
@@ -273,11 +281,11 @@ object ProxyServer {
         engine.setUseClientMode(true)
         pipeline.addLast("ssl", new SslHandler(engine))
       }
-      pipeline.addLast("codec", new HttpClientCodec(4096, 8192 * 4, 8192 * 4))
+      pipeline.addLast("codec", new HttpClientCodec(8192 * 2, 8192 * 4, 8192 * 4))
       // Remove the following line if you don't want automatic content decompression.
       pipeline.addLast("inflater", new HttpContentDecompressor)
       // Uncomment the following line if you don't want to handle HttpChunks.
-      //      pipeline.addLast("aggregator", new HttpChunkAggregator(1048576))
+      //            pipeline.addLast("aggregator", new HttpChunkAggregator(1024 * 10))
       pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
     }
 
@@ -289,17 +297,14 @@ object ProxyServer {
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       logger.warn("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
-
-      if (e.getChannel.isConnected) {
-        e.getChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
-      }
+      closeChannel(e.getChannel)
     }
   }
 
 
   class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      if (logger.isDebugEnabled()) logger.debug("============================================================\n {}", e.getMessage.toString)
+      if (logger.isDebugEnabled()) logger.debug("========{} receive message: =======\n {}", ctx.getChannel.asInstanceOf[Any], e.getMessage)
 
       if (browserToProxyChannel.isConnected) {
         browserToProxyChannel.write(e.getMessage)
@@ -318,19 +323,13 @@ object ProxyServer {
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       if (logger.isDebugEnabled()) logger.debug("Got closed event on : {}", e.getChannel)
-      if (browserToProxyChannel.isConnected) {
-        browserToProxyChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
-      }
-
+      closeChannel(browserToProxyChannel)
     }
 
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       if (logger.isDebugEnabled()) logger.debug("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
-
-      if (e.getChannel.isConnected) {
-        e.getChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
-      }
+      closeChannel(e.getChannel)
     }
   }
 
@@ -352,16 +351,12 @@ object ProxyServer {
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       if (logger.isDebugEnabled()) logger.debug("Got closed event on : {}", e.getChannel)
-      if (relayChannel.isConnected) {
-        relayChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
-      }
+      closeChannel(relayChannel)
     }
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       logger.warn("Exception on: " + e.getChannel, e.getCause)
-      if (e.getChannel.isConnected) {
-        e.getChannel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
-      }
+      closeChannel(e.getChannel)
     }
   }
 

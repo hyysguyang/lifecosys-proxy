@@ -123,35 +123,6 @@ class SimpleProxyTest {
 
   }
 
-  @Test
-  def testParseHost {
-    var host = ProxyServer.parseHostAndPort("http://127.0.0.1:8990/")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = ProxyServer.parseHostAndPort("https://127.0.0.1:8990/")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = ProxyServer.parseHostAndPort("127.0.0.1:8990/")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = ProxyServer.parseHostAndPort("127.0.0.1:8990")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = ProxyServer.parseHostAndPort("127.0.0.1")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
-
-    host = ProxyServer.parseHostAndPort("127.0.0.1/test/sss/tyty/8989")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
-
-    host = ProxyServer.parseHostAndPort("127.0.0.1/test/sss/tyty/89:89")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
-
-    try {
-      ProxyServer.parseHostAndPort("127.0.0.1:899000")
-    } catch {
-      case e: IllegalArgumentException => Assert.assertEquals("port out of range:899000", e.getMessage)
-    }
-  }
 
   @Test
   def testSimplePage {

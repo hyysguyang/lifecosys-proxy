@@ -33,6 +33,9 @@ import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
+import scala.Some
+import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
+import org.jboss.netty.util.HashedWheelTimer
 
 
 /**
@@ -46,6 +49,7 @@ object ProxyServer {
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
 
   val logger = LoggerFactory.getLogger(getClass)
+  val timer = new HashedWheelTimer
 
   val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
 
@@ -89,9 +93,15 @@ object ProxyServer {
       }
 
       pipeline.addLast("decoder", new HttpRequestDecoder(8192 * 2, 8192 * 4, 8192 * 4))
-      //      pipeline.addLast("aggregator", new HttpChunkAggregator(65536))
+      //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
       pipeline.addLast("encoder", new HttpResponseEncoder())
-      //      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler())
+      pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
+      pipeline.addLast("idleAware",new IdleStateAwareChannelHandler{
+        override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
+          logger.debug("Channel idle........{}",e.getChannel)
+          closeChannel(e.getChannel)
+        }
+      })
       pipeline.addLast("proxyHandler", new ProxyHandler)
     }
 
@@ -124,7 +134,7 @@ object ProxyServer {
     def start = {
       logger.info("Starting proxy server on " + proxyConfig.port)
       serverBootstrap.setPipelineFactory(proxyServerPipeline)
-      serverBootstrap.setOption("tcpNoDelay", true);
+      //      serverBootstrap.setOption("tcpNoDelay", true);
       serverBootstrap.setOption("keepAlive", true);
       serverBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
       serverBootstrap.setOption("child.keepAlive", true);
@@ -225,7 +235,7 @@ object ProxyServer {
         }
 
         hostToChannelFuture.get(requestTargetHost) match {
-          case Some(channel) => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
+          case Some(channel) if channel.isConnected => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
           case None => initializeConnectProcess
         }
       }
@@ -246,7 +256,7 @@ object ProxyServer {
                   }
                   ctx.getChannel.setReadable(true)
                 }
-                case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection...");  ctx.getChannel.setReadable(true);closeChannel(browserToProxyChannel)
+                case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); ctx.getChannel.setReadable(true); closeChannel(browserToProxyChannel)
               }
             }
 
@@ -284,9 +294,19 @@ object ProxyServer {
       pipeline.addLast("codec", new HttpClientCodec(8192 * 2, 8192 * 4, 8192 * 4))
       // Remove the following line if you don't want automatic content decompression.
       //NOTE: Don't add inflater handler which result image can't be load...
-//      pipeline.addLast("inflater", new HttpContentDecompressor)
+      //      pipeline.addLast("inflater", new HttpContentDecompressor)
       // Uncomment the following line if you don't want to handle HttpChunks.
-      //            pipeline.addLast("aggregator", new HttpChunkAggregator(1024 * 10))
+
+      pipeline.addLast("aggregator", new InnerHttpChunkAggregator)
+
+
+      pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
+      pipeline.addLast("idleAware", new IdleStateAwareChannelHandler {
+        override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
+          logger.debug("Channel idle........{}", e.getChannel)
+          closeChannel(e.getChannel)
+        }
+      })
       pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
     }
 
@@ -302,18 +322,71 @@ object ProxyServer {
     }
   }
 
+  class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 1024 * 10) extends HttpChunkAggregator(maxContentLength) {
+    var cumulatedThunk: Option[HttpChunk] = None
+
+    override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+      e.getMessage match {
+        case response: HttpMessage => ctx.sendUpstream(e)
+        case chunk: HttpChunk if chunk.isLast => {
+          if (cumulatedThunk isDefined) {
+            Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
+            cumulatedThunk = None
+          }
+          ctx.sendUpstream(e)
+        }
+        case chunk: HttpChunk => {
+          if (!cumulatedThunk.isDefined)
+            cumulatedThunk = Some(chunk)
+          else cumulatedThunk.get.setContent(ChannelBuffers.wrappedBuffer(cumulatedThunk.get.getContent, chunk.getContent))
+
+          if (cumulatedThunk.get.getContent.readableBytes() > maxContentLength) {
+            Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
+            cumulatedThunk = null
+          }
+        }
+        case _ => ctx.sendUpstream(e)
+      }
+
+    }
+
+  }
+
 
   class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+
+    private def responsePreProcess(message: Any) = message match {
+      case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) => {
+        val copy = new DefaultHttpResponse(HttpVersion.HTTP_1_1, response.getStatus)
+        import scala.collection.JavaConversions._
+        response.getHeaderNames.foreach(name => copy.setHeader(name, response.getHeaders(name)))
+
+        copy.setContent(response.getContent)
+        copy.setChunked(response.isChunked)
+        copy.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED)
+        copy
+      }
+      case _ => message
+    }
+
+
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       if (logger.isDebugEnabled()) logger.debug("========{} receive message: =======\n {}", ctx.getChannel.asInstanceOf[Any], e.getMessage)
 
+      val message = responsePreProcess(e.getMessage)
       if (browserToProxyChannel.isConnected) {
-        browserToProxyChannel.write(e.getMessage)
+        browserToProxyChannel.write(message)
       } else {
         if (e.getChannel.isConnected) {
           if (logger.isDebugEnabled()) logger.debug("Closing channel to remote server {}", e.getChannel)
           closeChannel(e.getChannel)
         }
+      }
+
+      message match {
+        case chunk: HttpChunk if chunk.isLast => closeChannel(e.getChannel)
+        case response: HttpMessage if !response.isChunked => closeChannel(e.getChannel)
+        case _ =>
       }
     }
 

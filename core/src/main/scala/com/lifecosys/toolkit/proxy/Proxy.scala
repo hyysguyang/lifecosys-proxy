@@ -80,15 +80,11 @@ object ProxyServer {
     val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
 
     def proxyServerPipeline = (pipeline: ChannelPipeline) => {
-      if (proxyConfig.loggerLevel == InternalLogLevel.DEBUG) {
-        pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
-      }
+      //      pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel,false))
       if (proxyConfig.serverSSLEnable) {
         val engine = proxyConfig.serverSSLContext.createSSLEngine()
         engine.setUseClientMode(false)
-
-        //FIXME:Need client auth to more secure
-        //        engine.setNeedClientAuth(true)
+        engine.setNeedClientAuth(true)
         pipeline.addLast("ssl", new SslHandler(engine))
       }
 
@@ -96,9 +92,9 @@ object ProxyServer {
       //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
       pipeline.addLast("encoder", new HttpResponseEncoder())
       pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
-      pipeline.addLast("idleAware",new IdleStateAwareChannelHandler{
+      pipeline.addLast("idleAware", new IdleStateAwareChannelHandler {
         override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-          logger.debug("Channel idle........{}",e.getChannel)
+          logger.debug("Channel idle........{}", e.getChannel)
           closeChannel(e.getChannel)
         }
       })
@@ -128,16 +124,15 @@ object ProxyServer {
           logger.info("Done shutting down proxy")
         }
       }
-
     }
 
     def start = {
       logger.info("Starting proxy server on " + proxyConfig.port)
       serverBootstrap.setPipelineFactory(proxyServerPipeline)
-      //      serverBootstrap.setOption("tcpNoDelay", true);
-      serverBootstrap.setOption("keepAlive", true);
+      serverBootstrap.setOption("tcpNoDelay", true)
+      serverBootstrap.setOption("keepAlive", true)
       serverBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
-      serverBootstrap.setOption("child.keepAlive", true);
+      serverBootstrap.setOption("child.keepAlive", true)
       serverBootstrap.setOption("child.connectTimeoutMillis", 60 * 1000)
 
       proxyConfig.allChannels.add(serverBootstrap.bind(new InetSocketAddress(proxyConfig.port)))
@@ -153,22 +148,25 @@ object ProxyServer {
 
       logger.info("Proxy server started on " + proxyConfig.port)
     }
-
-
   }
 
   class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
 
     val proxyToServerSSLEnable = proxyConfig.proxyToServerSSLEnable
-    val chainProxies = proxyConfig.chainProxies
+
+    def chainedProxy = proxyConfig.chainProxies.headOption
 
     override def messageReceived(ctx: ChannelHandlerContext, me: MessageEvent) {
+
       val httpRequest = me.getMessage().asInstanceOf[HttpRequest]
-      //      if (logger.isDebugEnabled()) logger.debug("Receive request: {} {} {}", httpRequest.getMethod, httpRequest.getUri, ctx.getChannel())
-      if (logger.isDebugEnabled()) logger.debug("Receive request: {} ", httpRequest)
+      if (logger.isDebugEnabled()) logger.debug("Receive request: {} ", me.getMessage)
+
+      require(me.getMessage.isInstanceOf[HttpRequest])
+
       val browserToProxyChannel = ctx.getChannel
-      val requestTargetHost = Utils.parseHostAndPort(httpRequest.getUri)
-      val host = chainProxies.get(0).getOrElse(requestTargetHost)
+
+      val host = chainedProxy.getOrElse(Utils.parseHostAndPort(httpRequest.getUri))
+
       def newClientBootstrap = {
         val proxyToServerBootstrap = new ClientBootstrap(proxyConfig.clientSocketChannelFactory)
         proxyToServerBootstrap.setOption("keepAlive", true)
@@ -178,13 +176,14 @@ object ProxyServer {
 
       def processConnectionRequest(request: HttpRequest) {
         def initializeConnectProcess {
+
           def createProxyToServerBootstrap = {
             val proxyToServerBootstrap: ClientBootstrap = newClientBootstrap
             proxyToServerBootstrap.setPipelineFactory {
               pipeline: ChannelPipeline =>
-                if (proxyConfig.loggerLevel == InternalLogLevel.DEBUG) {
-                  pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
-                }
+
+              //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
+
                 if (proxyToServerSSLEnable) {
                   val engine = proxyConfig.clientSSLContext.createSSLEngine
                   engine.setUseClientMode(true)
@@ -195,20 +194,21 @@ object ProxyServer {
             proxyToServerBootstrap
           }
 
-          def connectProcess(future: ChannelFuture): Unit = {
+          def connectProcess(future: ChannelFuture) {
             future.isSuccess match {
               case true => connectSuccessProcess(future)
               case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); closeChannel(browserToProxyChannel)
             }
           }
-          def connectSuccessProcess(future: ChannelFuture) {
+
+          def connectSuccessProcess(future: ChannelFuture) = {
             if (logger.isDebugEnabled()) logger.debug("Connection successful: {}", future.getChannel)
 
             val pipeline = browserToProxyChannel.getPipeline
             pipeline.getNames.filterNot(List("logger", "ssl").contains(_)).foreach(pipeline remove _)
 
             pipeline.addLast("connectionHandler", new ConnectionRequestHandler(future.getChannel))
-            chainProxies.get(0) match {
+            chainedProxy match {
               case Some(chainedProxyServer) => {
                 future.getChannel.getPipeline.addBefore("connectionHandler", "encoder", new HttpRequestEncoder)
                 future.getChannel.write(httpRequest).addListener {
@@ -218,11 +218,8 @@ object ProxyServer {
                   }
                 }
               }
-              case None => {
-                val wf = browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
-                wf.addListener {
-                  future: ChannelFuture => if (logger.isDebugEnabled()) logger.debug("Finished write request to {} \n {} ", Array(future.getChannel, connectProxyResponse))
-                }
+              case None => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8"))).addListener {
+                future: ChannelFuture => if (logger.isDebugEnabled()) logger.debug("Finished write request to {} \n {} ", Array(future.getChannel, connectProxyResponse))
               }
             }
 
@@ -234,32 +231,37 @@ object ProxyServer {
           createProxyToServerBootstrap.connect(host).addListener(connectProcess _)
         }
 
-        hostToChannelFuture.get(requestTargetHost) match {
+        hostToChannelFuture.get(host) match {
           case Some(channel) if channel.isConnected => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(connectProxyResponse.getBytes("UTF-8")))
           case None => initializeConnectProcess
         }
       }
 
       def processRequest(request: HttpRequest) {
-        hostToChannelFuture.get(requestTargetHost) match {
+
+        def connectProcess(future: ChannelFuture) {
+          future.isSuccess match {
+            case true => {
+              //                  hostToChannelFuture.put(host, future.getChannel)
+              future.getChannel().write(request).addListener {
+                future: ChannelFuture => if (logger.isDebugEnabled()) logger.debug("Write request to remote server {} completed.", future.getChannel)
+              }
+              ctx.getChannel.setReadable(true)
+            }
+            case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); ctx.getChannel.setReadable(true); closeChannel(browserToProxyChannel)
+          }
+        }
+
+        //Can't play online video since we send the full url for http request,
+        // Exactly, we need use the relative url to access the remote server.
+        if (chainedProxy.isEmpty) request.setUri(Utils.stripHost(request.getUri))
+
+        hostToChannelFuture.get(host) match {
           case Some(channel) if channel.isConnected => {
             logger.error("###########Use existed Proxy toserver conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
             channel.write(request)
           }
           case _ => {
-            def connectProcess(future: ChannelFuture) {
-              future.isSuccess match {
-                case true => {
-                  //                  hostToChannelFuture.put(host, future.getChannel)
-                  future.getChannel().write(request).addListener {
-                    future: ChannelFuture => if (logger.isDebugEnabled()) logger.debug("Write request to remote server {} completed.", future.getChannel)
-                  }
-                  ctx.getChannel.setReadable(true)
-                }
-                case false => if (logger.isDebugEnabled()) logger.debug("Close browser connection..."); ctx.getChannel.setReadable(true); closeChannel(browserToProxyChannel)
-              }
-            }
-
             ctx.getChannel.setReadable(false)
             val proxyToServerBootstrap = newClientBootstrap
             proxyToServerBootstrap.setPipelineFactory(proxyToServerPipeline(browserToProxyChannel))
@@ -283,9 +285,7 @@ object ProxyServer {
     }
 
     def proxyToServerPipeline(browserToProxyChannel: Channel) = (pipeline: ChannelPipeline) => {
-      if (proxyConfig.loggerLevel == InternalLogLevel.DEBUG) {
-        pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.DEBUG))
-      }
+      //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
       if (proxyToServerSSLEnable) {
         val engine = proxyConfig.clientSSLContext.createSSLEngine
         engine.setUseClientMode(true)
@@ -296,10 +296,6 @@ object ProxyServer {
       //NOTE: Don't add inflater handler which result image can't be load...
       //      pipeline.addLast("inflater", new HttpContentDecompressor)
       // Uncomment the following line if you don't want to handle HttpChunks.
-
-      pipeline.addLast("aggregator", new InnerHttpChunkAggregator)
-
-
       pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
       pipeline.addLast("idleAware", new IdleStateAwareChannelHandler {
         override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
@@ -320,36 +316,6 @@ object ProxyServer {
       logger.warn("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
       closeChannel(e.getChannel)
     }
-  }
-
-  class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 1024 * 10) extends HttpChunkAggregator(maxContentLength) {
-    var cumulatedThunk: Option[HttpChunk] = None
-
-    override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      e.getMessage match {
-        case response: HttpMessage => ctx.sendUpstream(e)
-        case chunk: HttpChunk if chunk.isLast => {
-          if (cumulatedThunk isDefined) {
-            Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
-            cumulatedThunk = None
-          }
-          ctx.sendUpstream(e)
-        }
-        case chunk: HttpChunk => {
-          if (!cumulatedThunk.isDefined)
-            cumulatedThunk = Some(chunk)
-          else cumulatedThunk.get.setContent(ChannelBuffers.wrappedBuffer(cumulatedThunk.get.getContent, chunk.getContent))
-
-          if (cumulatedThunk.get.getContent.readableBytes() > maxContentLength) {
-            Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
-            cumulatedThunk = null
-          }
-        }
-        case _ => ctx.sendUpstream(e)
-      }
-
-    }
-
   }
 
 

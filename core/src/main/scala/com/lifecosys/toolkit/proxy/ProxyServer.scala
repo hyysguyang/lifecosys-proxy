@@ -1,40 +1,39 @@
 /*
  * ===Begin Copyright Notice===
  *
- * NOTICE
+ *  NOTICE
  *
- * THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
- * LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
- * WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
- * THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
- * SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
+ *  THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
+ *  WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
+ *  THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
+ *  SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
  *
- * (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
- * MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
- * LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
- * ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
- * OWNERS.
+ *  (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
+ *  MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
+ *  ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
+ *  OWNERS.
  *
- * ===End Copyright Notice===
+ *  ===End Copyright Notice===
  */
 
 package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
-import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import org.jboss.netty.channel._
 import collection.mutable
 import group.ChannelGroupFuture
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.bootstrap.ServerBootstrap
-import org.jboss.netty.buffer.ChannelBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
 import org.jboss.netty.util.HashedWheelTimer
 import com.lifecosys.toolkit.proxy.ProxyServer._
+import com.lifecosys.toolkit.Logger
 
 
 /**
@@ -46,7 +45,6 @@ import com.lifecosys.toolkit.proxy.ProxyServer._
 object ProxyServer {
 
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-  val logger = LoggerFactory.getLogger(getClass)
   val timer = new HashedWheelTimer
 
   val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
@@ -72,6 +70,8 @@ object ProxyServer {
 class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
   implicit val currentProxyConfig = proxyConfig
 
+  val logger = Logger(getClass)
+
   val isStarted: AtomicBoolean = new AtomicBoolean(false)
 
   val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
@@ -91,7 +91,7 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
     pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        logger.debug("Channel idle........{}", e.getChannel)
+        logger.debug("Channel idle........%s".format(e.getChannel))
         Utils.closeChannel(e.getChannel)
       }
     })
@@ -113,7 +113,7 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
 
       if (!future.isCompleteSuccess) {
         future.iterator().filterNot(_.isSuccess).foreach {
-          channelFuture => logger.warn("Can't close {}, case by {}", Array(channelFuture.getChannel, channelFuture.getCause))
+          channelFuture => logger.warn("Can't close %s, case by %s".format(channelFuture.getChannel, channelFuture.getCause))
         }
 
         proxyConfig.serverSocketChannelFactory.releaseExternalResources()

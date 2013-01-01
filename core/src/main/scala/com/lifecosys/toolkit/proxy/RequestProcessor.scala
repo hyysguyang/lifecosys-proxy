@@ -1,3 +1,23 @@
+/*
+ * ===Begin Copyright Notice===
+ *
+ *  NOTICE
+ *
+ *  THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
+ *  WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
+ *  THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
+ *  SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
+ *
+ *  (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
+ *  MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
+ *  ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
+ *  OWNERS.
+ *
+ *  ===End Copyright Notice===
+ */
+
 package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.handler.codec.http.{HttpRequestEncoder, HttpClientCodec, HttpRequest}
@@ -8,9 +28,10 @@ import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
 import org.jboss.netty.buffer.ChannelBuffers
 import com.lifecosys.toolkit.proxy.ProxyServer._
+import com.lifecosys.toolkit.Logger
 
 /**
- * 
+ *
  *
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
  * @author <a href="mailto:Young.Gu@lifecosys.com">Young Gu</a>
@@ -22,6 +43,8 @@ trait RequestProcessor {
 
   val httpRequest: HttpRequest
   val browserToProxyContext: ChannelHandlerContext
+
+  val logger = Logger(getClass)
 
   def newClientBootstrap = {
     val proxyToServerBootstrap = new ClientBootstrap()
@@ -66,12 +89,12 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
       case true => {
         //                  hostToChannelFuture.put(host, future.getChannel)
         future.getChannel().write(httpRequest).addListener {
-          future: ChannelFuture => if (logger.isDebugEnabled()) logger.debug("Write request to remote server {} completed.", future.getChannel)
+          future: ChannelFuture => logger.debug("Write request to remote server %s completed.".format(future.getChannel))
         }
         browserToProxyChannel.setReadable(true)
       }
       case false => {
-        if (logger.isDebugEnabled()) logger.debug("Close browser connection...")
+        logger.debug("Close browser connection...")
         browserToProxyChannel.setReadable(true)
         Utils.closeChannel(browserToProxyChannel)
       }
@@ -94,7 +117,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
     pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        logger.debug("Channel idle........{}", e.getChannel)
+        logger.debug("Channel idle........%s".format(e.getChannel))
         Utils.closeChannel(e.getChannel)
       }
     })
@@ -116,7 +139,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
       case Some(channel) if channel.isConnected => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8")))
       case None => {
         browserToProxyChannel.setReadable(false)
-        if (logger.isDebugEnabled()) logger.debug("Starting new connection to: {}", host)
+        logger.debug("Starting new connection to: %s".format(host))
         createProxyToServerBootstrap.connect(host).addListener(connectComplete _)
       }
     }
@@ -143,10 +166,10 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
 
 
   def connectComplete(future: ChannelFuture): Unit = {
-    if (logger.isDebugEnabled()) logger.debug("Connection successful: {}", future.getChannel)
+    logger.debug("Connection successful: %s".format(future.getChannel))
 
     if (!future.isSuccess) {
-      if (logger.isDebugEnabled()) logger.debug("Close browser connection...")
+      logger.debug("Close browser connection...")
       Utils.closeChannel(browserToProxyChannel)
       return
     }
@@ -162,12 +185,12 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
         future.getChannel.write(httpRequest).addListener {
           future: ChannelFuture => {
             future.getChannel.getPipeline.remove("encoder")
-            if (logger.isDebugEnabled()) logger.debug("Finished write request to {} \n {} ", Array(future.getChannel, httpRequest))
+            logger.debug("Finished write request to %s\n %s ".format(future.getChannel, httpRequest))
           }
         }
       }
       case None => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8"))).addListener {
-        future: ChannelFuture => if (logger.isDebugEnabled()) logger.debug("Finished write request to {} \n {} ", Array(future.getChannel, Utils.connectProxyResponse))
+        future: ChannelFuture => logger.debug("Finished write request to %s \n %s ".format(future.getChannel, Utils.connectProxyResponse))
       }
     }
 

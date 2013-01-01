@@ -1,3 +1,23 @@
+/*
+ * ===Begin Copyright Notice===
+ *
+ *  NOTICE
+ *
+ *  THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
+ *  WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
+ *  THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
+ *  SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
+ *
+ *  (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
+ *  MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
+ *  ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
+ *  OWNERS.
+ *
+ *  ===End Copyright Notice===
+ */
+
 package com.lifecosys.toolkit.proxy
 
 import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
@@ -8,7 +28,7 @@ import java.net.InetSocketAddress
 import java.util.regex.Pattern
 import org.jboss.netty.channel.{ChannelFutureListener, Channel}
 import org.jboss.netty.buffer.ChannelBuffers
-import org.slf4j.LoggerFactory
+import com.lifecosys.toolkit.Logger
 
 /**
  *
@@ -17,7 +37,7 @@ import org.slf4j.LoggerFactory
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
-  val logger = LoggerFactory.getLogger(getClass)
+  val logger = Logger(getClass)
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
@@ -51,7 +71,7 @@ object Utils {
   }
 
   def closeChannel(channel: Channel) {
-    if (logger.isDebugEnabled()) logger.debug("Closing channel: {}", channel)
+    logger.debug("Closing channel: %s".format(channel))
     if (channel.isConnected) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
   }
 

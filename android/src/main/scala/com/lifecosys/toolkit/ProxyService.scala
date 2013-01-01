@@ -36,7 +36,7 @@ import proxy.{ProgrammaticCertificationProxyConfig, ProxyServer}
  */
 class ProxyService extends Service {
   val logger = LoggerFactory.getLogger(classOf[ProxyService])
-  var proxyServer: ProxyServer.Proxy = null
+  var proxyServer: ProxyServer = null
   val isRunning = false
   var mServiceLooper: Looper = null
   var mServiceHandler: ServiceHandler = null
@@ -45,7 +45,7 @@ class ProxyService extends Service {
 
     override def handleMessage(msg: Message) {
       logger.error("Proxy service starting..........{}.................", msg)
-      proxyServer = new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig())
+      proxyServer = new ProxyServer(new ProgrammaticCertificationProxyConfig())
       proxyServer.start
 
     }

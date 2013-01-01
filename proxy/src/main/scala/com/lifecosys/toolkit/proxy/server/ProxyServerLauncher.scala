@@ -33,6 +33,6 @@ import scala.Predef._
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig()).start
+    new ProxyServer(new ProgrammaticCertificationProxyConfig()).start
   }
 }

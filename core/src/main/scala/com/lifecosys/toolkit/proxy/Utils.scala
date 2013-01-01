@@ -6,6 +6,9 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import scala.Some
 import java.net.InetSocketAddress
 import java.util.regex.Pattern
+import org.jboss.netty.channel.{ChannelFutureListener, Channel}
+import org.jboss.netty.buffer.ChannelBuffers
+import org.slf4j.LoggerFactory
 
 /**
  *
@@ -14,8 +17,10 @@ import java.util.regex.Pattern
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
+  val logger = LoggerFactory.getLogger(getClass)
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
+  val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
 
   def parseHostAndPort(uri: String) = {
     val noHttpUri = if (httpPattern.matcher(uri).matches())
@@ -31,7 +36,6 @@ object Utils {
 
     val hostPortPattern(host, colon, port) = hostPort
     new InetSocketAddress(host, Some(port).filter(_.trim.length > 0).getOrElse("80").toInt)
-
   }
 
   def stripHost(uri: String): String = {
@@ -44,6 +48,11 @@ object Utils {
       if (slashIndex == -1) "/"
       else noHttpUri.substring(slashIndex)
     }
+  }
+
+  def closeChannel(channel: Channel) {
+    if (logger.isDebugEnabled()) logger.debug("Closing channel: {}", channel)
+    if (channel.isConnected) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
   }
 
   def toHex(data: Array[Byte]): String = {

@@ -95,11 +95,11 @@ object ProxyTestUtils {
 
 class SimpleProxyTest {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-  var proxy: ProxyServer.Proxy = null
+  var proxy: ProxyServer = null
 
   @Before
   def before() {
-    proxy = new ProxyServer.Proxy(createProxyConfig())
+    proxy = new ProxyServer(createProxyConfig())
   }
 
   @After
@@ -116,10 +116,10 @@ class SimpleProxyTest {
     proxy.start
     proxy.shutdown
 
-    proxy = new ProxyServer.Proxy(createProxyConfig())
+    proxy = new ProxyServer(createProxyConfig())
     proxy.start
 
-    new ProxyServer.Proxy(createProxyConfig()).start
+    new ProxyServer(createProxyConfig()).start
 
   }
 
@@ -151,8 +151,8 @@ class SimpleProxyTest {
 
 class ChainedProxyTest {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-  var proxy: ProxyServer.Proxy = null
-  var chainProxy: ProxyServer.Proxy = null
+  var proxy: ProxyServer = null
+  var chainProxy: ProxyServer = null
 
 
   @After
@@ -169,8 +169,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy {
-    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081))
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081))
 
     chainProxy start
 
@@ -187,8 +187,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaUnavailableChainedProxy {
-    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081))
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081))
 
     chainProxy.start
     proxy.start
@@ -203,8 +203,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxyForHttps {
-    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081))
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081))
 
     chainProxy start
 
@@ -221,8 +221,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy_withSSLSupport {
-    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
 
     chainProxy start
 
@@ -234,8 +234,8 @@ class ChainedProxyTest {
   @Test
   def testAccessViaChainedProxyForHttps_withSSLSupport {
 
-    proxy = new ProxyServer.Proxy(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = new ProxyServer.Proxy(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
 
     chainProxy start
 
@@ -290,8 +290,8 @@ class ChainedProxyTest {
       """.stripMargin
 
 
-    proxy = new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
-    chainProxy = new ProxyServer.Proxy(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(chainedConfig)))))
+    proxy = new ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    chainProxy = new ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(chainedConfig)))))
 
     chainProxy start
 

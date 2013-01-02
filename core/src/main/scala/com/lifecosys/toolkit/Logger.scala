@@ -50,10 +50,7 @@ class Logger(name: String) {
 
   def trace(msg: => Any, t: Throwable) = if (logger.isTraceEnabled) logger.trace(messageProcess(msg), t)
 
-  def debug(msg: => Any) = {
-
-    if (logger.isDebugEnabled) logger.debug(messageProcess(msg))
-  }
+  def debug(msg: => Any) = if (logger.isDebugEnabled) logger.debug(messageProcess(msg))
 
   def debug(msg: => Any, t: Throwable) = if (logger.isDebugEnabled) logger.debug(messageProcess(msg), t)
 

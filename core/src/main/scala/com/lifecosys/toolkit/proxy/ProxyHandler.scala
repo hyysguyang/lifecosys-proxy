@@ -24,6 +24,8 @@ import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.buffer.ChannelBuffer
 import com.lifecosys.toolkit.Logger
+import java.net.InetSocketAddress
+import com.lifecosys.toolkit.proxy.ProxyServer._
 
 /**
  *
@@ -62,13 +64,13 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstr
 
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
+    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
     Utils.closeChannel(e.getChannel)
   }
 }
 
 
-class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAddress)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
   val logger = Logger(getClass)
 
   private def responsePreProcess(message: Any) = message match {
@@ -91,7 +93,13 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConf
 
     val message = responsePreProcess(e.getMessage)
     if (browserToProxyChannel.isConnected) {
-      browserToProxyChannel.write(message)
+      browserToProxyChannel.write(message).addListener {
+        future: ChannelFuture => message match {
+          case chunk: HttpChunk if chunk.isLast => Utils.closeChannel(e.getChannel)
+          case response: HttpMessage if !response.isChunked => Utils.closeChannel(e.getChannel)
+          case _ =>
+        }
+      }
     } else {
       if (e.getChannel.isConnected) {
         logger.debug("Closing channel to remote server %s".format(e.getChannel))
@@ -99,11 +107,7 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConf
       }
     }
 
-    message match {
-      case chunk: HttpChunk if chunk.isLast => Utils.closeChannel(e.getChannel)
-      case response: HttpMessage if !response.isChunked => Utils.closeChannel(e.getChannel)
-      case _ =>
-    }
+
   }
 
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -118,7 +122,7 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConf
 
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.debug("Caught exception on proxy -> web connection: " + e.getChannel, e.getCause)
+    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
     Utils.closeChannel(e.getChannel)
   }
 }
@@ -147,7 +151,7 @@ class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: Prox
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn("Exception on: " + e.getChannel, e.getCause)
+    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
     Utils.closeChannel(e.getChannel)
   }
 }

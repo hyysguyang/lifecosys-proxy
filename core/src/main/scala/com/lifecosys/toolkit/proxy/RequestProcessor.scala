@@ -23,7 +23,6 @@ package com.lifecosys.toolkit.proxy
 import org.jboss.netty.handler.codec.http.{HttpRequestEncoder, HttpClientCodec, HttpRequest}
 import org.jboss.netty.channel.{ChannelPipeline, ChannelFuture, ChannelHandlerContext}
 import org.jboss.netty.bootstrap.ClientBootstrap
-import java.net.InetSocketAddress
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
 import org.jboss.netty.buffer.ChannelBuffers
@@ -60,16 +59,15 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
   override val httpRequest: HttpRequest = request
   override val browserToProxyContext = browserToProxyChannelContext
 
-  val chainedProxy = proxyConfig.chainProxies.headOption
-  val host: InetSocketAddress = chainedProxy.getOrElse(Utils.parseHostAndPort(httpRequest.getUri))
+  val (host, isChainedProxy) = proxyConfig.getChainProxyManager.getConnectHost(httpRequest)
   val browserToProxyChannel = browserToProxyContext.getChannel
 
   //Can't play online video since we send the full url for http request,
   // Exactly, we need use the relative url to access the remote server.
-  if (chainedProxy.isEmpty) httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
+  if (!isChainedProxy) httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
 
   def process {
-    hostToChannelFuture.get(host) match {
+    hostToChannelFuture.remove(host) match {
       case Some(channel) if channel.isConnected => {
         logger.error("###########Use existed Proxy toserver conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
         channel.write(httpRequest)
@@ -121,7 +119,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
+    pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel, host))
   }
 
 }
@@ -130,8 +128,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
   override val httpRequest: HttpRequest = request
   val browserToProxyContext = browserToProxyChannelContext
 
-  val chainedProxy = proxyConfig.chainProxies.headOption
-  val host: InetSocketAddress = chainedProxy.getOrElse(Utils.parseHostAndPort(httpRequest.getUri))
+  val (host, isChainedProxy) = proxyConfig.getChainProxyManager.getConnectHost(httpRequest)
   val browserToProxyChannel = browserToProxyContext.getChannel
 
   def process {
@@ -179,21 +176,22 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     pipeline.getNames.asScala.filterNot(List("logger", "ssl").contains(_)).foreach(pipeline remove _)
 
     pipeline.addLast("connectionHandler", new ConnectionRequestHandler(future.getChannel))
-    chainedProxy match {
-      case Some(chainedProxyServer) => {
-        future.getChannel.getPipeline.addBefore("connectionHandler", "encoder", new HttpRequestEncoder)
-        future.getChannel.write(httpRequest).addListener {
-          future: ChannelFuture => {
-            future.getChannel.getPipeline.remove("encoder")
-            logger.debug("Finished write request to %s\n %s ".format(future.getChannel, httpRequest))
-          }
+
+    def sendRequestToChainedProxy {
+      future.getChannel.getPipeline.addBefore("connectionHandler", "encoder", new HttpRequestEncoder)
+      future.getChannel.write(httpRequest).addListener {
+        writeFuture: ChannelFuture => {
+          writeFuture.getChannel.getPipeline.remove("encoder")
+          logger.debug("Finished write request to %s\n %s ".format(future.getChannel, httpRequest))
         }
-      }
-      case None => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8"))).addListener {
-        future: ChannelFuture => logger.debug("Finished write request to %s \n %s ".format(future.getChannel, Utils.connectProxyResponse))
       }
     }
 
+    if (isChainedProxy)
+      sendRequestToChainedProxy
+    else browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8"))).addListener {
+      future: ChannelFuture => logger.debug("Finished write request to %s \n %s ".format(future.getChannel, Utils.connectProxyResponse))
+    }
     browserToProxyChannel.setReadable(true)
   }
 }

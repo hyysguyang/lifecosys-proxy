@@ -42,7 +42,8 @@ object Utils {
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
 
-  def parseHostAndPort(uri: String) = {
+
+  def extractHostAndPort(uri: String) = {
     val noHttpUri = if (httpPattern.matcher(uri).matches())
       uri.substring(uri.indexOf("://") + 3)
     else
@@ -55,7 +56,13 @@ object Utils {
       noHttpUri.substring(0, slashIndex)
 
     val hostPortPattern(host, colon, port) = hostPort
-    new InetSocketAddress(host, Some(port).filter(_.trim.length > 0).getOrElse("80").toInt)
+
+    (host, Some(port).filter(_.trim.length > 0).getOrElse("80"))
+  }
+
+  def extractHost(uri: String) = {
+    val hostPort = extractHostAndPort(uri)
+    new InetSocketAddress(hostPort._1, hostPort._2.toInt)
   }
 
   def stripHost(uri: String): String = {

@@ -1,21 +1,21 @@
 /*
  * ===Begin Copyright Notice===
  *
- * NOTICE
+ *  NOTICE
  *
- * THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
- * LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
- * WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
- * THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
- * SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
+ *  THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
+ *  WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
+ *  THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
+ *  SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
  *
- * (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
- * MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
- * LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
- * ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
- * OWNERS.
+ *  (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
+ *  MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
+ *  LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
+ *  ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
+ *  OWNERS.
  *
- * ===End Copyright Notice===
+ *  ===End Copyright Notice===
  */
 
 package com.lifecosys.toolkit.functional
@@ -32,8 +32,10 @@ import javax.net.ssl.{X509TrustManager, SSLContext}
 import java.security.cert.X509Certificate
 import collection.mutable
 import ProxyTestUtils._
-import com.lifecosys.toolkit.proxy.{ProgrammaticCertificationProxyConfig, ProxyServer, SimpleProxyConfig}
+import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
+import org.jboss.netty.handler.codec.http.{HttpMethod, HttpVersion, DefaultHttpRequest}
+import scala.Some
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -302,5 +304,52 @@ class ChainedProxyTest {
     Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
 
+}
 
+
+class GFWListTest {
+
+  @Test
+  def testGFW {
+    val list = new GFWList() {
+      override def getContent: String = """
+                                          |/^https?:\/\/twitter.com/
+                                          |@@||sina.com.cn
+                                          |||facebook.com
+                                          |!ignore.com
+                                          |http://t.co
+                                          |.twtkr.com
+                                          | """.stripMargin
+    }
+
+    list.parseRules
+
+    Assert.assertTrue(list.isBlocked("http://twitter.com/"))
+    Assert.assertTrue(list.isBlocked("https://twitter.com/"))
+    Assert.assertTrue(list.isBlocked("http://t.co"))
+    Assert.assertTrue(list.isBlocked("http://facebook.com"))
+    Assert.assertTrue(list.isBlocked("https://facebook.com"))
+    Assert.assertTrue(list.isBlocked("http://com.twtkr.com"))
+    Assert.assertFalse(list.isBlocked("http://ignore.com"))
+    Assert.assertFalse(list.isBlocked("https://sina.com.cn"))
+    Assert.assertFalse(list.isBlocked("http://sina.com.cn"))
+    Assert.assertFalse(list.isBlocked("http://killsina.sina.com.cn"))
+    Assert.assertFalse(list.isBlocked("http://killsina.sina.com.cn/"))
+  }
+
+  @Test
+  def testChainedProxyManager {
+
+    val config =
+      """
+        |chain-proxy{
+        |    host ="localhost:8081"
+        |}
+      """.stripMargin
+
+
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
+    val host = new GFWChainProxyManager().getConnectHost(request)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    println(host)
+  }
 }

@@ -27,7 +27,6 @@ import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
 import java.math.BigInteger
 import java.net.InetSocketAddress
 import com.lifecosys.toolkit.proxy.Utils
-import com.lifecosys.toolkit.Logger
 
 /**
  *
@@ -40,10 +39,11 @@ class UtilsTest {
 
 
   @Test
-  def testLogger {
-    new Logger("test").trace({
-      "Just a test"; println("--------------------"); "Good"
-    })
+  def investigation {
+
+
+    //    Assert.assertTrue(new GFWListJava().isBlockedByGFW("http://facebook.com"))
+
   }
 
   @Test
@@ -77,35 +77,35 @@ class UtilsTest {
 
   @Test
   def testParseHost {
-    var host = Utils.parseHostAndPort("http://127.0.0.1:8990/")
+    var host = Utils.extractHost("http://127.0.0.1:8990/")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
 
-    host = Utils.parseHostAndPort("https://127.0.0.1:8990/")
+    host = Utils.extractHost("https://127.0.0.1:8990/")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
 
-    host = Utils.parseHostAndPort("127.0.0.1:8990/")
+    host = Utils.extractHost("127.0.0.1:8990/")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
 
-    host = Utils.parseHostAndPort("127.0.0.1:8990")
+    host = Utils.extractHost("127.0.0.1:8990")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
 
-    host = Utils.parseHostAndPort("127.0.0.1")
+    host = Utils.extractHost("127.0.0.1")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
 
-    host = Utils.parseHostAndPort("127.0.0.1/test/sss/tyty/8989")
+    host = Utils.extractHost("127.0.0.1/test/sss/tyty/8989")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
 
-    host = Utils.parseHostAndPort("127.0.0.1/test/sss/tyty/89:89")
+    host = Utils.extractHost("127.0.0.1/test/sss/tyty/89:89")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
 
-    host = Utils.parseHostAndPort("127.0.0.1//test/hello/index.html")
+    host = Utils.extractHost("127.0.0.1//test/hello/index.html")
     Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
 
-    host = Utils.parseHostAndPort("http://download-ln.jetbrains.com/idea/ideaIC-12.0.1.tar.gz")
+    host = Utils.extractHost("http://download-ln.jetbrains.com/idea/ideaIC-12.0.1.tar.gz")
     Assert.assertEquals(new InetSocketAddress("download-ln.jetbrains.com", 80), host)
 
     try {
-      Utils.parseHostAndPort("127.0.0.1:899000")
+      Utils.extractHost("127.0.0.1:899000")
     } catch {
       case e: MatchError => Assert.assertTrue(true)
     }

@@ -67,6 +67,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
   if (!isChainedProxy) httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
 
   def process {
+    logger.debug("Process request with %s".format((host, isChainedProxy)))
     hostToChannelFuture.remove(host) match {
       case Some(channel) if channel.isConnected => {
         logger.error("###########Use existed Proxy toserver conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
@@ -102,7 +103,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
 
   def proxyToServerPipeline = (pipeline: ChannelPipeline) => {
     //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
-    if (proxyConfig.proxyToServerSSLEnable) {
+    if (isChainedProxy && proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
       engine.setUseClientMode(true)
       pipeline.addLast("ssl", new SslHandler(engine))
@@ -132,6 +133,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
   val browserToProxyChannel = browserToProxyContext.getChannel
 
   def process {
+    logger.debug("Process request with %s".format((host, isChainedProxy)))
     hostToChannelFuture.get(host) match {
       case Some(channel) if channel.isConnected => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8")))
       case None => {
@@ -151,7 +153,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
 
       //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
 
-        if (proxyConfig.proxyToServerSSLEnable) {
+        if (isChainedProxy && proxyConfig.proxyToServerSSLEnable) {
           val engine = proxyConfig.clientSSLContext.createSSLEngine
           engine.setUseClientMode(true)
           pipeline.addLast("ssl", new SslHandler(engine))

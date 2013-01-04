@@ -20,7 +20,7 @@
 
 package com.lifecosys.toolkit.proxy.server
 
-import com.lifecosys.toolkit.proxy.{GFWChainProxyManager, ChainProxyManager, ProgrammaticCertificationProxyConfig, ProxyServer}
+import com.lifecosys.toolkit.proxy._
 import scala.Predef._
 
 /**
@@ -33,8 +33,6 @@ import scala.Predef._
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    new ProxyServer(new ProgrammaticCertificationProxyConfig() {
-      override def getChainProxyManager: ChainProxyManager = new GFWChainProxyManager()
-    }).start
+    new ProxyServer(new GFWProgrammaticCertificationProxyConfig).start
   }
 }

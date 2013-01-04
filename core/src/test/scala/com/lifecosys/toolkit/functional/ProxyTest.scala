@@ -76,19 +76,18 @@ object ProxyTestUtils {
   }
 
 
-  def createProxyConfig(bindPort: Int = 8080, chainedPort: Option[Int] = None, isServerSSLEnable: Boolean = false, isClientSSLEnable: Boolean = false) = {
+  def createProxyConfig(bindPort: Int = 8080,
+                        chainedPort: Option[Int] = None,
+                        isServerSSLEnable: Boolean = false,
+                        isClientSSLEnable: Boolean = false,
+                        chainProxyManager: ChainProxyManager = new DefaultChainProxyManager) = {
     new SimpleProxyConfig {
       override val port = bindPort
-
-      override val chainProxies = {
-        chainedPort match {
-          case Some(port) => mutable.MutableList[InetSocketAddress](new InetSocketAddress(port))
-          case None => mutable.MutableList[InetSocketAddress]()
-        }
-      }
-
+      override val chainProxies = chainedPort.map(port => mutable.MutableList[InetSocketAddress](new InetSocketAddress(port))).getOrElse(mutable.MutableList[InetSocketAddress]())
       override val serverSSLEnable = isServerSSLEnable
       override val proxyToServerSSLEnable = isClientSSLEnable
+
+      override def getChainProxyManager: ChainProxyManager = chainProxyManager
     }
   }
 
@@ -161,7 +160,7 @@ class ChainedProxyTest {
   def after() {
     proxy shutdown
 
-    chainProxy shutdown
+    if (chainProxy != null) chainProxy shutdown
 
     proxy = null
     chainProxy = null
@@ -187,10 +186,54 @@ class ChainedProxyTest {
   }
 
 
+  val gfwChainProxyManager = new GFWChainProxyManager {
+    override val gfwList = new GFWList() {
+      override def getContent: String = """
+                                          |||facebook.com
+                                          |!ignore.com
+                                          |http://t.co
+                                          |.twtkr.com
+                                          | """.stripMargin
+    }.parseRules
+  }
+
+  @Test
+  def testAccessViaChainedProxy_bypassChainedProxy {
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
+    proxy start
+    val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    Assert.assertTrue(proxyContent.toString.length > 0)
+  }
+
+  @Test
+  def testAccessViaChainedProxy_forHttps_bypassChainedProxy {
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
+    proxy start
+    val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    Assert.assertTrue(proxyContent.toString.length > 0)
+  }
+
+  @Test
+  def testAccessViaChainedProxy_bypassChainedProxy_withSSLSupport {
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
+    proxy start
+    val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    Assert.assertTrue(proxyContent.toString.length > 0)
+  }
+
+  @Test
+  def testAccessViaChainedProxy_forHttps_bypassChainedProxy_withSSLSupport {
+    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
+    proxy start
+    val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    Assert.assertTrue(proxyContent.toString.length > 0)
+  }
+
+
   @Test
   def testAccessViaUnavailableChainedProxy {
     proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8082))
 
     chainProxy.start
     proxy.start

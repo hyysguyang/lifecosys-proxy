@@ -46,6 +46,7 @@ class GFWList {
       case line: String if line.trim.length > 0 => matchList += HttpStringGFWListRule(line)
       case line: String =>
     }
+    this
   }
 
   def isBlocked(url: String) = {

@@ -26,7 +26,7 @@ import android.content.Intent
 import android.os._
 import android.widget.Toast
 import org.slf4j.LoggerFactory
-import proxy.{ProgrammaticCertificationProxyConfig, ProxyServer}
+import proxy.{GFWProgrammaticCertificationProxyConfig, ProxyServer}
 
 
 /**
@@ -45,7 +45,7 @@ class ProxyService extends Service {
 
     override def handleMessage(msg: Message) {
       logger.info("Proxy service starting..........{}.................", msg)
-      proxyServer = new ProxyServer(new ProgrammaticCertificationProxyConfig())
+      proxyServer = new ProxyServer(new GFWProgrammaticCertificationProxyConfig())
       proxyServer.start
 
     }

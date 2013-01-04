@@ -51,8 +51,8 @@ class GFWChainProxyManager extends ChainProxyManager {
     line => val hd = line.split('\t'); (hd(1), hd(0))
   }.toMap
 
-  val gfwList = new GFWList()
-  gfwList.parseRules
+  val gfwList = new GFWList().parseRules
+
 
   def getConnectHost(request: HttpRequest)(implicit proxyConfig: ProxyConfig): Tuple2[InetSocketAddress, Boolean] = {
     val hostPort = Utils.extractHostAndPort(request.getUri)

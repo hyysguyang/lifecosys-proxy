@@ -20,8 +20,8 @@
 
 package com.lifecosys.toolkit.proxy
 
-import org.jboss.netty.handler.codec.http.{HttpRequestEncoder, HttpClientCodec, HttpRequest}
-import org.jboss.netty.channel.{ChannelPipeline, ChannelFuture, ChannelHandlerContext}
+import org.jboss.netty.handler.codec.http._
+import org.jboss.netty.channel._
 import org.jboss.netty.bootstrap.ClientBootstrap
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
@@ -106,21 +106,55 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
     if (isChainedProxy && proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
       engine.setUseClientMode(true)
-      pipeline.addLast("ssl", new SslHandler(engine))
+      pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
     }
-    pipeline.addLast("codec", new HttpClientCodec(8192 * 2, 8192 * 4, 8192 * 4))
-    // Remove the following line if you don't want automatic content decompression.
-    //NOTE: Don't add inflater handler which result image can't be load...
-    //      pipeline.addLast("inflater", new HttpContentDecompressor)
-    // Uncomment the following line if you don't want to handle HttpChunks.
-    pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
-    pipeline.addLast("idleAware", new IdleStateAwareChannelHandler {
+    if (isChainedProxy) {
+      pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
+      pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
+    }
+    pipeline.addLast("proxyServerToRemote-codec", new HttpClientCodec(8192 * 2, 8192 * 4, 8192 * 4))
+    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
+    pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
+    pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
         logger.debug("Channel idle........%s".format(e.getChannel))
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel, host))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel, host))
+  }
+
+}
+
+
+class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 128) extends HttpChunkAggregator(maxContentLength) {
+  var cumulatedThunk: Option[HttpChunk] = None
+
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    e.getMessage match {
+      case response: HttpMessage => ctx.sendUpstream(e)
+      case chunk: HttpChunk if chunk.isLast => {
+        if (cumulatedThunk isDefined) {
+          Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
+          cumulatedThunk = None
+        }
+        ctx.sendUpstream(e)
+      }
+      case chunk: HttpChunk => {
+
+        if (!cumulatedThunk.isDefined)
+          cumulatedThunk = Some(chunk)
+        else
+          cumulatedThunk.get.setContent(ChannelBuffers.wrappedBuffer(cumulatedThunk.get.getContent, chunk.getContent))
+
+        if (cumulatedThunk.get.getContent.readableBytes() > maxContentLength) {
+          Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
+          cumulatedThunk = None
+        }
+      }
+      case _ => ctx.sendUpstream(e)
+    }
+
   }
 
 }
@@ -156,9 +190,23 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
         if (isChainedProxy && proxyConfig.proxyToServerSSLEnable) {
           val engine = proxyConfig.clientSSLContext.createSSLEngine
           engine.setUseClientMode(true)
-          pipeline.addLast("ssl", new SslHandler(engine))
+          pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
         }
-        pipeline.addLast("connectionHandler", new ConnectionRequestHandler(browserToProxyChannel))
+
+        if (isChainedProxy) {
+          pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
+          pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
+        }
+
+        pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
+        pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
+          override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
+            logger.debug("Channel idle........%s".format(e.getChannel))
+            Utils.closeChannel(e.getChannel)
+          }
+        })
+
+        pipeline.addLast("proxyServerToRemote-connectionHandler", new ConnectionRequestHandler(browserToProxyChannel))
     }
     proxyToServerBootstrap
   }
@@ -174,16 +222,15 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     }
 
     val pipeline = browserToProxyChannel.getPipeline
-    import scala.collection.JavaConverters._
-    pipeline.getNames.asScala.filterNot(List("logger", "ssl").contains(_)).foreach(pipeline remove _)
-
-    pipeline.addLast("connectionHandler", new ConnectionRequestHandler(future.getChannel))
+    //Remove codec related handle for connect request, it's necessary for HTTPS.
+    List("proxyServer-encoder", "proxyServer-decoder", "proxyServer-proxyHandler").foreach(pipeline remove _)
+    pipeline.addLast("proxyServer-connectionHandler", new ConnectionRequestHandler(future.getChannel))
 
     def sendRequestToChainedProxy {
-      future.getChannel.getPipeline.addBefore("connectionHandler", "encoder", new HttpRequestEncoder)
+      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", new HttpRequestEncoder)
       future.getChannel.write(httpRequest).addListener {
         writeFuture: ChannelFuture => {
-          writeFuture.getChannel.getPipeline.remove("encoder")
+          writeFuture.getChannel.getPipeline.remove("proxyServerToRemote-encoder")
           logger.debug("Finished write request to %s\n %s ".format(future.getChannel, httpRequest))
         }
       }
@@ -194,6 +241,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     else browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8"))).addListener {
       future: ChannelFuture => logger.debug("Finished write request to %s \n %s ".format(future.getChannel, Utils.connectProxyResponse))
     }
+
     browserToProxyChannel.setReadable(true)
   }
 }

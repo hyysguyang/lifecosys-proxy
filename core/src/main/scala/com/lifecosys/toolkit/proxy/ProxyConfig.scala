@@ -57,6 +57,8 @@ trait ProxyConfig {
 
   val loggerLevel: InternalLogLevel
 
+  val isLocal: Boolean
+
   val chainProxies: scala.collection.mutable.MutableList[InetSocketAddress]
 
   val serverSocketChannelFactory: ServerSocketChannelFactory
@@ -82,6 +84,8 @@ class SimpleProxyConfig extends ProxyConfig {
   override val proxyToServerSSLEnable = false
 
   override val loggerLevel: InternalLogLevel = InternalLogLevel.INFO
+
+  val isLocal: Boolean = true
 
   override val chainProxies = mutable.MutableList[InetSocketAddress]()
 
@@ -157,7 +161,7 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
 
   override val serverSocketChannelFactory = new NioServerSocketChannelFactory(serverExecutor, serverExecutor)
   override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor)
-
+  override val isLocal = thisConfig.getBoolean("local")
   override val chainProxies = thisConfig.getString("chain-proxy.host") match {
     case host: String if host.trim.length > 0 => mutable.MutableList[InetSocketAddress](Utils.extractHost(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
     case _ => mutable.MutableList[InetSocketAddress]()

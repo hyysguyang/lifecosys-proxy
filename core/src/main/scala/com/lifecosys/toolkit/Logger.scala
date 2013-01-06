@@ -43,7 +43,14 @@ class Logger(name: String) {
   def messageProcess(msg: => Any) = {
     val caller = Thread.currentThread().getStackTrace()(3)
     MDC.put("location", "%s:[%s]".format(caller.getClassName, caller.getLineNumber));
-    msg toString
+    try {
+      msg toString
+    }
+    catch {
+      case e: Throwable =>
+        logger.warn("Exception when loger", e)
+        e.getMessage
+    }
   }
 
   def trace(msg: => Any) = if (logger.isTraceEnabled) logger.trace(messageProcess(msg))

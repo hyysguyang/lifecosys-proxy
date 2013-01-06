@@ -80,15 +80,28 @@ object ProxyTestUtils {
                         chainedPort: Option[Int] = None,
                         isServerSSLEnable: Boolean = false,
                         isClientSSLEnable: Boolean = false,
+                        isLocalProxy: Boolean = true,
                         chainProxyManager: ChainProxyManager = new DefaultChainProxyManager) = {
     new SimpleProxyConfig {
       override val port = bindPort
+      override val isLocal = isLocalProxy
       override val chainProxies = chainedPort.map(port => mutable.MutableList[InetSocketAddress](new InetSocketAddress(port))).getOrElse(mutable.MutableList[InetSocketAddress]())
       override val serverSSLEnable = isServerSSLEnable
       override val proxyToServerSSLEnable = isClientSSLEnable
 
       override def getChainProxyManager: ChainProxyManager = chainProxyManager
     }
+  }
+
+
+  def main(args: Array[String]) {
+
+    val proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    val chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
+
+    chainProxy start
+
+    proxy start
   }
 
 
@@ -171,16 +184,13 @@ class ChainedProxyTest {
   @Test
   def testAccessViaChainedProxy {
     proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
 
     chainProxy start
 
     proxy start
 
-    var proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8081)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
-
-    proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }
@@ -249,16 +259,12 @@ class ChainedProxyTest {
   @Test
   def testAccessViaChainedProxyForHttps {
     proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
 
     chainProxy start
 
     proxy start
-
-    var proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8081)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
-
-    proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }
@@ -267,7 +273,7 @@ class ChainedProxyTest {
   @Test
   def testAccessViaChainedProxy_withSSLSupport {
     proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
 
     chainProxy start
 
@@ -280,7 +286,7 @@ class ChainedProxyTest {
   def testAccessViaChainedProxyForHttps_withSSLSupport {
 
     proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isServerSSLEnable = true))
+    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
 
     chainProxy start
 
@@ -300,13 +306,11 @@ class ChainedProxyTest {
         |chain-proxy{
         |    host ="localhost:8081"
         |}
-        |
         |proxy-server{
         |    ssl {
         |            enabled = false
         |    }
         |}
-        |
         |proxy-server-to-remote{
         |    ssl {
         |            enabled = true
@@ -317,16 +321,15 @@ class ChainedProxyTest {
     val chainedConfig =
       """
         |port = 8081
+        |local=false
         |chain-proxy{
         |    host =""
         |}
-        |
         |proxy-server{
         |    ssl {
         |            enabled = true
         |    }
         |}
-        |
         |proxy-server-to-remote{
         |    ssl {
         |            enabled = false

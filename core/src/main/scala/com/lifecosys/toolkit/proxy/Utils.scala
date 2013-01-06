@@ -29,6 +29,8 @@ import java.util.regex.Pattern
 import org.jboss.netty.channel.{ChannelFutureListener, Channel}
 import org.jboss.netty.buffer.ChannelBuffers
 import com.lifecosys.toolkit.Logger
+import org.bouncycastle.util.encoders.Hex
+import java.nio.charset.Charset
 
 /**
  *
@@ -38,6 +40,7 @@ import com.lifecosys.toolkit.Logger
  */
 object Utils {
   val logger = Logger(getClass)
+  val UTF8: Charset = Charset.forName("UTF-8")
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
@@ -83,16 +86,7 @@ object Utils {
   }
 
   def toHex(data: Array[Byte]): String = {
-    val digits = "0123456789abcdef"
-    var result = ""
-    var index = 0
-    while (index != data.length) {
-      val value: Int = data(index) & 0xff
-      result += digits.charAt(value >> 4)
-      result += digits.charAt(value & 0xf)
-      index = index + 1
-    }
-    result
+    new String(Hex.encode(data), UTF8)
   }
 
 

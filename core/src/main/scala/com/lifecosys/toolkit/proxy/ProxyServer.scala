@@ -82,20 +82,26 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)
       engine.setNeedClientAuth(true)
-      pipeline.addLast("ssl", new SslHandler(engine))
+      pipeline.addLast("proxyServer-ssl", new SslHandler(engine))
     }
 
-    pipeline.addLast("decoder", new HttpRequestDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+    if (!proxyConfig.isLocal) {
+      pipeline.addLast("proxyServer-deflater", new IgnoreEmptyBufferZlibEncoder)
+      pipeline.addLast("proxyServer-inflater", new IgnoreEmptyBufferZlibDecoder)
+    }
+
+    pipeline.addLast("proxyServer-decoder", new HttpRequestDecoder(8192 * 2, 8192 * 4, 8192 * 4))
     //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
-    pipeline.addLast("encoder", new HttpResponseEncoder())
-    pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, 120))
-    pipeline.addLast("idleAware", new IdleStateAwareChannelHandler {
+    pipeline.addLast("proxyServer-encoder", new HttpResponseEncoder())
+
+    pipeline.addLast("proxyServer-idle", new IdleStateHandler(timer, 0, 0, 120))
+    pipeline.addLast("proxyServer-idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
         logger.debug("Channel idle........%s".format(e.getChannel))
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyHandler", new ProxyHandler)
+    pipeline.addLast("proxyServer-proxyHandler", new ProxyHandler)
   }
 
   def shutdown = {

@@ -20,9 +20,9 @@
 
 package com.lifecosys.toolkit.proxy
 
-import org.apache.commons.codec.binary.Base64
 import java.util.regex.Pattern
 import org.apache.commons.io.IOUtils
+import org.bouncycastle.util.encoders.Base64
 
 /**
  *
@@ -34,7 +34,7 @@ class GFWList {
   val excludeList = scala.collection.mutable.ArrayBuffer[GFWListRule]()
   val matchList = scala.collection.mutable.ArrayBuffer[GFWListRule]()
 
-  def getContent = new String(new Base64().decode(IOUtils.toString(getClass.getResourceAsStream("/gfwlist.txt"))))
+  def getContent = new String(Base64.decode(IOUtils.toString(getClass.getResourceAsStream("/gfwlist.txt"))))
 
   def parseRules = {
     scala.io.Source.fromString(getContent).getLines().toList.foreach {

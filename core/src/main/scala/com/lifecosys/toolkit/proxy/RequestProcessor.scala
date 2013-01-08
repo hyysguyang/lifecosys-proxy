@@ -25,9 +25,12 @@ import org.jboss.netty.channel._
 import org.jboss.netty.bootstrap.ClientBootstrap
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
-import org.jboss.netty.buffer.ChannelBuffers
+import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import com.lifecosys.toolkit.proxy.ProxyServer._
 import com.lifecosys.toolkit.Logger
+import org.jboss.netty.handler.codec.compression.{ZlibEncoder, ZlibDecoder}
+import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectDecoder, ObjectEncoder}
+import org.jboss.netty.handler.codec.oneone.{OneToOneDecoder, OneToOneEncoder}
 
 /**
  *
@@ -48,7 +51,7 @@ trait RequestProcessor {
   def newClientBootstrap = {
     val proxyToServerBootstrap = new ClientBootstrap()
     proxyToServerBootstrap.setOption("keepAlive", true)
-    proxyToServerBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
+    proxyToServerBootstrap.setOption("connectTimeoutMillis", 1200 * 1000)
     proxyToServerBootstrap
   }
 }
@@ -109,8 +112,13 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
       pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
     }
     if (isChainedProxy) {
-      pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
       pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
+      pipeline.addLast("proxyServerToRemote-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
+      pipeline.addLast("proxyServerToRemote-decrypt", new DecryptDecoder)
+
+      pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
+      pipeline.addLast("proxyServerToRemote-objectEncoder", new ObjectEncoder)
+      pipeline.addLast("proxyServerToRemote-encrypt", new EncryptEncoder)
     }
     pipeline.addLast("proxyServerToRemote-codec", new HttpClientCodec(8192 * 2, 8192 * 4, 8192 * 4))
     pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
@@ -194,8 +202,13 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
         }
 
         if (isChainedProxy) {
-          pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
           pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
+          pipeline.addLast("proxyServerToRemote-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
+          pipeline.addLast("proxyServerToRemote-decrypt", new DecryptDecoder)
+
+          pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
+          pipeline.addLast("proxyServerToRemote-objectEncoder", new ObjectEncoder)
+          pipeline.addLast("proxyServerToRemote-encrypt", new EncryptEncoder)
         }
 
         pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
@@ -243,6 +256,40 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     }
 
     browserToProxyChannel.setReadable(true)
+  }
+}
+
+/**
+ * We need it to wrapper the buffer byte array to avoid the padding and block size process.
+ * @param data
+ */
+sealed case class EncryptDataWrapper(data: Array[Byte])
+
+class EncryptEncoder extends OneToOneEncoder {
+  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = if (msg.isInstanceOf[ChannelBuffer])
+    EncryptDataWrapper(Utils.cryptor.encrypt(ChannelBuffers.copiedBuffer(msg.asInstanceOf[ChannelBuffer]).array()))
+  else
+    msg
+}
+
+class DecryptDecoder extends OneToOneDecoder {
+  def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
+    case EncryptDataWrapper(data) => ChannelBuffers.copiedBuffer(Utils.cryptor.decrypt(data))
+    case _ => msg
+  }
+}
+
+class IgnoreEmptyBufferZlibEncoder extends ZlibEncoder {
+  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
+    case cb: ChannelBuffer if (cb.hasArray) => super.encode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
+    case _ => msg
+  }
+}
+
+class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
+  override def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
+    case cb: ChannelBuffer if (cb.hasArray) => super.decode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
+    case _ => msg
   }
 }
 

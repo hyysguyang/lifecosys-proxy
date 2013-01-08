@@ -26,7 +26,6 @@ import org.jboss.netty.buffer.ChannelBuffer
 import com.lifecosys.toolkit.Logger
 import java.net.InetSocketAddress
 import com.lifecosys.toolkit.proxy.ProxyServer._
-import org.jboss.netty.handler.codec.compression.{ZlibDecoder, ZlibEncoder}
 
 /**
  *
@@ -104,7 +103,6 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAd
     } else {
       if (e.getChannel.isConnected) {
         logger.debug("Closing channel to remote server %s".format(e.getChannel))
-        logger.debug("Closing channel" + " to remote server %s")
         Utils.closeChannel(e.getChannel)
       }
     }
@@ -158,29 +156,4 @@ class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: Prox
   }
 }
 
-class IgnoreEmptyBufferZlibEncoder extends ZlibEncoder {
-  val logger = Logger(getClass)
-
-  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
-    msg match {
-      case cb: ChannelBuffer if (cb.readableBytes() > 0) => {
-        super.encode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
-      }
-      case _ => msg.asInstanceOf[AnyRef]
-    }
-  }
-}
-
-class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
-  val logger = Logger(getClass)
-
-  override def decode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
-    msg match {
-      case cb: ChannelBuffer if (cb.readableBytes() > 0) => {
-        super.decode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
-      }
-      case _ => msg.asInstanceOf[AnyRef]
-    }
-  }
-}
 

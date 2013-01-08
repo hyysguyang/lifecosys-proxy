@@ -47,9 +47,7 @@ class Logger(name: String) {
       msg toString
     }
     catch {
-      case e: Throwable =>
-        logger.warn("Exception when loger", e)
-        e.getMessage
+      case e: Throwable => e.getMessage
     }
   }
 

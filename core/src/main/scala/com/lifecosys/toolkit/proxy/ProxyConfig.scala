@@ -38,7 +38,6 @@ import java.math.BigInteger
 import org.bouncycastle.jce.X509Principal
 import java.util.Date
 import java.security.cert.Certificate
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 /**
  *
@@ -203,9 +202,6 @@ class DefaultStaticCertificationProxyConfig(config: Option[Config] = None) exten
 
 
 class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extends DefaultProxyConfig(config) {
-
-  Security.addProvider(new BouncyCastleProvider())
-
   val keyFactory = KeyFactory.getInstance("RSA", "BC")
   val protocol = "SSL"
   val keyStoreType = "BKS"

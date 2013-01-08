@@ -31,6 +31,8 @@ import org.jboss.netty.buffer.ChannelBuffers
 import com.lifecosys.toolkit.Logger
 import org.bouncycastle.util.encoders.Hex
 import java.nio.charset.Charset
+import org.jasypt.encryption.pbe.StandardPBEByteEncryptor
+import java.util.zip.{Inflater, Deflater}
 
 /**
  *
@@ -44,6 +46,19 @@ object Utils {
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
+  val deflater = new Deflater
+  val inflater = new Inflater
+
+  lazy val cryptor = {
+    val field = Class.forName("javax.crypto.JceSecurity").getDeclaredField("isRestricted");
+    field.setAccessible(true)
+    field.set(null, java.lang.Boolean.FALSE);
+    val binaryEncryptor = new StandardPBEByteEncryptor
+    binaryEncryptor.setProviderName("BC")
+    binaryEncryptor.setAlgorithm("PBEWithSHAAnd3KeyTripleDES")
+    binaryEncryptor.setPassword( """nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
+    binaryEncryptor
+  }
 
 
   def extractHostAndPort(uri: String) = {

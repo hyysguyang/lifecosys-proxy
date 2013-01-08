@@ -34,6 +34,9 @@ import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHan
 import org.jboss.netty.util.HashedWheelTimer
 import com.lifecosys.toolkit.proxy.ProxyServer._
 import com.lifecosys.toolkit.Logger
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectEncoder, ObjectDecoder}
 
 
 /**
@@ -43,6 +46,8 @@ import com.lifecosys.toolkit.Logger
  */
 
 object ProxyServer {
+
+  Security.addProvider(new BouncyCastleProvider)
 
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   val timer = new HashedWheelTimer
@@ -86,8 +91,13 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
     }
 
     if (!proxyConfig.isLocal) {
-      pipeline.addLast("proxyServer-deflater", new IgnoreEmptyBufferZlibEncoder)
       pipeline.addLast("proxyServer-inflater", new IgnoreEmptyBufferZlibDecoder)
+      pipeline.addLast("proxyServer-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
+      pipeline.addLast("proxyServer-decrypt", new DecryptDecoder)
+
+      pipeline.addLast("proxyServer-deflater", new IgnoreEmptyBufferZlibEncoder)
+      pipeline.addLast("proxyServer-objectEncoder", new ObjectEncoder)
+      pipeline.addLast("proxyServer-encrypt", new EncryptEncoder)
     }
 
     pipeline.addLast("proxyServer-decoder", new HttpRequestDecoder(8192 * 2, 8192 * 4, 8192 * 4))
@@ -134,9 +144,9 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
     serverBootstrap.setPipelineFactory(proxyServerPipeline)
     serverBootstrap.setOption("tcpNoDelay", true)
     serverBootstrap.setOption("keepAlive", true)
-    serverBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
+    serverBootstrap.setOption("connectTimeoutMillis", 120 * 1000)
     serverBootstrap.setOption("child.keepAlive", true)
-    serverBootstrap.setOption("child.connectTimeoutMillis", 60 * 1000)
+    serverBootstrap.setOption("child.connectTimeoutMillis", 120 * 1000)
 
     proxyConfig.allChannels.add(serverBootstrap.bind(new InetSocketAddress(proxyConfig.port)))
 

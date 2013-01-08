@@ -37,13 +37,11 @@ import com.lifecosys.toolkit.proxy.Utils
 
 class UtilsTest {
 
+  Security.addProvider(new BouncyCastleProvider)
 
   @Test
   def investigation {
-
-
     //    Assert.assertTrue(new GFWListJava().isBlockedByGFW("http://facebook.com"))
-
   }
 
   @Test

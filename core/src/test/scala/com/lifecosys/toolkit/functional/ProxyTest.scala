@@ -95,7 +95,6 @@ object ProxyTestUtils {
 
 
   def main(args: Array[String]) {
-
     val proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
     val chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
 

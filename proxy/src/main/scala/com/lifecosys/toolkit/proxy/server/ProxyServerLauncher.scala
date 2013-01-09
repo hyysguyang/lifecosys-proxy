@@ -22,6 +22,7 @@ package com.lifecosys.toolkit.proxy.server
 
 import com.lifecosys.toolkit.proxy._
 import scala.Predef._
+import com.typesafe.config.ConfigFactory
 
 /**
  *
@@ -33,6 +34,12 @@ import scala.Predef._
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    new ProxyServer(new GFWProgrammaticCertificationProxyConfig).start
+    val config = ConfigFactory.load()
+    ProxyServer.initialize
+    val proxyConfig = if (config.getBoolean("local"))
+      new GFWProgrammaticCertificationProxyConfig(Some(config))
+    else
+      new ProgrammaticCertificationProxyConfig(Some(config))
+    ProxyServer(proxyConfig).start
   }
 }

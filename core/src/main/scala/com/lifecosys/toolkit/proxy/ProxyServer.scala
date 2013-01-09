@@ -46,13 +46,14 @@ import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectEncode
  */
 
 object ProxyServer {
-
-  Security.addProvider(new BouncyCastleProvider)
-
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   val timer = new HashedWheelTimer
-
   val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
+
+  val initialize = {
+    Utils.installJCEPolicy
+    Security.addProvider(new BouncyCastleProvider)
+  }
 
   implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
     def getPipeline: ChannelPipeline = {
@@ -71,7 +72,12 @@ object ProxyServer {
 
 }
 
-
+/**
+ * Don't user this construct to create a proxy server, you should use the companion object <code>ProxyServer</code>
+ * Since some environment need to be initialize, such as security provider.
+ *
+ * @param proxyConfig
+ */
 class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
   implicit val currentProxyConfig = proxyConfig
 

@@ -45,7 +45,7 @@ class ProxyService extends Service {
 
     override def handleMessage(msg: Message) {
       logger.info("Proxy service starting..........{}.................", msg)
-      proxyServer = new ProxyServer(new GFWProgrammaticCertificationProxyConfig())
+      proxyServer = ProxyServer(new GFWProgrammaticCertificationProxyConfig())
       proxyServer.start
 
     }

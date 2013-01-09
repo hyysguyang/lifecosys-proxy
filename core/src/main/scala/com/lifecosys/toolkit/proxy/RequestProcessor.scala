@@ -135,38 +135,6 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
 }
 
 
-class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 128) extends HttpChunkAggregator(maxContentLength) {
-  var cumulatedThunk: Option[HttpChunk] = None
-
-  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    e.getMessage match {
-      case response: HttpMessage => ctx.sendUpstream(e)
-      case chunk: HttpChunk if chunk.isLast => {
-        if (cumulatedThunk isDefined) {
-          Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
-          cumulatedThunk = None
-        }
-        ctx.sendUpstream(e)
-      }
-      case chunk: HttpChunk => {
-
-        if (!cumulatedThunk.isDefined)
-          cumulatedThunk = Some(chunk)
-        else
-          cumulatedThunk.get.setContent(ChannelBuffers.wrappedBuffer(cumulatedThunk.get.getContent, chunk.getContent))
-
-        if (cumulatedThunk.get.getContent.readableBytes() > maxContentLength) {
-          Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
-          cumulatedThunk = None
-        }
-      }
-      case _ => ctx.sendUpstream(e)
-    }
-
-  }
-
-}
-
 class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig) extends RequestProcessor {
   override val httpRequest: HttpRequest = request
   val browserToProxyContext = browserToProxyChannelContext
@@ -258,6 +226,37 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     browserToProxyChannel.setReadable(true)
   }
 }
+
+class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 128) extends HttpChunkAggregator(maxContentLength) {
+  var cumulatedThunk: Option[HttpChunk] = None
+
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    e.getMessage match {
+      case response: HttpMessage => ctx.sendUpstream(e)
+      case chunk: HttpChunk if chunk.isLast => {
+        if (cumulatedThunk isDefined) {
+          Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
+          cumulatedThunk = None
+        }
+        ctx.sendUpstream(e)
+      }
+      case chunk: HttpChunk => {
+
+        if (!cumulatedThunk.isDefined)
+          cumulatedThunk = Some(chunk)
+        else
+          cumulatedThunk.get.setContent(ChannelBuffers.wrappedBuffer(cumulatedThunk.get.getContent, chunk.getContent))
+
+        if (cumulatedThunk.get.getContent.readableBytes() > maxContentLength) {
+          Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
+          cumulatedThunk = None
+        }
+      }
+      case _ => ctx.sendUpstream(e)
+    }
+  }
+}
+
 
 /**
  * We need it to wrapper the buffer byte array to avoid the padding and block size process.

@@ -40,6 +40,7 @@ class GFWList {
     scala.io.Source.fromString(getContent).getLines().toList.foreach {
       case line: String if line.startsWith("@@||") => excludeList += HttpStringGFWListRule(line.substring(4))
       case line: String if line.startsWith("||") => matchList += HostMatchGFWListRule(line.substring(2))
+      case line: String if line.startsWith("|https:") => matchList += HostMatchGFWListRule(Utils.extractHostAndPort(line.substring(1))._1)
       case line: String if line.startsWith("|http") => matchList += UrlStartMatchGFWListRule(line.substring(1))
       case line: String if line.startsWith("/") => matchList += RegexMatchGFWListRule(line.substring(1))
       case line: String if line.startsWith("!") =>

@@ -50,14 +50,20 @@ object Utils {
   val inflater = new Inflater
 
   lazy val cryptor = {
-    val field = Class.forName("javax.crypto.JceSecurity").getDeclaredField("isRestricted");
+    val standardEncryptor = new StandardPBEByteEncryptor
+    standardEncryptor.setProviderName("BC")
+    standardEncryptor.setAlgorithm("PBEWithSHAAnd3KeyTripleDES")
+    standardEncryptor.setPassword( """nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
+    standardEncryptor
+  }
+
+  /**
+   * Just to avoid the security exception since we need strong encryption.
+   */
+  def installJCEPolicy {
+    val field = Class.forName("javax.crypto.JceSecurity").getDeclaredField("isRestricted")
     field.setAccessible(true)
-    field.set(null, java.lang.Boolean.FALSE);
-    val binaryEncryptor = new StandardPBEByteEncryptor
-    binaryEncryptor.setProviderName("BC")
-    binaryEncryptor.setAlgorithm("PBEWithSHAAnd3KeyTripleDES")
-    binaryEncryptor.setPassword( """nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
-    binaryEncryptor
+    field.set(null, java.lang.Boolean.FALSE)
   }
 
 

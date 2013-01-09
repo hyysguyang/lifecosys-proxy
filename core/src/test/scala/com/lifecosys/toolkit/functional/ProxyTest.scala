@@ -94,14 +94,14 @@ object ProxyTestUtils {
   }
 
 
-  def main(args: Array[String]) {
-    val proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    val chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
-
-    chainProxy start
-
-    proxy start
-  }
+  //  def main(args: Array[String]) {
+  //    val proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+  //    val chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
+  //
+  //    chainProxy start
+  //
+  //    proxy start
+  //  }
 
 
 }
@@ -112,7 +112,7 @@ class SimpleProxyTest {
 
   @Before
   def before() {
-    proxy = new ProxyServer(createProxyConfig())
+    proxy = ProxyServer(createProxyConfig())
   }
 
   @After
@@ -129,10 +129,10 @@ class SimpleProxyTest {
     proxy.start
     proxy.shutdown
 
-    proxy = new ProxyServer(createProxyConfig())
+    proxy = ProxyServer(createProxyConfig())
     proxy.start
 
-    new ProxyServer(createProxyConfig()).start
+    ProxyServer(createProxyConfig()).start
 
   }
 
@@ -148,7 +148,7 @@ class SimpleProxyTest {
   def testAnotherSimplePage {
     proxy start
 
-    Assert.assertTrue(request("http://store.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    Assert.assertTrue(request("http://baidu.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
 
 
@@ -182,8 +182,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
 
     chainProxy start
 
@@ -195,7 +195,7 @@ class ChainedProxyTest {
   }
 
 
-  val gfwChainProxyManager = new GFWChainProxyManager {
+  def gfwChainProxyManager = new GFWChainProxyManager {
     override val gfwList = new GFWList() {
       override def getContent: String = """
                                           |||facebook.com
@@ -208,7 +208,7 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy_bypassChainedProxy {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
     proxy start
     val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
@@ -216,7 +216,7 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy_forHttps_bypassChainedProxy {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
     proxy start
     val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
@@ -224,7 +224,7 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy_bypassChainedProxy_withSSLSupport {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
     proxy start
     val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
@@ -232,7 +232,7 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy_forHttps_bypassChainedProxy_withSSLSupport {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
     proxy start
     val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
@@ -241,8 +241,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaUnavailableChainedProxy {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8082))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 8082))
 
     chainProxy.start
     proxy.start
@@ -257,8 +257,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxyForHttps {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
 
     chainProxy start
 
@@ -271,8 +271,8 @@ class ChainedProxyTest {
 
   @Test
   def testAccessViaChainedProxy_withSSLSupport {
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
 
     chainProxy start
 
@@ -284,8 +284,8 @@ class ChainedProxyTest {
   @Test
   def testAccessViaChainedProxyForHttps_withSSLSupport {
 
-    proxy = new ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = new ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
+    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
 
     chainProxy start
 
@@ -337,8 +337,8 @@ class ChainedProxyTest {
       """.stripMargin
 
 
-    proxy = new ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
-    chainProxy = new ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(chainedConfig)))))
+    proxy = ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    chainProxy = ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(chainedConfig)))))
 
     chainProxy start
 
@@ -364,6 +364,7 @@ class GFWListTest {
                                           |!ignore.com
                                           |http://t.co
                                           |.twtkr.com
+                                          ||https://plus.google.com
                                           | """.stripMargin
     }
 
@@ -375,6 +376,10 @@ class GFWListTest {
     Assert.assertTrue(list.isBlocked("http://facebook.com"))
     Assert.assertTrue(list.isBlocked("https://facebook.com"))
     Assert.assertTrue(list.isBlocked("http://com.twtkr.com"))
+    Assert.assertTrue(list.isBlocked("https://plus.google.com"))
+    Assert.assertTrue(list.isBlocked("plus.google.com"))
+
+
     Assert.assertFalse(list.isBlocked("http://ignore.com"))
     Assert.assertFalse(list.isBlocked("https://sina.com.cn"))
     Assert.assertFalse(list.isBlocked("http://sina.com.cn"))

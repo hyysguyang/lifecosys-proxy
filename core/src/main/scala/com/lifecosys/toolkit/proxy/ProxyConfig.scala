@@ -311,7 +311,7 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
 }
 
 
-class GFWProgrammaticCertificationProxyConfig extends ProgrammaticCertificationProxyConfig {
+class GFWProgrammaticCertificationProxyConfig(config: Option[Config] = None) extends ProgrammaticCertificationProxyConfig {
   override val getChainProxyManager: ChainProxyManager = new GFWChainProxyManager()
 }
 

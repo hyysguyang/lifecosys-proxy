@@ -22,6 +22,7 @@ package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.handler.codec.http.HttpRequest
 import java.net.InetSocketAddress
+import io.Source
 
 /**
  *
@@ -45,23 +46,37 @@ class DefaultChainProxyManager extends ChainProxyManager {
 
 
 class GFWChainProxyManager extends ChainProxyManager {
+  def smartHostsResource = getClass.getResourceAsStream("/hosts.txt")
 
-  val lines = scala.io.Source.fromInputStream(getClass.getResourceAsStream("/hosts.txt")).getLines()
-  val smartHosts = lines.filter(line => line.trim.length > 0 && !line.startsWith("#")).map {
-    line => val hd = line.split('\t'); (hd(1), hd(0))
-  }.toMap
+  val smartHosts = {
+    Source.fromInputStream(smartHostsResource).getLines().filter(line => line.trim.length > 0 && !line.startsWith("#")).map {
+      line => val hd = line.split('\t'); (hd(1).hashCode, hd(0))
+    }.toMap
+  }
 
-  val gfwList = new GFWList().parseRules
+  val highHitsBlockedHosts = scala.collection.mutable.Set(Source.fromInputStream(getClass.getResourceAsStream("/high-hits-gfw-host-list.txt")).getLines().filterNot(_.startsWith("#")).toSeq: _*)
 
+  def gfwHostList = Source.fromInputStream(getClass.getResourceAsStream("/gfw-host-list.txt")).getLines().toSet.par.filterNot(_.startsWith("#"))
 
   def getConnectHost(request: HttpRequest)(implicit proxyConfig: ProxyConfig): Tuple2[InetSocketAddress, Boolean] = {
     val hostPort = Utils.extractHostAndPort(request.getUri)
-    if (!gfwList.isBlocked(request.getUri))
-      (new InetSocketAddress(hostPort._1, hostPort._2.toInt), false)
-    else
-      smartHosts.get(hostPort._1).map(new InetSocketAddress(_, hostPort._2.toInt) -> false).getOrElse {
+    smartHosts.get(hostPort._1.trim.hashCode).map(new InetSocketAddress(_, hostPort._2.toInt) -> false).getOrElse {
+      if (!isBlocked(hostPort._1.trim))
+        (new InetSocketAddress(hostPort._1, hostPort._2.toInt), false)
+      else
         proxyConfig.chainProxies.headOption.map(_ -> true).getOrElse((Utils extractHost request.getUri, false))
-      }
+    }
+  }
 
+  def isBlocked(host: String): Boolean = {
+    def matchHost(gfwHost: String) = {
+      gfwHost == host || host.endsWith("." + gfwHost)
+    }
+
+    highHitsBlockedHosts.exists(matchHost _) || {
+      val blocked = gfwHostList.exists(matchHost(_))
+      if (blocked) highHitsBlockedHosts += host
+      blocked
+    }
   }
 }

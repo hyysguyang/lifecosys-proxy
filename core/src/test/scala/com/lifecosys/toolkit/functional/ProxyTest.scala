@@ -36,6 +36,8 @@ import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
 import org.jboss.netty.handler.codec.http.{HttpMethod, HttpVersion, DefaultHttpRequest}
 import scala.Some
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -46,6 +48,9 @@ import scala.Some
 object ProxyTestUtils {
 
   Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
+
+  Utils.installJCEPolicy
+  ProxyServer.initialize
 
   def request(url: String): Request = {
     Request.Get(url).socketTimeout(60 * 1000)
@@ -196,14 +201,7 @@ class ChainedProxyTest {
 
 
   def gfwChainProxyManager = new GFWChainProxyManager {
-    override val gfwList = new GFWList() {
-      override def getContent: String = """
-                                          |||facebook.com
-                                          |!ignore.com
-                                          |http://t.co
-                                          |.twtkr.com
-                                          | """.stripMargin
-    }.parseRules
+
   }
 
   @Test
@@ -352,44 +350,11 @@ class ChainedProxyTest {
 }
 
 
-class GFWListTest {
-
-  @Test
-  def testGFW {
-    val list = new GFWList() {
-      override def getContent: String = """
-                                          |/^https?:\/\/twitter.com/
-                                          |@@||sina.com.cn
-                                          |||facebook.com
-                                          |!ignore.com
-                                          |http://t.co
-                                          |.twtkr.com
-                                          ||https://plus.google.com
-                                          | """.stripMargin
-    }
-
-    list.parseRules
-
-    Assert.assertTrue(list.isBlocked("http://twitter.com/"))
-    Assert.assertTrue(list.isBlocked("https://twitter.com/"))
-    Assert.assertTrue(list.isBlocked("http://t.co"))
-    Assert.assertTrue(list.isBlocked("http://facebook.com"))
-    Assert.assertTrue(list.isBlocked("https://facebook.com"))
-    Assert.assertTrue(list.isBlocked("http://com.twtkr.com"))
-    Assert.assertTrue(list.isBlocked("https://plus.google.com"))
-    Assert.assertTrue(list.isBlocked("plus.google.com"))
-
-
-    Assert.assertFalse(list.isBlocked("http://ignore.com"))
-    Assert.assertFalse(list.isBlocked("https://sina.com.cn"))
-    Assert.assertFalse(list.isBlocked("http://sina.com.cn"))
-    Assert.assertFalse(list.isBlocked("http://killsina.sina.com.cn"))
-    Assert.assertFalse(list.isBlocked("http://killsina.sina.com.cn/"))
-  }
+class ChainedProxyManagerTest {
+  Security.addProvider(new BouncyCastleProvider)
 
   @Test
   def testChainedProxyManager {
-
     val config =
       """
         |chain-proxy{
@@ -397,9 +362,29 @@ class GFWListTest {
         |}
       """.stripMargin
 
-
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
     val host = new GFWChainProxyManager().getConnectHost(request)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
-    println(host)
+    Assert.assertFalse(host == new InetSocketAddress("localhost", 8081))
   }
+
+  @Test
+  def testPerformanceGFW {
+
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://twitter.com")
+    val manager = new GFWChainProxyManager()
+    val now = System.currentTimeMillis()
+    val host = manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    manager.getConnectHost(request)(new SimpleProxyConfig)
+    println("################################" + (System.currentTimeMillis() - now))
+    Assert.assertFalse(host == new InetSocketAddress("localhost", 8081))
+  }
+
 }

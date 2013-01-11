@@ -46,13 +46,12 @@ import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectEncode
  */
 
 object ProxyServer {
-  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   val timer = new HashedWheelTimer
   val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
 
   val initialize = {
-    Utils.installJCEPolicy
     Security.addProvider(new BouncyCastleProvider)
+    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   }
 
   implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = new ChannelPipelineFactory {

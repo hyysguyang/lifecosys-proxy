@@ -24,7 +24,7 @@ import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
 import java.security.{KeyPairGenerator, Security, KeyFactory}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import scala.Some
-import java.net.InetSocketAddress
+import java.net.{URL, InetSocketAddress}
 import java.util.regex.Pattern
 import org.jboss.netty.channel.{ChannelFutureListener, Channel}
 import org.jboss.netty.buffer.ChannelBuffers
@@ -68,25 +68,17 @@ object Utils {
 
 
   def extractHostAndPort(uri: String) = {
-    val noHttpUri = if (httpPattern.matcher(uri).matches())
-      uri.substring(uri.indexOf("://") + 3)
+
+    val url = if (uri.startsWith("http"))
+      new URL(uri)
     else
-      uri
-
-    val slashIndex = noHttpUri.indexOf("/")
-    val hostPort = if (slashIndex == -1)
-      noHttpUri
-    else
-      noHttpUri.substring(0, slashIndex)
-
-    val hostPortPattern(host, colon, port) = hostPort
-
-    (host, Some(port).filter(_.trim.length > 0).getOrElse("80"))
+      new URL("http://" + uri)
+    (url.getHost, Some(url.getPort).filter(_ > 0).getOrElse(80))
   }
 
   def extractHost(uri: String) = {
     val hostPort = extractHostAndPort(uri)
-    new InetSocketAddress(hostPort._1, hostPort._2.toInt)
+    new InetSocketAddress(hostPort._1, hostPort._2)
   }
 
   def stripHost(uri: String): String = {
@@ -108,6 +100,28 @@ object Utils {
 
   def toHex(data: Array[Byte]): String = {
     new String(Hex.encode(data), UTF8)
+  }
+
+  def generateGFWHostList = {
+    val list = scala.io.Source.fromInputStream(getClass.getResourceAsStream("/gfwlist.txt")).getLines().filterNot {
+      line => line.startsWith("!") || line.startsWith("@@") || line.startsWith("/")
+    }.toList
+
+    val result = list.map {
+      case line if (line.startsWith("||")) => Utils.extractHostAndPort(line.substring(2))._1
+      case line if (line.startsWith("|") || line.startsWith(".")) => Utils.extractHostAndPort(line.substring(1))._1
+      case line if (line.indexOf('*') > 0) => Utils.extractHostAndPort(line)._1
+    }
+
+    result.foreach(println _)
+
+
+    //    list.filter(_.startsWith("||")).foreach(println _)
+    //    list.filterNot(_.startsWith("||")).filter(_.startsWith("|")).foreach(println _)
+
+    //    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://docs.google.com")
+    //    val host = new GFWChainProxyManager().getConnectHost(request)(new SimpleProxyConfig)
+    //    println(host)
   }
 
 

@@ -105,7 +105,7 @@ class UtilsTest {
     try {
       Utils.extractHost("127.0.0.1:899000")
     } catch {
-      case e: MatchError => Assert.assertTrue(true)
+      case e: Exception => Assert.assertTrue(true)
     }
   }
 }

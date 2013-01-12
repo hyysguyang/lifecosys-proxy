@@ -25,8 +25,9 @@ import android.app.Service
 import android.content.Intent
 import android.os._
 import android.widget.Toast
-import org.slf4j.LoggerFactory
+import logging.{AndroidInternalLoggerFactory, Logger}
 import proxy.{GFWProgrammaticCertificationProxyConfig, ProxyServer}
+import org.jboss.netty.logging.InternalLoggerFactory
 
 
 /**
@@ -35,7 +36,7 @@ import proxy.{GFWProgrammaticCertificationProxyConfig, ProxyServer}
  * @version 1.0 12/14/12 4:11 PM
  */
 class ProxyService extends Service {
-  val logger = LoggerFactory.getLogger(classOf[ProxyService])
+  val logger = implicitly[Logger]
   var proxyServer: ProxyServer = null
   val isRunning = false
   var mServiceLooper: Looper = null
@@ -44,7 +45,10 @@ class ProxyService extends Service {
   class ServiceHandler(looper: Looper) extends Handler(looper) {
 
     override def handleMessage(msg: Message) {
-      logger.info("Proxy service starting..........{}.................", msg)
+      logger.info("Proxy service starting with %s".format(msg))
+
+      proxy.logger = logger
+      InternalLoggerFactory.setDefaultFactory(new AndroidInternalLoggerFactory)
       proxyServer = ProxyServer(new GFWProgrammaticCertificationProxyConfig())
       proxyServer.start
 
@@ -73,10 +77,10 @@ class ProxyService extends Service {
   def onBind(intent: Intent): IBinder = null
 
   override def onDestroy() {
-    logger.info("Proxy service shudown..............................")
+    logger.info("Proxy service shudown..............")
     if (proxyServer != null) {
       proxyServer.shutdown
     }
-    Toast.makeText(this, "Proxy service shudown..............................", Toast.LENGTH_LONG).show()
+    Toast.makeText(this, "Proxy service shudown..............", Toast.LENGTH_LONG).show()
   }
 }

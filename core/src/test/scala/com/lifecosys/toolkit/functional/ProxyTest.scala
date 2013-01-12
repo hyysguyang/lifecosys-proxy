@@ -50,7 +50,8 @@ object ProxyTestUtils {
   Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
 
   Utils.installJCEPolicy
-  ProxyServer.initialize
+  Security.addProvider(new BouncyCastleProvider)
+  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
 
   def request(url: String): Request = {
     Request.Get(url).socketTimeout(60 * 1000)

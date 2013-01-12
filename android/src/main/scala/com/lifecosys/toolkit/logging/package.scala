@@ -18,36 +18,16 @@
  *  ===End Copyright Notice===
  */
 
-package com.lifecosys.toolkit.proxy.server
+package com.lifecosys.toolkit
 
-import com.lifecosys.toolkit.proxy._
-import com.typesafe.config.ConfigFactory
-import java.security.Security
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
-import com.lifecosys.toolkit.proxy
-import com.lifecosys.toolkit.logging.Logger
 
 /**
  *
  *
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
  * @author <a href="mailto:Young.Gu@lifecosys.com">Young Gu</a>
- * @version 1.0 12/15/12 2:44 AM
+ * @version 1.0 1/12/13 5:00 PM
  */
-object ProxyServerLauncher {
-
-  def main(args: Array[String]) {
-    Utils.installJCEPolicy
-    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-    Security.addProvider(new BouncyCastleProvider)
-    proxy.logger = Logger()
-
-    val config = ConfigFactory.load()
-    val proxyConfig = if (config.getBoolean("local"))
-      new GFWProgrammaticCertificationProxyConfig(Some(config))
-    else
-      new ProgrammaticCertificationProxyConfig(Some(config))
-    ProxyServer(proxyConfig).start
-  }
+package object logging {
+  implicit val androidLogger = new AndroidLogger("lifecosys-proxy", "INFO")
 }

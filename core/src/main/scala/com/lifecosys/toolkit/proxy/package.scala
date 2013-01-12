@@ -18,36 +18,36 @@
  *  ===End Copyright Notice===
  */
 
-package com.lifecosys.toolkit.proxy.server
+package com.lifecosys.toolkit
 
-import com.lifecosys.toolkit.proxy._
-import com.typesafe.config.ConfigFactory
-import java.security.Security
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
-import com.lifecosys.toolkit.proxy
-import com.lifecosys.toolkit.logging.Logger
+import logging.Logger
+import org.jboss.netty.channel._
+import org.jboss.netty.util.HashedWheelTimer
+import collection.mutable
+import java.net.InetSocketAddress
 
 /**
  *
  *
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
  * @author <a href="mailto:Young.Gu@lifecosys.com">Young Gu</a>
- * @version 1.0 12/15/12 2:44 AM
+ * @version 1.0 1/12/13 3:59 PM
  */
-object ProxyServerLauncher {
+package object proxy {
+  val timer = new HashedWheelTimer
+  val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
+  var logger: Logger = Logger.NULL_LOGGER
 
-  def main(args: Array[String]) {
-    Utils.installJCEPolicy
-    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-    Security.addProvider(new BouncyCastleProvider)
-    proxy.logger = Logger()
-
-    val config = ConfigFactory.load()
-    val proxyConfig = if (config.getBoolean("local"))
-      new GFWProgrammaticCertificationProxyConfig(Some(config))
-    else
-      new ProgrammaticCertificationProxyConfig(Some(config))
-    ProxyServer(proxyConfig).start
+  implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
+    def getPipeline: ChannelPipeline = {
+      val pipeline: ChannelPipeline = Channels.pipeline()
+      f(pipeline)
+      pipeline
+    }
   }
+
+  implicit def channelFutureListener(f: ChannelFuture => Unit): ChannelFutureListener = new ChannelFutureListener {
+    def operationComplete(future: ChannelFuture) = f(future)
+  }
+
 }

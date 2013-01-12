@@ -26,8 +26,6 @@ import org.jboss.netty.bootstrap.ClientBootstrap
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
-import com.lifecosys.toolkit.proxy.ProxyServer._
-import com.lifecosys.toolkit.Logger
 import org.jboss.netty.handler.codec.compression.{ZlibEncoder, ZlibDecoder}
 import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectDecoder, ObjectEncoder}
 import org.jboss.netty.handler.codec.oneone.{OneToOneDecoder, OneToOneEncoder}
@@ -45,8 +43,6 @@ trait RequestProcessor {
 
   val httpRequest: HttpRequest
   val browserToProxyContext: ChannelHandlerContext
-
-  val logger = Logger(getClass)
 
   def newClientBootstrap = {
     val proxyToServerBootstrap = new ClientBootstrap()

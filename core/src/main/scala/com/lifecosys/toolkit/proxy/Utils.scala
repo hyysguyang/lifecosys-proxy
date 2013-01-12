@@ -28,7 +28,6 @@ import java.net.{URL, InetSocketAddress}
 import java.util.regex.Pattern
 import org.jboss.netty.channel.{ChannelFutureListener, Channel}
 import org.jboss.netty.buffer.ChannelBuffers
-import com.lifecosys.toolkit.Logger
 import org.bouncycastle.util.encoders.Hex
 import java.nio.charset.Charset
 import org.jasypt.encryption.pbe.StandardPBEByteEncryptor
@@ -41,7 +40,6 @@ import java.util.zip.{Inflater, Deflater}
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
-  val logger = Logger(getClass)
   val UTF8: Charset = Charset.forName("UTF-8")
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r

@@ -18,7 +18,7 @@
  *  ===End Copyright Notice===
  */
 
-package com.lifecosys.toolkit
+package com.lifecosys.toolkit.logging
 
 import java.lang.Throwable
 import org.slf4j.{MDC, LoggerFactory}
@@ -31,13 +31,68 @@ import org.slf4j.{MDC, LoggerFactory}
  * @version 1.0 1/2/13 1:44 AM
  */
 
+/**
+ * Default logger
+ */
 object Logger {
-  def apply(name: String) = new Logger(name)
+  def apply() = new SLF4JLogger(getClass.getName)
 
-  def apply(clazz: Class[_]) = new Logger(clazz.getName)
+  def apply(name: String) = new SLF4JLogger(name)
+
+  def apply(clazz: Class[_]) = new SLF4JLogger(clazz.getName)
+
+  val NULL_LOGGER = new NullLogger
 }
 
-class Logger(name: String) {
+trait Logger {
+
+  def trace(msg: => Any)
+
+  def trace(msg: => Any, t: Throwable)
+
+  def debug(msg: => Any)
+
+  def debug(msg: => Any, t: Throwable)
+
+  def info(msg: => Any)
+
+  def info(msg: => Any, t: Throwable)
+
+  def warn(msg: => Any)
+
+  def warn(msg: => Any, t: Throwable)
+
+  def error(msg: => Any)
+
+  def error(msg: => Any, t: Throwable)
+
+
+}
+
+
+sealed class NullLogger extends Logger {
+  def trace(msg: => Any) {}
+
+  def trace(msg: => Any, t: Throwable) {}
+
+  def debug(msg: => Any) {}
+
+  def debug(msg: => Any, t: Throwable) {}
+
+  def info(msg: => Any) {}
+
+  def info(msg: => Any, t: Throwable) {}
+
+  def warn(msg: => Any) {}
+
+  def warn(msg: => Any, t: Throwable) {}
+
+  def error(msg: => Any) {}
+
+  def error(msg: => Any, t: Throwable) {}
+}
+
+class SLF4JLogger(name: String) extends Logger {
   val logger = LoggerFactory.getLogger(name)
 
   def messageProcess(msg: => Any) = {

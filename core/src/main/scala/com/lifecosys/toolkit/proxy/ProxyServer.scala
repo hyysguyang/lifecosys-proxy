@@ -20,10 +20,8 @@
 
 package com.lifecosys.toolkit.proxy
 
-import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
 import java.net.InetSocketAddress
 import org.jboss.netty.channel._
-import collection.mutable
 import group.ChannelGroupFuture
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.bootstrap.ServerBootstrap
@@ -31,11 +29,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
-import org.jboss.netty.util.HashedWheelTimer
-import com.lifecosys.toolkit.proxy.ProxyServer._
-import com.lifecosys.toolkit.Logger
-import java.security.Security
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectEncoder, ObjectDecoder}
 
 
@@ -46,26 +39,10 @@ import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectEncode
  */
 
 object ProxyServer {
-  val timer = new HashedWheelTimer
-  val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
 
-  val initialize = {
-    Security.addProvider(new BouncyCastleProvider)
-    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+  def initialize = {
+
   }
-
-  implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
-    def getPipeline: ChannelPipeline = {
-      val pipeline: ChannelPipeline = Channels.pipeline()
-      f(pipeline)
-      pipeline
-    }
-  }
-
-  implicit def channelFutureListener(f: ChannelFuture => Unit): ChannelFutureListener = new ChannelFutureListener {
-    def operationComplete(future: ChannelFuture) = f(future)
-  }
-
 
   def apply(config: ProxyConfig) = new ProxyServer(config)
 
@@ -79,8 +56,6 @@ object ProxyServer {
  */
 class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
   implicit val currentProxyConfig = proxyConfig
-
-  val logger = Logger(getClass)
 
   val isStarted: AtomicBoolean = new AtomicBoolean(false)
 

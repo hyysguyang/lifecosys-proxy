@@ -23,9 +23,7 @@ package com.lifecosys.toolkit.proxy
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.buffer.ChannelBuffer
-import com.lifecosys.toolkit.Logger
 import java.net.InetSocketAddress
-import com.lifecosys.toolkit.proxy.ProxyServer._
 
 /**
  *
@@ -37,7 +35,6 @@ import com.lifecosys.toolkit.proxy.ProxyServer._
 
 
 class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
-  val logger = Logger(getClass)
   val proxyToServerSSLEnable = proxyConfig.proxyToServerSSLEnable
 
 
@@ -71,7 +68,6 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstr
 
 
 class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAddress)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
-  val logger = Logger(getClass)
 
   private def responsePreProcess(message: Any) = message match {
     case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) => {
@@ -129,8 +125,6 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAd
 
 
 class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
-  val logger = Logger(getClass)
-
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
     logger.debug("=====%s receive message:\n %s".format(ctx.getChannel, e.getMessage))
     val msg: ChannelBuffer = e.getMessage.asInstanceOf[ChannelBuffer]

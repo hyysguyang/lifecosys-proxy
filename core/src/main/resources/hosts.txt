@@ -498,7 +498,7 @@
 203.208.46.202	debh8vg7vd93bco3prdajidmm7dhql3f-a-oz-opensocial.googleusercontent.com
 203.208.46.200	encrypted-tbn1.google.com
 203.208.46.200	lh6.google.com
-203.208.46.200	www.googleapis.com
+74.125.31.95	www.googleapis.com
 203.208.46.202	doc-0s-7o-docs.googleusercontent.com
 203.208.46.200	tbn1.google.com
 203.208.46.200	fusion.google.com

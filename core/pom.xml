@@ -24,13 +24,13 @@
     <parent>
         <groupId>com.lifecosys.toolkit</groupId>
         <artifactId>lifecosys-toolkit-parent</artifactId>
-        <version>1.0-alpha2</version>
+        <version>1.0-alpha3</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <groupId>com.lifecosys.toolkit</groupId>
     <artifactId>lifecosys-toolkit-core</artifactId>
     <name>Lifecosys toolkit core</name>
-    <version>1.0-alpha2</version>
+    <version>1.0-alpha3</version>
     <packaging>jar</packaging>
 
     <description>

@@ -195,7 +195,7 @@ class ChainedProxyTest {
 
     proxy start
 
-    val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    val proxyContent = request("http://www.baidu.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }

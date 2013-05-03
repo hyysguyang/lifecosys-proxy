@@ -28,7 +28,7 @@
     <groupId>com.lifecosys.toolkit</groupId>
     <artifactId>lifecosys-toolkit-parent</artifactId>
     <name>Lifecosys toolkit Parent</name>
-    <version>1.0-alpha2</version>
+    <version>1.0-alpha3</version>
     <packaging>pom</packaging>
 
     <description>

@@ -24,11 +24,11 @@ import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.channel._
 import org.jboss.netty.bootstrap.ClientBootstrap
 import org.jboss.netty.handler.ssl.SslHandler
-import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
-import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
-import org.jboss.netty.handler.codec.compression.{ZlibEncoder, ZlibDecoder}
-import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectDecoder, ObjectEncoder}
-import org.jboss.netty.handler.codec.oneone.{OneToOneDecoder, OneToOneEncoder}
+import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
+import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
+import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
+import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
+import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 
 /**
  *
@@ -52,7 +52,6 @@ trait RequestProcessor {
   }
 }
 
-
 class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig) extends RequestProcessor {
 
   override val httpRequest: HttpRequest = request
@@ -68,11 +67,11 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
   def process {
     logger.debug("Process request with %s".format((host, isChainedProxy)))
     hostToChannelFuture.remove(host) match {
-      case Some(channel) if channel.isConnected => {
+      case Some(channel) if channel.isConnected ⇒ {
         logger.error("###########Use existed Proxy toserver conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
         channel.write(httpRequest)
       }
-      case _ => {
+      case _ ⇒ {
         browserToProxyChannel.setReadable(false)
         val proxyToServerBootstrap = newClientBootstrap
         proxyToServerBootstrap.setFactory(proxyConfig.clientSocketChannelFactory)
@@ -84,14 +83,14 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
 
   def connectProcess(future: ChannelFuture) {
     future.isSuccess match {
-      case true => {
+      case true ⇒ {
         //                  hostToChannelFuture.put(host, future.getChannel)
         future.getChannel().write(httpRequest).addListener {
-          future: ChannelFuture => logger.debug("Write request to remote server %s completed.".format(future.getChannel))
+          future: ChannelFuture ⇒ logger.debug("Write request to remote server %s completed.".format(future.getChannel))
         }
         browserToProxyChannel.setReadable(true)
       }
-      case false => {
+      case false ⇒ {
         logger.debug("Close browser connection...")
         browserToProxyChannel.setReadable(true)
         Utils.closeChannel(browserToProxyChannel)
@@ -99,8 +98,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
     }
   }
 
-
-  def proxyToServerPipeline = (pipeline: ChannelPipeline) => {
+  def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
     //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
     if (isChainedProxy && proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
@@ -130,7 +128,6 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
 
 }
 
-
 class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig) extends RequestProcessor {
   override val httpRequest: HttpRequest = request
   val browserToProxyContext = browserToProxyChannelContext
@@ -141,8 +138,8 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
   def process {
     logger.debug("Process request with %s".format((host, isChainedProxy)))
     hostToChannelFuture.get(host) match {
-      case Some(channel) if channel.isConnected => browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8")))
-      case None => {
+      case Some(channel) if channel.isConnected ⇒ browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8")))
+      case None ⇒ {
         browserToProxyChannel.setReadable(false)
         logger.debug("Starting new connection to: %s".format(host))
         createProxyToServerBootstrap.connect(host).addListener(connectComplete _)
@@ -150,14 +147,13 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     }
   }
 
-
   def createProxyToServerBootstrap = {
     val proxyToServerBootstrap = newClientBootstrap
     proxyToServerBootstrap.setFactory(proxyConfig.clientSocketChannelFactory)
     proxyToServerBootstrap.setPipelineFactory {
-      pipeline: ChannelPipeline =>
+      pipeline: ChannelPipeline ⇒
 
-      //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
+        //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
 
         if (isChainedProxy && proxyConfig.proxyToServerSSLEnable) {
           val engine = proxyConfig.clientSSLContext.createSSLEngine
@@ -188,7 +184,6 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     proxyToServerBootstrap
   }
 
-
   def connectComplete(future: ChannelFuture): Unit = {
     logger.debug("Connection successful: %s".format(future.getChannel))
 
@@ -206,17 +201,18 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     def sendRequestToChainedProxy {
       future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", new HttpRequestEncoder)
       future.getChannel.write(httpRequest).addListener {
-        writeFuture: ChannelFuture => {
-          writeFuture.getChannel.getPipeline.remove("proxyServerToRemote-encoder")
-          logger.debug("Finished write request to %s\n %s ".format(future.getChannel, httpRequest))
-        }
+        writeFuture: ChannelFuture ⇒
+          {
+            writeFuture.getChannel.getPipeline.remove("proxyServerToRemote-encoder")
+            logger.debug("Finished write request to %s\n %s ".format(future.getChannel, httpRequest))
+          }
       }
     }
 
     if (isChainedProxy)
       sendRequestToChainedProxy
     else browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8"))).addListener {
-      future: ChannelFuture => logger.debug("Finished write request to %s \n %s ".format(future.getChannel, Utils.connectProxyResponse))
+      future: ChannelFuture ⇒ logger.debug("Finished write request to %s \n %s ".format(future.getChannel, Utils.connectProxyResponse))
     }
 
     browserToProxyChannel.setReadable(true)
@@ -228,15 +224,15 @@ class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 128) extends HttpC
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
     e.getMessage match {
-      case response: HttpMessage => ctx.sendUpstream(e)
-      case chunk: HttpChunk if chunk.isLast => {
+      case response: HttpMessage ⇒ ctx.sendUpstream(e)
+      case chunk: HttpChunk if chunk.isLast ⇒ {
         if (cumulatedThunk isDefined) {
           Channels.fireMessageReceived(ctx, cumulatedThunk.get, e.getRemoteAddress)
           cumulatedThunk = None
         }
         ctx.sendUpstream(e)
       }
-      case chunk: HttpChunk => {
+      case chunk: HttpChunk ⇒ {
 
         if (!cumulatedThunk.isDefined)
           cumulatedThunk = Some(chunk)
@@ -248,11 +244,10 @@ class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 128) extends HttpC
           cumulatedThunk = None
         }
       }
-      case _ => ctx.sendUpstream(e)
+      case _ ⇒ ctx.sendUpstream(e)
     }
   }
 }
-
 
 /**
  * We need it to wrapper the buffer byte array to avoid the padding and block size process.
@@ -269,22 +264,22 @@ class EncryptEncoder extends OneToOneEncoder {
 
 class DecryptDecoder extends OneToOneDecoder {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
-    case EncryptDataWrapper(data) => ChannelBuffers.copiedBuffer(Utils.cryptor.decrypt(data))
-    case _ => msg
+    case EncryptDataWrapper(data) ⇒ ChannelBuffers.copiedBuffer(Utils.cryptor.decrypt(data))
+    case _                        ⇒ msg
   }
 }
 
 class IgnoreEmptyBufferZlibEncoder extends ZlibEncoder {
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
-    case cb: ChannelBuffer if (cb.hasArray) => super.encode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
-    case _ => msg
+    case cb: ChannelBuffer if (cb.hasArray) ⇒ super.encode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
+    case _                                  ⇒ msg
   }
 }
 
 class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
   override def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
-    case cb: ChannelBuffer if (cb.hasArray) => super.decode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
-    case _ => msg
+    case cb: ChannelBuffer if (cb.hasArray) ⇒ super.decode(ctx, channel, msg).asInstanceOf[ChannelBuffer]
+    case _                                  ⇒ msg
   }
 }
 

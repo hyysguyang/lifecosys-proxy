@@ -32,11 +32,9 @@ import io.Source
  * @version 1.0 1/3/13 9:22 PM
  */
 
-
 trait ChainProxyManager {
   def getConnectHost(request: HttpRequest)(implicit proxyConfig: ProxyConfig): Tuple2[InetSocketAddress, Boolean]
 }
-
 
 class DefaultChainProxyManager extends ChainProxyManager {
   def getConnectHost(request: HttpRequest)(implicit proxyConfig: ProxyConfig): Tuple2[InetSocketAddress, Boolean] = {
@@ -44,13 +42,12 @@ class DefaultChainProxyManager extends ChainProxyManager {
   }
 }
 
-
 class GFWChainProxyManager extends ChainProxyManager {
   def smartHostsResource = getClass.getResourceAsStream("/hosts.txt")
 
   val smartHosts = {
-    Source.fromInputStream(smartHostsResource).getLines().filter(line => line.trim.length > 0 && !line.startsWith("#")).map {
-      line => val hd = line.split('\t'); (hd(1).hashCode, hd(0))
+    Source.fromInputStream(smartHostsResource).getLines().filter(line ⇒ line.trim.length > 0 && !line.startsWith("#")).map {
+      line ⇒ val hd = line.split('\t'); (hd(1).hashCode, hd(0))
     }.toMap
   }
 

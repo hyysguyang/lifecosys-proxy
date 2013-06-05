@@ -33,18 +33,16 @@ import java.net.InetSocketAddress
  * @version 1.0 1/1/13 5:54 PM
  */
 
-
 class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
   val proxyToServerSSLEnable = proxyConfig.proxyToServerSSLEnable
-
 
   override def messageReceived(ctx: ChannelHandlerContext, me: MessageEvent) {
 
     logger.debug("Receive request: %s ".format(me.getMessage))
     me.getMessage match {
-      case request: HttpRequest if HttpMethod.CONNECT == request.getMethod => new ConnectionRequestProcessor(request, ctx).process
-      case request: HttpRequest => new DefaultRequestProcessor(request, ctx).process
-      case _ => throw new UnsupportedOperationException("Unsupported Request..........")
+      case request: HttpRequest if HttpMethod.CONNECT == request.getMethod ⇒ new ConnectionRequestProcessor(request, ctx).process
+      case request: HttpRequest ⇒ new DefaultRequestProcessor(request, ctx).process
+      case _ ⇒ throw new UnsupportedOperationException("Unsupported Request..........")
     }
   }
 
@@ -59,30 +57,27 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstr
     logger.debug("Got closed event on : %s".format(e.getChannel))
   }
 
-
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
     logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
     Utils.closeChannel(e.getChannel)
   }
 }
 
-
 class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAddress)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
 
   private def responsePreProcess(message: Any) = message match {
-    case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) => {
+    case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) ⇒ {
       val copy = new DefaultHttpResponse(HttpVersion.HTTP_1_1, response.getStatus)
       import scala.collection.JavaConversions._
-      response.getHeaderNames.foreach(name => copy.setHeader(name, response.getHeaders(name)))
+      response.getHeaderNames.foreach(name ⇒ copy.setHeader(name, response.getHeaders(name)))
 
       copy.setContent(response.getContent)
       copy.setChunked(response.isChunked)
       copy.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED)
       copy
     }
-    case _ => message
+    case _ ⇒ message
   }
-
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
     logger.debug("====%s receive message: =======\n %s".format(ctx.getChannel, e.getMessage))
@@ -90,11 +85,12 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAd
     val message = responsePreProcess(e.getMessage)
     if (browserToProxyChannel.isConnected) {
       browserToProxyChannel.write(message).addListener {
-        future: ChannelFuture => message match {
-          case chunk: HttpChunk if chunk.isLast => Utils.closeChannel(e.getChannel)
-          case response: HttpMessage if !response.isChunked => Utils.closeChannel(e.getChannel)
-          case _ =>
-        }
+        future: ChannelFuture ⇒
+          message match {
+            case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
+            case response: HttpMessage if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
+            case _ ⇒
+          }
       }
     } else {
       if (e.getChannel.isConnected) {
@@ -102,7 +98,6 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAd
         Utils.closeChannel(e.getChannel)
       }
     }
-
 
   }
 
@@ -116,13 +111,11 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAd
     Utils.closeChannel(browserToProxyChannel)
   }
 
-
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
     logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
     Utils.closeChannel(e.getChannel)
   }
 }
-
 
 class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
@@ -149,5 +142,4 @@ class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: Prox
     Utils.closeChannel(e.getChannel)
   }
 }
-
 

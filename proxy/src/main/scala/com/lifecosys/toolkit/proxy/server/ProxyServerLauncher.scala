@@ -24,7 +24,7 @@ import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
+import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import com.lifecosys.toolkit.proxy
 import com.lifecosys.toolkit.logging.Logger
 

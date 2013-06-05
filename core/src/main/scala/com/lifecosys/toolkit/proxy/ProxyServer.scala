@@ -28,9 +28,8 @@ import org.jboss.netty.bootstrap.ServerBootstrap
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
-import org.jboss.netty.handler.timeout.{IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler}
-import org.jboss.netty.handler.codec.serialization.{ClassResolvers, ObjectEncoder, ObjectDecoder}
-
+import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
+import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -61,7 +60,7 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
 
   val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
 
-  def proxyServerPipeline = (pipeline: ChannelPipeline) => {
+  def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
     //      pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel,false))
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
@@ -97,8 +96,8 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
   def shutdown = {
     logger.info("Shutting down proxy")
     isStarted.get match {
-      case true => shutdown
-      case _ => logger.info("Already stopped")
+      case true ⇒ shutdown
+      case _    ⇒ logger.info("Already stopped")
     }
     def shutdown {
       isStarted.set(false)
@@ -109,7 +108,7 @@ class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
 
       if (!future.isCompleteSuccess) {
         future.iterator().filterNot(_.isSuccess).foreach {
-          channelFuture => logger.warn("Can't close %s, case by %s".format(channelFuture.getChannel, channelFuture.getCause))
+          channelFuture ⇒ logger.warn("Can't close %s, case by %s".format(channelFuture.getChannel, channelFuture.getCause))
         }
 
         proxyConfig.serverSocketChannelFactory.releaseExternalResources()

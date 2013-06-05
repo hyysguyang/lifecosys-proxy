@@ -20,11 +20,9 @@
 
 package com.lifecosys.toolkit
 
-
 import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
-
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>

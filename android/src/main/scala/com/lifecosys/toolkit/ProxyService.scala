@@ -20,15 +20,13 @@
 
 package com.lifecosys.toolkit
 
-
 import android.app.Service
 import android.content.Intent
 import android.os._
 import android.widget.Toast
-import logging.{AndroidInternalLoggerFactory, Logger}
-import proxy.{GFWProgrammaticCertificationProxyConfig, ProxyServer}
+import logging.{ AndroidInternalLoggerFactory, Logger }
+import proxy.{ GFWProgrammaticCertificationProxyConfig, ProxyServer }
 import org.jboss.netty.logging.InternalLoggerFactory
-
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>

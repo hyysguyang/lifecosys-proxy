@@ -20,7 +20,6 @@
 
 package com.lifecosys.toolkit
 
-
 /**
  *
  *

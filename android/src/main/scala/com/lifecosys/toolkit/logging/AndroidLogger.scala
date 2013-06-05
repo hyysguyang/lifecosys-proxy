@@ -21,7 +21,7 @@
 package com.lifecosys.toolkit.logging
 
 import android.util.Log
-import org.jboss.netty.logging.{InternalLogLevel, InternalLogger, InternalLoggerFactory}
+import org.jboss.netty.logging.{ InternalLogLevel, InternalLogger, InternalLoggerFactory }
 
 /**
  *
@@ -43,28 +43,27 @@ class AndroidLogger(tag: String, level: String) extends Logger {
 
   val loggerLevel = valueOf(level.toUpperCase)
 
-  def trace(msg: => Any) = if (TRACE >= loggerLevel) debug(msg)
+  def trace(msg: ⇒ Any) = if (TRACE >= loggerLevel) debug(msg)
 
-  def trace(msg: => Any, t: Throwable) = if (TRACE >= loggerLevel) debug(msg, t)
+  def trace(msg: ⇒ Any, t: Throwable) = if (TRACE >= loggerLevel) debug(msg, t)
 
-  def debug(msg: => Any) = if (DEBUG >= loggerLevel) Log.d(tag, msg.toString)
+  def debug(msg: ⇒ Any) = if (DEBUG >= loggerLevel) Log.d(tag, msg.toString)
 
-  def debug(msg: => Any, t: Throwable) = if (DEBUG >= loggerLevel) Log.d(tag, msg.toString, t)
+  def debug(msg: ⇒ Any, t: Throwable) = if (DEBUG >= loggerLevel) Log.d(tag, msg.toString, t)
 
-  def info(msg: => Any) = if (INFO >= loggerLevel) Log.i(tag, msg.toString)
+  def info(msg: ⇒ Any) = if (INFO >= loggerLevel) Log.i(tag, msg.toString)
 
-  def info(msg: => Any, t: Throwable) = if (INFO >= loggerLevel) Log.i(tag, msg.toString, t)
+  def info(msg: ⇒ Any, t: Throwable) = if (INFO >= loggerLevel) Log.i(tag, msg.toString, t)
 
-  def warn(msg: => Any) = if (WARN >= loggerLevel) Log.w(tag, msg.toString)
+  def warn(msg: ⇒ Any) = if (WARN >= loggerLevel) Log.w(tag, msg.toString)
 
-  def warn(msg: => Any, t: Throwable) = if (WARN >= loggerLevel) Log.w(tag, msg.toString, t)
+  def warn(msg: ⇒ Any, t: Throwable) = if (WARN >= loggerLevel) Log.w(tag, msg.toString, t)
 
-  def error(msg: => Any) = if (ERROR >= loggerLevel) Log.e(tag, msg.toString)
+  def error(msg: ⇒ Any) = if (ERROR >= loggerLevel) Log.e(tag, msg.toString)
 
-  def error(msg: => Any, t: Throwable) = if (ERROR >= loggerLevel) Log.e(tag, msg.toString, t)
+  def error(msg: ⇒ Any, t: Throwable) = if (ERROR >= loggerLevel) Log.e(tag, msg.toString, t)
 
 }
-
 
 class AndroidInternalLoggerFactory extends InternalLoggerFactory {
 

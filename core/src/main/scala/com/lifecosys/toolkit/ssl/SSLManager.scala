@@ -22,5 +22,4 @@ trait SSLManager {
 
   def getProxyToServerSSLContext: SSLContext
 
-
 }

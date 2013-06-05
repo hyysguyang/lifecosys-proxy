@@ -21,7 +21,7 @@
 package com.lifecosys.toolkit.logging
 
 import java.lang.Throwable
-import org.slf4j.{MDC, LoggerFactory}
+import org.slf4j.{ MDC, LoggerFactory }
 
 /**
  *
@@ -46,85 +46,82 @@ object Logger {
 
 trait Logger {
 
-  def trace(msg: => Any)
+  def trace(msg: ⇒ Any)
 
-  def trace(msg: => Any, t: Throwable)
+  def trace(msg: ⇒ Any, t: Throwable)
 
-  def debug(msg: => Any)
+  def debug(msg: ⇒ Any)
 
-  def debug(msg: => Any, t: Throwable)
+  def debug(msg: ⇒ Any, t: Throwable)
 
-  def info(msg: => Any)
+  def info(msg: ⇒ Any)
 
-  def info(msg: => Any, t: Throwable)
+  def info(msg: ⇒ Any, t: Throwable)
 
-  def warn(msg: => Any)
+  def warn(msg: ⇒ Any)
 
-  def warn(msg: => Any, t: Throwable)
+  def warn(msg: ⇒ Any, t: Throwable)
 
-  def error(msg: => Any)
+  def error(msg: ⇒ Any)
 
-  def error(msg: => Any, t: Throwable)
-
+  def error(msg: ⇒ Any, t: Throwable)
 
 }
 
-
 sealed class NullLogger extends Logger {
-  def trace(msg: => Any) {}
+  def trace(msg: ⇒ Any) {}
 
-  def trace(msg: => Any, t: Throwable) {}
+  def trace(msg: ⇒ Any, t: Throwable) {}
 
-  def debug(msg: => Any) {}
+  def debug(msg: ⇒ Any) {}
 
-  def debug(msg: => Any, t: Throwable) {}
+  def debug(msg: ⇒ Any, t: Throwable) {}
 
-  def info(msg: => Any) {}
+  def info(msg: ⇒ Any) {}
 
-  def info(msg: => Any, t: Throwable) {}
+  def info(msg: ⇒ Any, t: Throwable) {}
 
-  def warn(msg: => Any) {}
+  def warn(msg: ⇒ Any) {}
 
-  def warn(msg: => Any, t: Throwable) {}
+  def warn(msg: ⇒ Any, t: Throwable) {}
 
-  def error(msg: => Any) {}
+  def error(msg: ⇒ Any) {}
 
-  def error(msg: => Any, t: Throwable) {}
+  def error(msg: ⇒ Any, t: Throwable) {}
 }
 
 class SLF4JLogger(name: String) extends Logger {
   val logger = LoggerFactory.getLogger(name)
 
-  def messageProcess(msg: => Any) = {
+  def messageProcess(msg: ⇒ Any) = {
     val caller = Thread.currentThread().getStackTrace()(3)
     MDC.put("location", "%s:[%s]".format(caller.getClassName, caller.getLineNumber));
     try {
       msg toString
-    }
-    catch {
-      case e: Throwable => e.getMessage
+    } catch {
+      case e: Throwable ⇒ e.getMessage
     }
   }
 
-  def trace(msg: => Any) = if (logger.isTraceEnabled) logger.trace(messageProcess(msg))
+  def trace(msg: ⇒ Any) = if (logger.isTraceEnabled) logger.trace(messageProcess(msg))
 
-  def trace(msg: => Any, t: Throwable) = if (logger.isTraceEnabled) logger.trace(messageProcess(msg), t)
+  def trace(msg: ⇒ Any, t: Throwable) = if (logger.isTraceEnabled) logger.trace(messageProcess(msg), t)
 
-  def debug(msg: => Any) = if (logger.isDebugEnabled) logger.debug(messageProcess(msg))
+  def debug(msg: ⇒ Any) = if (logger.isDebugEnabled) logger.debug(messageProcess(msg))
 
-  def debug(msg: => Any, t: Throwable) = if (logger.isDebugEnabled) logger.debug(messageProcess(msg), t)
+  def debug(msg: ⇒ Any, t: Throwable) = if (logger.isDebugEnabled) logger.debug(messageProcess(msg), t)
 
-  def info(msg: => Any) = if (logger.isInfoEnabled) logger.info(messageProcess(msg))
+  def info(msg: ⇒ Any) = if (logger.isInfoEnabled) logger.info(messageProcess(msg))
 
-  def info(msg: => Any, t: Throwable) = if (logger.isInfoEnabled) logger.info(messageProcess(msg), t)
+  def info(msg: ⇒ Any, t: Throwable) = if (logger.isInfoEnabled) logger.info(messageProcess(msg), t)
 
-  def warn(msg: => Any) = if (logger.isWarnEnabled) logger.warn(messageProcess(msg))
+  def warn(msg: ⇒ Any) = if (logger.isWarnEnabled) logger.warn(messageProcess(msg))
 
-  def warn(msg: => Any, t: Throwable) = if (logger.isWarnEnabled) logger.warn(messageProcess(msg), t)
+  def warn(msg: ⇒ Any, t: Throwable) = if (logger.isWarnEnabled) logger.warn(messageProcess(msg), t)
 
-  def error(msg: => Any) = if (logger.isErrorEnabled) logger.error(messageProcess(msg))
+  def error(msg: ⇒ Any) = if (logger.isErrorEnabled) logger.error(messageProcess(msg))
 
-  def error(msg: => Any, t: Throwable) = if (logger.isErrorEnabled) logger.error(messageProcess(msg), t)
+  def error(msg: ⇒ Any, t: Throwable) = if (logger.isErrorEnabled) logger.error(messageProcess(msg), t)
 
 }
 

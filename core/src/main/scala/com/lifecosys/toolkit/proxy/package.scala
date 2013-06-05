@@ -38,7 +38,7 @@ package object proxy {
   val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
   var logger: Logger = Logger.NULL_LOGGER
 
-  implicit def channelPipelineInitializer(f: ChannelPipeline => Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
+  implicit def channelPipelineInitializer(f: ChannelPipeline ⇒ Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
     def getPipeline: ChannelPipeline = {
       val pipeline: ChannelPipeline = Channels.pipeline()
       f(pipeline)
@@ -46,7 +46,7 @@ package object proxy {
     }
   }
 
-  implicit def channelFutureListener(f: ChannelFuture => Unit): ChannelFutureListener = new ChannelFutureListener {
+  implicit def channelFutureListener(f: ChannelFuture ⇒ Unit): ChannelFutureListener = new ChannelFutureListener {
     def operationComplete(future: ChannelFuture) = f(future)
   }
 

@@ -1,0 +1,127 @@
+
+import sbt._
+import Keys._
+import com.typesafe.sbt.SbtScalariform
+import com.typesafe.sbt.SbtScalariform.ScalariformKeys
+import org.scalasbt.androidplugin._
+import org.scalasbt.androidplugin.AndroidKeys._
+import scala.Some
+import scala.Some
+import scala.Some
+
+
+object BuildSettings {
+  val VERSION = "1.0-alpha3"
+
+  val basicSettings = Defaults.defaultSettings ++ seq(
+    version := NightlyBuildSupport.buildVersion(VERSION),
+    homepage := Some(new URL("https://lifecosys.com/developer/lifecosys-toolkit")),
+    organization := "lifecosys.com",
+    organizationHomepage := Some(new URL("https://lifecosys.com")),
+    description := "Lifecosys toolkit system, include toolkit, aggregate different SNS service such as facebook, twitter, sina weibo etc.",
+    startYear := Some(2013),
+    scalaVersion := "2.10.1",
+    resolvers ++= Dependencies.resolutionRepos,
+    scalacOptions := Seq(
+      "-encoding", "utf8",
+      "-feature",
+      "-unchecked",
+      "-deprecation",
+      "-target:jvm-1.6",
+      "-language:postfixOps",
+      "-language:implicitConversions",
+      "-Xlog-reflective-calls"
+    )
+  )
+
+
+
+
+
+  lazy val moduleSettings =
+    basicSettings ++ formatSettings ++
+      NightlyBuildSupport.settings ++
+      net.virtualvoid.sbt.graph.Plugin.graphSettings ++
+      seq(
+        // scaladoc settings
+        (scalacOptions in doc) <++= (name, version).map {
+          (n, v) => Seq("-doc-title", n, "-doc-version", v)
+        },
+
+        // publishing
+        crossPaths := false,
+        publishMavenStyle := true
+        //      publishTo <<= version { version =>
+        //        Some {
+        //          "spray nexus" at {
+        //            // public uri is repo.spray.io, we use an SSH tunnel to the nexus here
+        //            "http://localhost:42424/content/repositories/" + {
+        //              if (version.trim.endsWith("SNAPSHOT")) "snapshots/" else
+        //                if (NightlyBuildSupport.isNightly) "nightlies/" else "releases/"
+        //            }
+        //          }
+        //        }
+        //      },
+
+
+      )
+
+  val baseAndroidSettings = Seq(
+    versionCode := 0,
+    platformName in Android := "android-4.2",
+    useProguard in Android := true
+  )
+
+  lazy val fullAndroidSettings = baseAndroidSettings ++
+    AndroidProject.androidSettings ++
+    TypedResources.settings ++
+    AndroidManifestGenerator.settings ++
+    AndroidMarketPublish.settings ++ Seq(
+    keyalias in Android := "TODO:change-me"
+  )
+
+
+  lazy val noPublishing = seq(
+    publish :=(),
+    publishLocal :=()
+  )
+
+
+  lazy val siteSettings = basicSettings ++ formatSettings ++ noPublishing
+
+  lazy val docsSettings = basicSettings ++ noPublishing ++ seq(
+    unmanagedSourceDirectories in Test <<= baseDirectory {
+      _ ** "code" get
+    }
+  )
+
+
+  import com.earldouglas.xsbtwebplugin._
+  import WebPlugin._
+
+  lazy val jettySettings = basicSettings ++ noPublishing ++ webSettings //  ++ disableJettyLogSettings
+  //
+  //  lazy val disableJettyLogSettings = inConfig(container.Configuration) {
+  //    seq(
+  //      start <<= (state, port, apps, customConfiguration, configurationFiles, configurationXml) map {
+  //        (state, port, apps, cc, cf, cx) =>
+  //          state.get(container.attribute).get.start(port, None, Utils.NopLogger, apps, cc, cf, cx)
+  //      }
+  //    )
+  //  }
+
+  lazy val formatSettings = SbtScalariform.scalariformSettings ++ Seq(
+    ScalariformKeys.preferences in Compile := formattingPreferences,
+    ScalariformKeys.preferences in Test := formattingPreferences
+  )
+
+  import scalariform.formatter.preferences._
+
+  def formattingPreferences =
+    FormattingPreferences()
+      .setPreference(RewriteArrowSymbols, true)
+      .setPreference(AlignParameters, true)
+      .setPreference(AlignSingleLineCaseStatements, true)
+      .setPreference(DoubleIndentClassDeclaration, true)
+
+}

@@ -20,23 +20,23 @@
 
 package com.lifecosys.toolkit.proxy
 
-import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
-import java.security.{KeyPairGenerator, Security, KeyFactory}
+import java.security.spec.{ RSAPrivateCrtKeySpec, RSAPublicKeySpec }
+import java.security.{ KeyPairGenerator, Security, KeyFactory }
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import scala.Some
-import java.net.{URL, InetSocketAddress}
+import java.net.{ URL, InetSocketAddress }
 import java.util.regex.Pattern
-import org.jboss.netty.channel.{ChannelFutureListener, Channel}
+import org.jboss.netty.channel.{ ChannelFutureListener, Channel }
 import org.jboss.netty.buffer.ChannelBuffers
 import org.bouncycastle.util.encoders.Hex
 import java.nio.charset.Charset
 import org.jasypt.encryption.pbe.StandardPBEByteEncryptor
-import java.util.zip.{Inflater, Deflater}
+import java.util.zip.{ Inflater, Deflater }
 
 /**
  *
  *
- * @author Young Gu 
+ * @author Young Gu
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
@@ -51,7 +51,7 @@ object Utils {
     val standardEncryptor = new StandardPBEByteEncryptor
     standardEncryptor.setProviderName("BC")
     standardEncryptor.setAlgorithm("PBEWithSHAAnd3KeyTripleDES")
-    standardEncryptor.setPassword( """nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
+    standardEncryptor.setPassword("""nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
     standardEncryptor
   }
 
@@ -63,7 +63,6 @@ object Utils {
     field.setAccessible(true)
     field.set(null, java.lang.Boolean.FALSE)
   }
-
 
   def extractHostAndPort(uri: String) = {
 
@@ -102,17 +101,16 @@ object Utils {
 
   def generateGFWHostList = {
     val list = scala.io.Source.fromInputStream(getClass.getResourceAsStream("/gfwlist.txt")).getLines().filterNot {
-      line => line.startsWith("!") || line.startsWith("@@") || line.startsWith("/")
+      line ⇒ line.startsWith("!") || line.startsWith("@@") || line.startsWith("/")
     }.toList
 
     val result = list.map {
-      case line if (line.startsWith("||")) => Utils.extractHostAndPort(line.substring(2))._1
-      case line if (line.startsWith("|") || line.startsWith(".")) => Utils.extractHostAndPort(line.substring(1))._1
-      case line if (line.indexOf('*') > 0) => Utils.extractHostAndPort(line)._1
+      case line if (line.startsWith("||"))                        ⇒ Utils.extractHostAndPort(line.substring(2))._1
+      case line if (line.startsWith("|") || line.startsWith(".")) ⇒ Utils.extractHostAndPort(line.substring(1))._1
+      case line if (line.indexOf('*') > 0)                        ⇒ Utils.extractHostAndPort(line)._1
     }
 
     result.foreach(println _)
-
 
     //    list.filter(_.startsWith("||")).foreach(println _)
     //    list.filterNot(_.startsWith("||")).filter(_.startsWith("|")).foreach(println _)
@@ -122,13 +120,11 @@ object Utils {
     //    println(host)
   }
 
-
   def main(args: Array[String]) {
     Security.addProvider(new BouncyCastleProvider());
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC");
     keyPairGenerator.initialize(2048);
     val keyPair = keyPairGenerator.generateKeyPair();
-
 
     val keyFac = KeyFactory.getInstance("RSA", "BC");
     val publicKeySpec = keyFac.getKeySpec(keyPair.getPublic(), classOf[RSAPublicKeySpec]);
@@ -170,6 +166,5 @@ object Utils {
     //
 
   }
-
 
 }

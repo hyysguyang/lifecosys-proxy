@@ -22,17 +22,17 @@ package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.logging.InternalLogLevel
 import java.net.InetSocketAddress
-import org.jboss.netty.channel.socket.{ClientSocketChannelFactory, ServerSocketChannelFactory}
-import javax.net.ssl.{TrustManagerFactory, KeyManagerFactory, SSLContext}
-import org.jboss.netty.channel.group.{DefaultChannelGroup, ChannelGroup}
+import org.jboss.netty.channel.socket.{ ClientSocketChannelFactory, ServerSocketChannelFactory }
+import javax.net.ssl.{ TrustManagerFactory, KeyManagerFactory, SSLContext }
+import org.jboss.netty.channel.group.{ DefaultChannelGroup, ChannelGroup }
 import collection.mutable
-import org.jboss.netty.channel.socket.nio.{NioClientSocketChannelFactory, NioServerSocketChannelFactory}
-import java.util.concurrent.{SynchronousQueue, TimeUnit, ThreadPoolExecutor}
+import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioServerSocketChannelFactory }
+import java.util.concurrent.{ SynchronousQueue, TimeUnit, ThreadPoolExecutor }
 import com.lifecosys.toolkit.ssl.SSLManager
 import java.io.InputStream
-import java.security.{Security, KeyFactory, SecureRandom, KeyStore}
-import com.typesafe.config.{ConfigFactory, Config}
-import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
+import java.security.{ Security, KeyFactory, SecureRandom, KeyStore }
+import com.typesafe.config.{ ConfigFactory, Config }
+import java.security.spec.{ RSAPrivateCrtKeySpec, RSAPublicKeySpec }
 import org.bouncycastle.x509.X509V3CertificateGenerator
 import java.math.BigInteger
 import org.bouncycastle.jce.X509Principal
@@ -73,7 +73,6 @@ trait ProxyConfig {
   def getChainProxyManager: ChainProxyManager = new DefaultChainProxyManager
 }
 
-
 class SimpleProxyConfig extends ProxyConfig {
 
   override val port = 9050
@@ -87,7 +86,6 @@ class SimpleProxyConfig extends ProxyConfig {
   val isLocal: Boolean = true
 
   override val chainProxies = mutable.MutableList[InetSocketAddress]()
-
 
   override val serverSocketChannelFactory = new NioServerSocketChannelFactory(new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]), new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable]))
 
@@ -129,7 +127,6 @@ class SimpleProxyConfig extends ProxyConfig {
 
 }
 
-
 abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyConfig {
 
   val thisConfig = config.getOrElse(ConfigFactory.load())
@@ -151,7 +148,6 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   val serverExecutor = new ThreadPoolExecutor(serverThreadCorePoolSize, serverThreadMaximumPoolSize, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
   val clientExecutor = new ThreadPoolExecutor(proxyToServerThreadCorePoolSize, proxyToServerThreadMaximumPoolSize, 60L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
 
-
   override val port = thisConfig.getInt("port")
   override val serverSSLEnable = thisConfig.getBoolean("proxy-server.ssl.enabled")
   override val proxyToServerSSLEnable = thisConfig.getBoolean("proxy-server-to-remote.ssl.enabled")
@@ -162,10 +158,9 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor)
   override val isLocal = thisConfig.getBoolean("local")
   override val chainProxies = thisConfig.getString("chain-proxy.host") match {
-    case host: String if host.trim.length > 0 => mutable.MutableList[InetSocketAddress](Utils.extractHost(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
-    case _ => mutable.MutableList[InetSocketAddress]()
+    case host: String if host.trim.length > 0 ⇒ mutable.MutableList[InetSocketAddress](Utils.extractHost(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
+    case _                                    ⇒ mutable.MutableList[InetSocketAddress]()
   }
-
 
   def sslManger: SSLManager
 
@@ -174,7 +169,6 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   lazy override val clientSSLContext = sslManger.getProxyToServerSSLContext
 
 }
-
 
 class DefaultStaticCertificationProxyConfig(config: Option[Config] = None) extends DefaultProxyConfig(config) {
   override def sslManger = new SSLManager {
@@ -200,7 +194,6 @@ class DefaultStaticCertificationProxyConfig(config: Option[Config] = None) exten
   }
 }
 
-
 class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extends DefaultProxyConfig(config) {
   val keyFactory = KeyFactory.getInstance("RSA", "BC")
   val protocol = "SSL"
@@ -213,7 +206,6 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
     new BigInteger("00c26504945f6c14e6e76675f843e2eb0918f30e41a13d49baa29464e185ecd9dfdf7b4a121c203f7852a5f201f44acec90000b32053e92e80e1a947d7f21e7c21e5cb3b7a4c5ca777c5f99df345d5874389d4763b265efc2ff3f2b123ac73641a16eb3b6fc5cd94eda099d78b483cbf3113ca9382ba36020309f8188434cfd3f3d0159c56fb089b46ea6808290a1c7db7fd6611c3bcc35e226b4e9d1ddacc1060cfea52550967b2545c7b7ffc330dbe91cafbf8bbbf04078e66c695904f9761bdc7c64912ab395292d86e7cf6302037089339b6d2c4e803350022797ad1c1d1623f1e3fe9539fc75acd714f65f72a08b161f361232e51ffec4f454c705476aeb9", 16),
     new BigInteger("010001", 16))
 
-
   val privateServerKeySpec = new RSAPrivateCrtKeySpec(
     new BigInteger("00c26504945f6c14e6e76675f843e2eb0918f30e41a13d49baa29464e185ecd9dfdf7b4a121c203f7852a5f201f44acec90000b32053e92e80e1a947d7f21e7c21e5cb3b7a4c5ca777c5f99df345d5874389d4763b265efc2ff3f2b123ac73641a16eb3b6fc5cd94eda099d78b483cbf3113ca9382ba36020309f8188434cfd3f3d0159c56fb089b46ea6808290a1c7db7fd6611c3bcc35e226b4e9d1ddacc1060cfea52550967b2545c7b7ffc330dbe91cafbf8bbbf04078e66c695904f9761bdc7c64912ab395292d86e7cf6302037089339b6d2c4e803350022797ad1c1d1623f1e3fe9539fc75acd714f65f72a08b161f361232e51ffec4f454c705476aeb9", 16),
     new BigInteger("010001", 16),
@@ -223,7 +215,6 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
     new BigInteger("140dc9c09a42d89e5c28d5a4e1f0fb00aeb88310df8cab278322b40de9ef6868b2d6cb7a084cd78ae1c1f34db49025d3fc72c601c2c39e680a2fb642905b65beda52e70c84203177c34751d8dec71845d851a81869959b8404b279bd2f74a96811721803f87f7ece88ac5718341c474c676a5aa13d1378cc8de9f0c25c346fc3", 16),
     new BigInteger("2c037c4c5c70b5bf793146e3659fec07e6f1c2e5ef5c11e203a24d77b42d5f3586da8510dc16939096e9f875c39024345127b03965cf3d9ab994ab9540d4fe91fb7e30063832d9cd3536c5048a03bf13f9ba68b767d6538a6519f69341c914ba6460e105252d60c85d71810fe6337ffdbdbd5111d1fa5541ee1b9086c4f9b269", 16),
     new BigInteger("023002834562f34eeaba2375af03f8daa4dabcd9584924e48f8a216a2497ab2902e38e1d1fe170b033edbc1714a69c07687150040ddd02d47290a372eee2ffa7fde5145f1a20cc75e1c9bafbdfecd1abf9a2560f480b583b328a22975bfcb4d080d026fd2b658d7c97abc11eaa7e6cbe5db6cb8b54e48cc6f506a6d5101828d3", 16))
-
 
   val proxyToServerKeyStorePassword = "killccp"
   val proxyToServerAlias = "proxy-to-server-alias"
@@ -241,13 +232,11 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
     new BigInteger("2c037c4c5c70b5bf793146e3659fec07e6f1c2e5ef5c11e203a24d77b42d5f3586da8510dc16939096e9f875c39024345127b03965cf3d9ab994ab9540d4fe91fb7e30063832d9cd3536c5048a03bf13f9ba68b767d6538a6519f69341c914ba6460e105252d60c85d71810fe6337ffdbdbd5111d1fa5541ee1b9086c4f9b269", 16),
     new BigInteger("023002834562f34eeaba2375af03f8daa4dabcd9584924e48f8a216a2497ab2902e38e1d1fe170b033edbc1714a69c07687150040ddd02d47290a372eee2ffa7fde5145f1a20cc75e1c9bafbdfecd1abf9a2560f480b583b328a22975bfcb4d080d026fd2b658d7c97abc11eaa7e6cbe5db6cb8b54e48cc6f506a6d5101828d3", 16))
 
-
   override def sslManger = new SSLManager {
     def getServerSSLContext: SSLContext = createSSLContext(keyStoreType, publicServerKeySpec, privateServerKeySpec, serverKeyStorePassword, serverAlias)
 
     def getProxyToServerSSLContext: SSLContext = createSSLContext(keyStoreType, publicProxyToServerKeySpec, privateProxyToServerKeySpec, proxyToServerKeyStorePassword, proxyToServerAlias)
   }
-
 
   def createSSLContext(keyStoreType: String, publicKeySpec: RSAPublicKeySpec, privateKeySpec: RSAPrivateCrtKeySpec, keyStorePassword: String, alias: String): SSLContext = {
     val keyStore = KeyStore.getInstance(keyStoreType)
@@ -256,7 +245,6 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
     keyStore.setKeyEntry(alias, keyFactory.generatePrivate(privateKeySpec), keyStorePassword.toCharArray(), Array[Certificate](certificate.asInstanceOf[Certificate]))
     val keyManagerFactory = KeyManagerFactory.getInstance(Security.getProperty("ssl.KeyManagerFactory.algorithm"))
     keyManagerFactory.init(keyStore, keyStorePassword.toCharArray())
-
 
     val trustKeyStore = KeyStore.getInstance(keyStoreType)
     trustKeyStore.load(null, null)
@@ -270,7 +258,6 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
   }
 
   def createCertificate(publicKeySpec: RSAPublicKeySpec, privateKeySpec: RSAPrivateCrtKeySpec) = {
-
 
     val publicKey = keyFactory.generatePublic(publicKeySpec)
     val privateKey = keyFactory.generatePrivate(privateKeySpec)
@@ -299,7 +286,6 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
     v3CertGen.setNotAfter(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24 * 365 * 10)))
     v3CertGen.setSubjectDN(new X509Principal("CN=lifecosys, OU=None, O=None L=None, C=None"))
 
-
     v3CertGen.setPublicKey(publicKey)
     v3CertGen.setSignatureAlgorithm("SHA1WithRSAEncryption")
 
@@ -309,7 +295,6 @@ class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extend
     certificate
   }
 }
-
 
 class GFWProgrammaticCertificationProxyConfig(config: Option[Config] = None) extends ProgrammaticCertificationProxyConfig {
   override val getChainProxyManager: ChainProxyManager = new GFWChainProxyManager()

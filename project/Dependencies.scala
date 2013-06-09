@@ -3,6 +3,7 @@ import sbt._
 object Dependencies {
 
   val resolutionRepos = Seq(
+    "Local Maven Repository" at "file:////Develop/MavenRepository",
     "spray repo" at "http://repo.spray.io/"
   )
 
@@ -16,6 +17,7 @@ object Dependencies {
 
   def container(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "container")
 
+  val littleproxy = "org.littleshoot" % "littleproxy" % "0.6.0-SNAPSHOT"
   val netty = "io.netty" % "netty" % "3.6.1.Final"
   val config = "com.typesafe" % "config" % "1.0.0"
   val bouncycastle = "org.bouncycastle" % "bcprov-jdk16" % "1.46"

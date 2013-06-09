@@ -27,7 +27,7 @@ object LifecosysToolkitBuild extends Build {
   lazy val core = Project("Core", file("core"))
     .settings(moduleSettings: _*)
     .settings(libraryDependencies ++=
-    compile(netty, config, bouncycastle, jasypt, commonsIO, slf4jAPI,akkaActor) ++
+    compile(littleproxy,netty, config, bouncycastle, jasypt, commonsIO, slf4jAPI,akkaActor) ++
       compile(spray: _*) ++
       runtime(slf4jLog4j12) ++
       test(junit, scalatest, fluentHC)

@@ -68,7 +68,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
     logger.debug("Process request with %s".format((host, isChainedProxy)))
     hostToChannelFuture.remove(host) match {
       case Some(channel) if channel.isConnected ⇒ {
-        logger.error("###########Use existed Proxy toserver conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
+        logger.error("###########Use existed Proxy to server conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
         channel.write(httpRequest)
       }
       case _ ⇒ {

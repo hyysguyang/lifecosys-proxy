@@ -16,7 +16,7 @@ object BuildSettings {
   val basicSettings = Defaults.defaultSettings ++ seq(
     version := NightlyBuildSupport.buildVersion(VERSION),
     homepage := Some(new URL("https://lifecosys.com/developer/lifecosys-toolkit")),
-    organization := "lifecosys.com",
+    organization := "com.lifecosys",
     organizationHomepage := Some(new URL("https://lifecosys.com")),
     description := "Lifecosys toolkit system, include toolkit, aggregate different SNS service such as facebook, twitter, sina weibo etc.",
     startYear := Some(2013),
@@ -34,10 +34,6 @@ object BuildSettings {
     )
   )
 
-
-
-
-
   lazy val moduleSettings =
     basicSettings ++ formatSettings ++
       NightlyBuildSupport.settings ++
@@ -47,23 +43,8 @@ object BuildSettings {
         (scalacOptions in doc) <++= (name, version).map {
           (n, v) => Seq("-doc-title", n, "-doc-version", v)
         },
-
-        // publishing
         crossPaths := false,
         publishMavenStyle := true
-        //      publishTo <<= version { version =>
-        //        Some {
-        //          "spray nexus" at {
-        //            // public uri is repo.spray.io, we use an SSH tunnel to the nexus here
-        //            "http://localhost:42424/content/repositories/" + {
-        //              if (version.trim.endsWith("SNAPSHOT")) "snapshots/" else
-        //                if (NightlyBuildSupport.isNightly) "nightlies/" else "releases/"
-        //            }
-        //          }
-        //        }
-        //      },
-
-
       )
 
   val baseAndroidSettings = Seq(

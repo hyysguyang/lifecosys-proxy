@@ -27,6 +27,8 @@ import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
 import java.math.BigInteger
 import java.net.InetSocketAddress
 import com.lifecosys.toolkit.proxy.Utils
+import org.apache.http.client.fluent.Request
+import org.apache.http.HttpHost
 
 /**
  *
@@ -42,6 +44,12 @@ class UtilsTest {
   @Test
   def investigation {
     //    Assert.assertTrue(new GFWListJava().isBlockedByGFW("http://facebook.com"))
+    val string: String = Request.Get("http://www.youku.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString
+    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+    println(string)
+    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
   }
 
   @Test

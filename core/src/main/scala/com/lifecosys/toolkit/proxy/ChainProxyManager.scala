@@ -32,13 +32,16 @@ import io.Source
  * @version 1.0 1/3/13 9:22 PM
  */
 
+
+case class ProxyHost(host:InetSocketAddress,isChained:Boolean)
+
 trait ChainProxyManager {
-  def getConnectHost(request: HttpRequest)(implicit proxyConfig: ProxyConfig): Tuple2[InetSocketAddress, Boolean]
+  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): ProxyHost
 }
 
 class DefaultChainProxyManager extends ChainProxyManager {
-  def getConnectHost(request: HttpRequest)(implicit proxyConfig: ProxyConfig): Tuple2[InetSocketAddress, Boolean] = {
-    proxyConfig.chainProxies.headOption.map(_ -> true).getOrElse((Utils.extractHost(request.getUri), false))
+  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig)= {
+    proxyConfig.chainProxies.headOption.map(ProxyHost(_,true)).getOrElse(ProxyHost(Utils.extractHost(uri), false))
   }
 }
 
@@ -55,13 +58,13 @@ class GFWChainProxyManager extends ChainProxyManager {
 
   def gfwHostList = Source.fromInputStream(getClass.getResourceAsStream("/gfw-host-list.txt")).getLines().toSet.par.filterNot(_.startsWith("#"))
 
-  def getConnectHost(request: HttpRequest)(implicit proxyConfig: ProxyConfig): Tuple2[InetSocketAddress, Boolean] = {
-    val hostPort = Utils.extractHostAndPort(request.getUri)
-    smartHosts.get(hostPort._1.trim.hashCode).map(new InetSocketAddress(_, hostPort._2.toInt) -> false).getOrElse {
+  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
+    val hostPort = Utils.extractHostAndPort(uri)
+    smartHosts.get(hostPort._1.trim.hashCode).map(host=> ProxyHost(new InetSocketAddress(host, hostPort._2),false)).getOrElse {
       if (!isBlocked(hostPort._1.trim))
-        (new InetSocketAddress(hostPort._1, hostPort._2.toInt), false)
+        ProxyHost(new InetSocketAddress(hostPort._1, hostPort._2), false)
       else
-        proxyConfig.chainProxies.headOption.map(_ -> true).getOrElse((Utils extractHost request.getUri, false))
+        proxyConfig.chainProxies.headOption.map(ProxyHost(_ , true)).getOrElse(ProxyHost(Utils extractHost uri, false))
     }
   }
 

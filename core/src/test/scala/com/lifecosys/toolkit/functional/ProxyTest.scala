@@ -364,7 +364,7 @@ class ChainedProxyManagerTest {
       """.stripMargin
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
-    val host = new GFWChainProxyManager().getConnectHost(request)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
     Assert.assertFalse(host == new InetSocketAddress("localhost", 8081))
   }
 
@@ -374,18 +374,18 @@ class ChainedProxyManagerTest {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://twitter.com")
     val manager = new GFWChainProxyManager()
     val now = System.currentTimeMillis()
-    val host = manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
-    manager.getConnectHost(request)(new SimpleProxyConfig)
+    val host = manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
     println("################################" + (System.currentTimeMillis() - now))
-    Assert.assertFalse(host == new InetSocketAddress("localhost", 8081))
+    Assert.assertFalse(host.host == new InetSocketAddress("localhost", 8081))
   }
 
 }

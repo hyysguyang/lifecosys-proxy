@@ -88,26 +88,72 @@ object ProxyTestUtils {
                         isClientSSLEnable: Boolean = false,
                         isLocalProxy: Boolean = true,
                         chainProxyManager: ChainProxyManager = new DefaultChainProxyManager) = {
-    new SimpleProxyConfig {
-      override val port = bindPort
-      override val isLocal = isLocalProxy
-      override val chainProxies = chainedPort.map(port => mutable.MutableList[InetSocketAddress](new InetSocketAddress(port))).getOrElse(mutable.MutableList[InetSocketAddress]())
-      override val serverSSLEnable = isServerSSLEnable
-      override val proxyToServerSSLEnable = isClientSSLEnable
 
+    val chainProxy=chainedPort match {
+      case Some(port) => s"""host = "localhost $port" """
+      case None => ""
+    }
+
+    val configString=s"""
+      |port = $bindPort
+      |local=$isLocalProxy
+      |chain-proxy{
+      |  $chainProxy
+      |}
+      |proxy-server{
+      |    thread {
+      |        corePoolSize = 10
+      |        maximumPoolSize = 30
+      |    }
+      |    ssl {
+      |           enabled = $isServerSSLEnable
+      |           keystore-password = "killccp"
+      |           keystore-path = "/binary/keystore/lifecosys-proxy-server-keystore.jks"
+      |           trust-keystore-path = "/binary/keystore/lifecosys-proxy-client-for-server-trust-keystore.jks"
+      |    }
+      |}
+      |
+      |proxy-server-to-remote{
+      |    thread {
+      |        corePoolSize = 10
+      |        maximumPoolSize = 30
+      |    }
+      |    ssl {
+      |           enabled = $isClientSSLEnable
+      |           keystore-password = "killccp"
+      |           keystore-path = "/binary/keystore/lifecosys-proxy-client-keystore.jks"
+      |           trust-keystore-path = "/binary/keystore/lifecosys-proxy-server-for-client-trust-keystore.jks"
+      |    }
+      |}
+    """.stripMargin
+
+
+    val config=ConfigFactory.parseString(configString).withFallback(ConfigFactory.load())
+
+
+    new DefaultStaticCertificationProxyConfig(Some(config)) {
       override def getChainProxyManager: ChainProxyManager = chainProxyManager
     }
+
+
+
+
+
   }
 
 
-  //  def main(args: Array[String]) {
-  //    val proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-  //    val chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
-  //
-  //    chainProxy start
-  //
-  //    proxy start
-  //  }
+    def main(args: Array[String]) {
+
+      val config= createProxyConfig(bindPort = 8081, isLocalProxy = false)
+      println(config.isLocal)
+
+//      val proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+//      val chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
+//
+//      chainProxy start
+//
+//      proxy start
+    }
 
 
 }
@@ -209,7 +255,7 @@ class ChainedProxyTest {
   def testAccessViaChainedProxy_bypassChainedProxy {
     proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
     proxy start
-    val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    val proxyContent = request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
   }
 
@@ -225,7 +271,7 @@ class ChainedProxyTest {
   def testAccessViaChainedProxy_bypassChainedProxy_withSSLSupport {
     proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
     proxy start
-    val proxyContent = request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+    val proxyContent = request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     Assert.assertTrue(proxyContent.toString.length > 0)
   }
 
@@ -246,7 +292,7 @@ class ChainedProxyTest {
     chainProxy.start
     proxy.start
     try {
-      request("http://apple.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
+      request("http://www.yahoo.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     } catch {
       case _: Throwable => Assert.assertTrue(true)
     }
@@ -277,7 +323,7 @@ class ChainedProxyTest {
 
     proxy start
 
-    Assert.assertTrue(request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    Assert.assertTrue(request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
 
   @Test
@@ -343,7 +389,7 @@ class ChainedProxyTest {
 
     proxy start
 
-    Assert.assertTrue(request("http://apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    Assert.assertTrue(request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
 
     Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
@@ -374,16 +420,16 @@ class ChainedProxyManagerTest {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://twitter.com")
     val manager = new GFWChainProxyManager()
     val now = System.currentTimeMillis()
-    val host = manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
-    manager.getConnectHost(request.getUri)(new SimpleProxyConfig)
+    val host = manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
+    manager.getConnectHost(request.getUri)(createProxyConfig())
     println("################################" + (System.currentTimeMillis() - now))
     Assert.assertFalse(host.host == new InetSocketAddress("localhost", 8081))
   }

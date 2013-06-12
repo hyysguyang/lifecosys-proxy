@@ -53,7 +53,9 @@ object ProxyServer {
  *
  * @param proxyConfig
  */
-class ProxyServer(val proxyConfig: ProxyConfig = new SimpleProxyConfig) {
+class ProxyServer(val proxyConfig: ProxyConfig) {
+  require(proxyConfig != null)
+
   implicit val currentProxyConfig = proxyConfig
 
   val isStarted: AtomicBoolean = new AtomicBoolean(false)

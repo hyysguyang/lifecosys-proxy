@@ -32,16 +32,15 @@ import io.Source
  * @version 1.0 1/3/13 9:22 PM
  */
 
-
-case class ProxyHost(host:InetSocketAddress,isChained:Boolean)
+case class ProxyHost(host: InetSocketAddress, needForward: Boolean)
 
 trait ChainProxyManager {
   def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): ProxyHost
 }
 
 class DefaultChainProxyManager extends ChainProxyManager {
-  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig)= {
-    proxyConfig.chainProxies.headOption.map(ProxyHost(_,true)).getOrElse(ProxyHost(Utils.extractHost(uri), false))
+  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
+    proxyConfig.chainProxies.headOption.map(ProxyHost(_, true)).getOrElse(ProxyHost(Utils.extractHost(uri), false))
   }
 }
 
@@ -60,11 +59,11 @@ class GFWChainProxyManager extends ChainProxyManager {
 
   def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
     val hostPort = Utils.extractHostAndPort(uri)
-    smartHosts.get(hostPort._1.trim.hashCode).map(host=> ProxyHost(new InetSocketAddress(host, hostPort._2),false)).getOrElse {
+    smartHosts.get(hostPort._1.trim.hashCode).map(host ⇒ ProxyHost(new InetSocketAddress(host, hostPort._2), false)).getOrElse {
       if (!isBlocked(hostPort._1.trim))
         ProxyHost(new InetSocketAddress(hostPort._1, hostPort._2), false)
       else
-        proxyConfig.chainProxies.headOption.map(ProxyHost(_ , true)).getOrElse(ProxyHost(Utils extractHost uri, false))
+        proxyConfig.chainProxies.headOption.map(ProxyHost(_, true)).getOrElse(ProxyHost(Utils extractHost uri, false))
     }
   }
 

@@ -57,32 +57,33 @@ object LittleProxy {
 
     val chainedProxyConfig = ConfigFactory.parseString(
       """
-         |local=false
-         |chain-proxy{
-         |}
-         |
-         |proxy-server{
-         |    thread {
-         |        corePoolSize = 10
-         |        maximumPoolSize = 30
-         |    }
-         |    ssl {
-         |            enabled = true
-         |    }
-         |
-         |}
-         |
-         |proxy-server-to-remote{
-         |
-         |    thread {
-         |        corePoolSize = 10
-         |        maximumPoolSize = 30
-         |    }
-         |    ssl {
-         |            enabled = false
-         |    }
-         |}
-       """.stripMargin).withFallback(config)
+        |local=false
+        |chain-proxy{
+        |   host = ""
+        |}
+        |
+        |proxy-server{
+        |    thread {
+        |        corePoolSize = 10
+        |        maximumPoolSize = 30
+        |    }
+        |    ssl {
+        |            enabled = true
+        |    }
+        |
+        |}
+        |
+        |proxy-server-to-remote{
+        |
+        |    thread {
+        |        corePoolSize = 10
+        |        maximumPoolSize = 30
+        |    }
+        |    ssl {
+        |            enabled = false
+        |    }
+        |}
+      """.stripMargin).withFallback(config)
 
     val proxy = new LittleProxyServer(8080)(new GFWProgrammaticCertificationProxyConfig(Some(localConfig)))
     val server = new LittleProxyServer(8081)(new ProgrammaticCertificationProxyConfig(Some(chainedProxyConfig)))

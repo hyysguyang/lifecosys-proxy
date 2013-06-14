@@ -34,9 +34,10 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends or
 
   val littleChainProxyManager = if (proxyConfig.chainProxies.isEmpty) null else new LittleChainProxyManager() {
     def getChainProxy(request: HttpRequest): String = {
-      val proxyHost: ProxyHost = chainProxyManager.getConnectHost(request.getUri)
-      proxyHost.host.getHostString + ":" + proxyHost.host.getPort
+      val proxyHost = chainProxyManager.getConnectHost(request.getUri)
+      if (!proxyHost.needForward) null else proxyHost.host.getHostString + ":" + proxyHost.host.getPort
     }
+
     def onCommunicationError(hostAndPort: String) {}
   }
 
@@ -53,7 +54,10 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends or
       def getPipeline: ChannelPipeline = {
         val pipeline = factory.getPipeline
         if (proxyConfig.serverSSLEnable) {
-          pipeline.addFirst("proxyServer-ssl", new SslHandler(serverEngine))
+          val engine = proxyConfig.serverSSLContext.createSSLEngine
+          engine.setUseClientMode(false)
+          engine.setNeedClientAuth(true)
+          pipeline.addFirst("proxyServer-ssl", new SslHandler(engine))
         }
 
         val httpRequestHandler = new HttpRequestHandler(ProxyUtils.loadCacheManager, authenticationManager, allChannels, littleChainProxyManager, relayPipelineFactoryFactory, clientChannelFactory) {
@@ -63,11 +67,9 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends or
               def getPipeline = {
                 val pipeline: ChannelPipeline = factory.getPipeline
                 if (chainProxyManager.getConnectHost(request.getUri).needForward && proxyConfig.proxyToServerSSLEnable) {
-                  pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(clientEngine))
-                }
-
-                if (!chainProxyManager.getConnectHost(request.getUri).needForward) {
-                  pipeline.get(classOf[ProxyHttpRequestEncoder]).keepProxyFormat = false
+                  val engine = proxyConfig.clientSSLContext.createSSLEngine
+                  engine.setUseClientMode(true)
+                  pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(engine))
                 }
                 pipeline
               }

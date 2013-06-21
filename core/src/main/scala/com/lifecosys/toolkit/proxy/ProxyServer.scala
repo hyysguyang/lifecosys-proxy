@@ -123,10 +123,10 @@ class ProxyServer(val proxyConfig: ProxyConfig) {
   def start = {
     logger.info("Starting proxy server on " + proxyConfig.port)
     serverBootstrap.setPipelineFactory(proxyServerPipeline)
-    serverBootstrap.setOption("tcpNoDelay", true)
-    serverBootstrap.setOption("keepAlive", true)
+    //    serverBootstrap.setOption("tcpNoDelay", true)
+    //    serverBootstrap.setOption("keepAlive", true)
     serverBootstrap.setOption("connectTimeoutMillis", 120 * 1000)
-    serverBootstrap.setOption("child.keepAlive", true)
+    //    serverBootstrap.setOption("child.keepAlive", true)
     serverBootstrap.setOption("child.connectTimeoutMillis", 120 * 1000)
 
     proxyConfig.allChannels.add(serverBootstrap.bind(new InetSocketAddress(proxyConfig.port)))

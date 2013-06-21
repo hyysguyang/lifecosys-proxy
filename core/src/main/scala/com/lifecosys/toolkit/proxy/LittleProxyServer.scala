@@ -19,26 +19,16 @@ import org.jboss.netty.channel.group.ChannelGroup
  */
 class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends org.littleshoot.proxy.DefaultHttpProxyServer(port) {
   val chainProxyManager = proxyConfig.getChainProxyManager
-  val serverEngine = if (!proxyConfig.serverSSLEnable) null else {
-    val engine = proxyConfig.serverSSLContext.createSSLEngine
-    engine.setUseClientMode(false)
-    engine.setNeedClientAuth(true)
-    engine
-  }
-
-  val clientEngine = if (!proxyConfig.proxyToServerSSLEnable) null else {
-    val engine = proxyConfig.clientSSLContext.createSSLEngine
-    engine.setUseClientMode(true)
-    engine
-  }
 
   val littleChainProxyManager = if (proxyConfig.chainProxies.isEmpty) null else new LittleChainProxyManager() {
     def getChainProxy(request: HttpRequest): String = {
-      val proxyHost = chainProxyManager.getConnectHost(request.getUri)
-      if (!proxyHost.needForward) null else proxyHost.host.getHostString + ":" + proxyHost.host.getPort
+      chainProxyManager.getConnectHost(request.getUri).get.host.toString
     }
 
-    def onCommunicationError(hostAndPort: String) {}
+    def onCommunicationError(hostAndPort: String) = {
+      println("################################################")
+      chainProxyManager.connectFailed(hostAndPort)
+    }
   }
 
   override protected def preBind(serverBootstrap: ServerBootstrap,
@@ -51,6 +41,13 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends or
     val relayPipelineFactoryFactory = new DefaultRelayPipelineFactoryFactory(littleChainProxyManager, responseFilters, requestFilter, allChannels, timer)
     val factory = serverBootstrap.getPipelineFactory
     serverBootstrap.setPipelineFactory(new ChannelPipelineFactory {
+      /**
+       * Customized LittleProxy
+       *
+       * Adjust the created handle.
+       *
+       * @return
+       */
       def getPipeline: ChannelPipeline = {
         val pipeline = factory.getPipeline
         if (proxyConfig.serverSSLEnable) {
@@ -61,15 +58,39 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends or
         }
 
         val httpRequestHandler = new HttpRequestHandler(ProxyUtils.loadCacheManager, authenticationManager, allChannels, littleChainProxyManager, relayPipelineFactoryFactory, clientChannelFactory) {
+
+          /**
+           * Customized LittleProxy
+           *
+           * Check if we need forward the connect request to upstream proxy server.
+           *
+           * @param httpRequest
+           * @return
+           */
+          override def needForward(httpRequest: HttpRequest): Boolean = chainProxyManager.getConnectHost(httpRequest.getUri).get.needForward
+
+          /**
+           * Customized LittleProxy
+           *
+           * Adjust the handle before connect to remote host.
+           *
+           * @param clientBootstrap
+           * @param request
+           */
           override def preConnect(clientBootstrap: ClientBootstrap, request: HttpRequest) {
             val factory: ChannelPipelineFactory = clientBootstrap.getPipelineFactory
             clientBootstrap.setPipelineFactory(new ChannelPipelineFactory {
               def getPipeline = {
                 val pipeline: ChannelPipeline = factory.getPipeline
-                if (chainProxyManager.getConnectHost(request.getUri).needForward && proxyConfig.proxyToServerSSLEnable) {
+                if (chainProxyManager.getConnectHost(request.getUri).get.needForward && proxyConfig.proxyToServerSSLEnable) {
                   val engine = proxyConfig.clientSSLContext.createSSLEngine
                   engine.setUseClientMode(true)
                   pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(engine))
+                }
+                //                pipeline.addFirst("logger", new LoggingHandler(InternalLogLevel.WARN))
+
+                if (!chainProxyManager.getConnectHost(request.getUri).get.needForward) {
+                  Some(pipeline.get(classOf[ProxyHttpRequestEncoder])).foreach(_.keepProxyFormat = false)
                 }
                 pipeline
               }

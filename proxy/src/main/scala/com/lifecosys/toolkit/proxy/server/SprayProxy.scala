@@ -8,11 +8,11 @@ import spray.can.{ HostConnectorSetup, Http }
 import spray.util._
 import akka.io.IO
 import spray.can.HostConnectorInfo
-import spray.http.Uri.{ Query, Authority }
-import spray.http.{ Uri, HttpRequest }
+import spray.http.Uri.Authority
+import spray.http.HttpRequest
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
-import java.net.{ URLDecoder, URLEncoder }
+import java.net.URLDecoder
 
 object SprayProxy extends App {
 

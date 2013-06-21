@@ -21,23 +21,14 @@
 package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.logging.InternalLogLevel
-import java.net.InetSocketAddress
 import org.jboss.netty.channel.socket.{ ClientSocketChannelFactory, ServerSocketChannelFactory }
-import javax.net.ssl.{ TrustManagerFactory, KeyManagerFactory, SSLContext }
+import javax.net.ssl.SSLContext
 import org.jboss.netty.channel.group.{ DefaultChannelGroup, ChannelGroup }
 import collection.mutable
 import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioServerSocketChannelFactory }
 import java.util.concurrent.{ SynchronousQueue, TimeUnit, ThreadPoolExecutor }
 import com.lifecosys.toolkit.ssl.{ DefaultStaticCertificationSSLManager, ProgrammaticCertificationSSLManager, SSLManager }
-import java.io.InputStream
-import java.security.{ Security, KeyFactory, SecureRandom, KeyStore }
 import com.typesafe.config.{ ConfigFactory, Config }
-import java.security.spec.{ RSAPrivateCrtKeySpec, RSAPublicKeySpec }
-import org.bouncycastle.x509.X509V3CertificateGenerator
-import java.math.BigInteger
-import org.bouncycastle.jce.X509Principal
-import java.util.Date
-import java.security.cert.Certificate
 
 /**
  *
@@ -58,7 +49,7 @@ trait ProxyConfig {
 
   val isLocal: Boolean
 
-  val chainProxies: scala.collection.mutable.MutableList[InetSocketAddress]
+  val chainProxies: scala.collection.mutable.ArrayBuffer[Host]
 
   val serverSocketChannelFactory: ServerSocketChannelFactory
 
@@ -100,8 +91,8 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor)
   override val isLocal = thisConfig.getBoolean("local")
   override val chainProxies = thisConfig.getString("chain-proxy.host") match {
-    case host: String if host.trim.length > 0 ⇒ mutable.MutableList[InetSocketAddress](Utils.extractHost(thisConfig.getString("chain-proxy.host").replaceFirst(" ", ":")))
-    case _                                    ⇒ mutable.MutableList[InetSocketAddress]()
+    case host: String if host.trim.length > 0 ⇒ mutable.ArrayBuffer[Host](Host(thisConfig.getString("chain-proxy.host")))
+    case _                                    ⇒ mutable.ArrayBuffer[Host]()
   }
 
   lazy override val serverSSLContext = sslManger.getServerSSLContext

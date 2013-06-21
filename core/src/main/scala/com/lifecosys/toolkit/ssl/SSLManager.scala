@@ -1,7 +1,6 @@
 package com.lifecosys.toolkit.ssl
 
 import javax.net.ssl.{ TrustManagerFactory, KeyManagerFactory, SSLContext }
-import com.typesafe.config.Config
 import java.security.{ SecureRandom, Security, KeyStore, KeyFactory }
 import java.security.spec.{ RSAPrivateCrtKeySpec, RSAPublicKeySpec }
 import java.math.BigInteger

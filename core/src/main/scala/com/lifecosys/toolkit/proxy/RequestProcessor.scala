@@ -57,7 +57,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
   override val httpRequest: HttpRequest = request
   override val browserToProxyContext = browserToProxyChannelContext
 
-  val proxyHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri)
+  val proxyHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
   val browserToProxyChannel = browserToProxyContext.getChannel
 
   //Can't play online video since we send the full url for http request,
@@ -76,24 +76,23 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
         val proxyToServerBootstrap = newClientBootstrap
         proxyToServerBootstrap.setFactory(proxyConfig.clientSocketChannelFactory)
         proxyToServerBootstrap.setPipelineFactory(proxyToServerPipeline)
-        proxyToServerBootstrap.connect(proxyHost.host).addListener(connectProcess _)
+        proxyToServerBootstrap.connect(proxyHost.host.toInetSocketAddress()).addListener(connectProcess _)
       }
     }
   }
 
   def connectProcess(future: ChannelFuture) {
+    browserToProxyChannel.setReadable(true)
     future.isSuccess match {
       case true ⇒ {
         //                  hostToChannelFuture.put(proxyHost.host, future.getChannel)
         future.getChannel().write(httpRequest).addListener {
           future: ChannelFuture ⇒ logger.debug("Write request to remote server %s completed.".format(future.getChannel))
         }
-        browserToProxyChannel.setReadable(true)
       }
       case false ⇒ {
         logger.debug("Close browser connection...")
-        browserToProxyChannel.setReadable(true)
-        Utils.closeChannel(browserToProxyChannel)
+        browserToProxyChannel.close()
       }
     }
   }
@@ -123,7 +122,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel, proxyHost.host))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
   }
 
 }
@@ -132,7 +131,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
   override val httpRequest: HttpRequest = request
   val browserToProxyContext = browserToProxyChannelContext
 
-  val proxyHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri)
+  val proxyHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
   val browserToProxyChannel = browserToProxyContext.getChannel
 
   def process {
@@ -142,7 +141,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
       case None ⇒ {
         browserToProxyChannel.setReadable(false)
         logger.debug("Starting new connection to: %s".format(proxyHost.host))
-        createProxyToServerBootstrap.connect(proxyHost.host).addListener(connectComplete _)
+        createProxyToServerBootstrap.connect(proxyHost.host.toInetSocketAddress()).addListener(connectComplete _)
       }
     }
   }

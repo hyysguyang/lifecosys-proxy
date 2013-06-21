@@ -70,7 +70,7 @@ object Utils {
       new URL(uri)
     else
       new URL("http://" + uri)
-    (url.getHost, Some(url.getPort).filter(_ > 0).getOrElse(80))
+    url.getHost -> Some(url.getPort).filter(_ > 0).getOrElse(80)
   }
 
   def extractHost(uri: String) = {
@@ -92,7 +92,7 @@ object Utils {
 
   def closeChannel(channel: Channel) {
     logger.debug("Closing channel: %s".format(channel))
-    if (channel.isConnected) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
+    if (channel.isOpen) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
   }
 
   def toHex(data: Array[Byte]): String = {

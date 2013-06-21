@@ -6,8 +6,6 @@ import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import org.scalasbt.androidplugin._
 import org.scalasbt.androidplugin.AndroidKeys._
 import scala.Some
-import scala.Some
-import scala.Some
 
 
 object BuildSettings {

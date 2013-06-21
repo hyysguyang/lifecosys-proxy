@@ -24,7 +24,6 @@ import logging.Logger
 import org.jboss.netty.channel._
 import org.jboss.netty.util.HashedWheelTimer
 import collection.mutable
-import java.net.InetSocketAddress
 
 /**
  *
@@ -35,7 +34,7 @@ import java.net.InetSocketAddress
  */
 package object proxy {
   val timer = new HashedWheelTimer
-  val hostToChannelFuture = mutable.Map[InetSocketAddress, Channel]()
+  val hostToChannelFuture = mutable.Map[Host, Channel]()
   var logger: Logger = Logger.NULL_LOGGER
 
   implicit def channelPipelineInitializer(f: ChannelPipeline ⇒ Unit): ChannelPipelineFactory = new ChannelPipelineFactory {

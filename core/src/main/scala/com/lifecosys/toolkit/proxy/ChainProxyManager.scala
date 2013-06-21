@@ -20,9 +20,9 @@
 
 package com.lifecosys.toolkit.proxy
 
-import org.jboss.netty.handler.codec.http.HttpRequest
 import java.net.InetSocketAddress
 import io.Source
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  *
@@ -32,40 +32,158 @@ import io.Source
  * @version 1.0 1/3/13 9:22 PM
  */
 
-case class ProxyHost(host: InetSocketAddress, needForward: Boolean)
+object Host {
+  def apply(uri: String): Host = {
+    val hostAndPort = Utils.extractHostAndPort(uri)
+    Host(hostAndPort._1, hostAndPort._2)
+  }
+}
+
+case class Host(host: String, port: Int) {
+  require(!host.isEmpty)
+  require(port > 0 && port < 65535)
+
+  override def toString: String = s"$host:$port"
+  def toInetSocketAddress() = new InetSocketAddress(host, port)
+}
+case class ProxyHost(host: Host, needForward: Boolean)
+
+trait FailedHostProcess {
+  def hasFailedToProxy(uri: String): Boolean = false
+  def store(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit
+  def report()(implicit proxyConfig: ProxyConfig)
+}
+
+object NullFailedHostProcess extends FailedHostProcess {
+  def store(hostAndPort: String)(implicit proxyConfig: ProxyConfig) {}
+
+  def report()(implicit proxyConfig: ProxyConfig) {}
+}
+
+object DefaultFailedHostProcess extends FailedHostProcess {
+  /**
+   * Need store failed request host and chained proxy server host.
+   */
+  val failedHosts = scala.collection.mutable.Set[String]()
+
+  def store(hostAndPort: String)(implicit proxyConfig: ProxyConfig) = failedHosts += hostAndPort
+
+  def report()(implicit proxyConfig: ProxyConfig) {}
+}
+
+object SmartHostFailedHostProcess extends FailedHostProcess {
+
+  /**
+   * Store extracted domain from uri
+   */
+  val failedHosts = scala.collection.mutable.Set[String]()
+
+  override def hasFailedToProxy(uri: String): Boolean = failedHosts.contains(Utils.extractHostAndPort(uri)._1)
+
+  def store(hostAndPort: String)(implicit proxyConfig: ProxyConfig) = failedHosts += hostAndPort
+
+  def report()(implicit proxyConfig: ProxyConfig) {}
+}
 
 trait ChainProxyManager {
-  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): ProxyHost
+
+  def failedHostProcess: FailedHostProcess = NullFailedHostProcess
+
+  /**
+   *
+   * @param hostAndPort IP:Port
+   * @param proxyConfig
+   * @return
+   */
+  def connectFailed(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit = logger.warn(s"Can't connect to server: $hostAndPort")
+
+  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): Option[ProxyHost] = if (failedHostProcess.hasFailedToProxy(uri)) None else fetchConnectHost(uri)
+
+  /**
+   * DON'T return None for Public API..
+   * @param uri
+   * @param proxyConfig
+   * @return
+   */
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): Option[ProxyHost]
 }
 
 class DefaultChainProxyManager extends ChainProxyManager {
-  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
-    proxyConfig.chainProxies.headOption.map(ProxyHost(_, true)).getOrElse(ProxyHost(Utils.extractHost(uri), false))
+  val retryStatistic = scala.collection.mutable.Map[Host, AtomicInteger]()
+
+  override val failedHostProcess = DefaultFailedHostProcess
+
+  /**
+   * Always return Some
+   *
+   * @param uri
+   * @param proxyConfig
+   * @return
+   */
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = proxyConfig.chainProxies.headOption match {
+    case Some(host) ⇒ Some(ProxyHost(host, true))
+    case None       ⇒ Some(ProxyHost(Host(uri), false))
   }
+
+  override def connectFailed(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit = {
+    super.connectFailed(hostAndPort)
+    val host = Host(hostAndPort)
+    retryStatistic.get(host) match {
+      case Some(retryTimes) if (retryTimes.incrementAndGet() >= 3) ⇒ {
+        proxyConfig.chainProxies -= host //If our proxy server failed service
+        failedHostProcess.store(hostAndPort)
+      }
+      case None ⇒ retryStatistic += host -> new AtomicInteger(1)
+    }
+
+  }
+
 }
 
-class GFWChainProxyManager extends ChainProxyManager {
-  def smartHostsResource = getClass.getResourceAsStream("/hosts.txt")
+sealed class SmartHostsChainProxyManager extends ChainProxyManager {
 
+  override val failedHostProcess = SmartHostFailedHostProcess
+
+  val smartHostsResource = getClass.getResourceAsStream("/hosts.txt")
+
+  /**
+   * Domain -> IP
+   */
   val smartHosts = {
     Source.fromInputStream(smartHostsResource).getLines().filter(line ⇒ line.trim.length > 0 && !line.startsWith("#")).map {
-      line ⇒ val hd = line.split('\t'); (hd(1).hashCode, hd(0))
+      line ⇒ val hd = line.split('\t'); hd(1) -> hd(0)
     }.toMap
   }
 
-  val highHitsBlockedHosts = scala.collection.mutable.Set(Source.fromInputStream(getClass.getResourceAsStream("/high-hits-gfw-host-list.txt")).getLines().filterNot(_.startsWith("#")).toSeq: _*)
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
+    val requestHost = Host(uri)
+    smartHosts.get(requestHost.host).map(host ⇒ ProxyHost(Host(host, requestHost.port), false))
+  }
+
+  override def connectFailed(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit = {
+    super.connectFailed(hostAndPort)
+    val host = Utils.extractHostAndPort(hostAndPort)._1
+    smartHosts.filter(_._2 == host).foreach { e ⇒ failedHostProcess.store(hostAndPort) }
+  }
+
+}
+
+class GFWListChainProxyManager extends ChainProxyManager {
+  val highHitsBlockedHosts = {
+    val highHitsBlockedHostsResource = getClass.getResourceAsStream("/high-hits-gfw-host-list.txt")
+    scala.collection.mutable.Set(Source.fromInputStream(highHitsBlockedHostsResource).getLines().filterNot(_.startsWith("#")).toSeq: _*)
+  }
 
   def gfwHostList = Source.fromInputStream(getClass.getResourceAsStream("/gfw-host-list.txt")).getLines().toSet.par.filterNot(_.startsWith("#"))
 
-  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
-    val hostPort = Utils.extractHostAndPort(uri)
-    smartHosts.get(hostPort._1.trim.hashCode).map(host ⇒ ProxyHost(new InetSocketAddress(host, hostPort._2), false)).getOrElse {
-      if (!isBlocked(hostPort._1.trim))
-        ProxyHost(new InetSocketAddress(hostPort._1, hostPort._2), false)
-      else
-        proxyConfig.chainProxies.headOption.map(ProxyHost(_, true)).getOrElse(ProxyHost(Utils extractHost uri, false))
-    }
-  }
+  /**
+   * Don't need forward to upstream proxy if not blocked, just return the request host.
+   *
+   * @param uri
+   * @param proxyConfig
+   * @return
+   */
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = if (isBlocked(Utils.extractHostAndPort(uri)._1)) None else Some(ProxyHost(Host(uri), false))
 
   def isBlocked(host: String): Boolean = {
     def matchHost(gfwHost: String) = {
@@ -78,4 +196,28 @@ class GFWChainProxyManager extends ChainProxyManager {
       blocked
     }
   }
+
+}
+
+class GFWChainProxyManager extends ChainProxyManager {
+
+  val defaultChainProxyManager = new DefaultChainProxyManager
+  val smartHostsChainProxyManager = new SmartHostsChainProxyManager
+  val gfwListChainProxyManager = new GFWListChainProxyManager
+
+  def gfwHostList = Source.fromInputStream(getClass.getResourceAsStream("/gfw-host-list.txt")).getLines().toSet.par.filterNot(_.startsWith("#"))
+
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
+    Some(smartHostsChainProxyManager.getConnectHost(uri) getOrElse {
+      gfwListChainProxyManager.getConnectHost(uri) getOrElse defaultChainProxyManager.getConnectHost(uri).get
+    })
+  }
+
+  override def connectFailed(hostAndPort: String)(implicit proxyConfig: ProxyConfig) = {
+    super.connectFailed(hostAndPort)
+    defaultChainProxyManager.connectFailed(hostAndPort)
+    smartHostsChainProxyManager.connectFailed(hostAndPort)
+    gfwListChainProxyManager.connectFailed(hostAndPort)
+  }
+
 }

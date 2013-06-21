@@ -23,7 +23,6 @@ package com.lifecosys.toolkit.proxy
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.buffer.ChannelBuffer
-import java.net.InetSocketAddress
 
 /**
  *
@@ -63,10 +62,11 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstr
   }
 }
 
-class HttpRelayingHandler(val browserToProxyChannel: Channel, host: InetSocketAddress)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
 
   private def responsePreProcess(message: Any) = message match {
     case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) ⇒ {
+      //Fixing HTTP version.
       val copy = new DefaultHttpResponse(HttpVersion.HTTP_1_1, response.getStatus)
       import scala.collection.JavaConversions._
       response.getHeaderNames.foreach(name ⇒ copy.setHeader(name, response.getHeaders(name)))

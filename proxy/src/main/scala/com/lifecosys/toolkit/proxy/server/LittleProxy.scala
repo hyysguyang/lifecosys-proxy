@@ -27,33 +27,34 @@ object LittleProxy {
 
     val localConfig = ConfigFactory.parseString(
       """
-         |local=true
-         |chain-proxy{
-         |   host = "localhost 8081"
-         |}
-         |
-         |proxy-server{
-         |    thread {
-         |        corePoolSize = 10
-         |        maximumPoolSize = 30
-         |    }
-         |    ssl {
-         |            enabled = false
-         |    }
-         |
-         |}
-         |
-         |proxy-server-to-remote{
-         |
-         |    thread {
-         |        corePoolSize = 10
-         |        maximumPoolSize = 30
-         |    }
-         |    ssl {
-         |            enabled = true
-         |    }
-         |}
-       """.stripMargin).withFallback(config)
+        |local=true
+        |chain-proxy{
+        |   host = "127.0.0.1:8081"
+        |   #host = ""
+        |}
+        |
+        |proxy-server{
+        |    thread {
+        |        corePoolSize = 10
+        |        maximumPoolSize = 30
+        |    }
+        |    ssl {
+        |            enabled = false
+        |    }
+        |
+        |}
+        |
+        |proxy-server-to-remote{
+        |
+        |    thread {
+        |        corePoolSize = 10
+        |        maximumPoolSize = 30
+        |    }
+        |    ssl {
+        |            enabled = true
+        |    }
+        |}
+      """.stripMargin).withFallback(config)
 
     val chainedProxyConfig = ConfigFactory.parseString(
       """

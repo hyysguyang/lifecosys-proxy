@@ -30,7 +30,6 @@ import org.jboss.netty.channel.ChannelException
 import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
 import javax.net.ssl.{X509TrustManager, SSLContext}
 import java.security.cert.X509Certificate
-import collection.mutable
 import ProxyTestUtils._
 import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
@@ -90,7 +89,7 @@ object ProxyTestUtils {
                         chainProxyManager: ChainProxyManager = new DefaultChainProxyManager) = {
 
     val chainProxy=chainedPort match {
-      case Some(port) => s"""host = "localhost $port" """
+      case Some(port) => s"""host = "localhost:$port" """
       case None => ""
     }
 
@@ -144,8 +143,11 @@ object ProxyTestUtils {
 
     def main(args: Array[String]) {
 
-      val config= createProxyConfig(bindPort = 8081, isLocalProxy = false)
-      println(config.isLocal)
+//      println(Request.Get("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString)
+      println(Request.Get("https://freezegfw-one.appspot.com/2").execute.returnContent.toString)
+
+//      val config= createProxyConfig(bindPort = 8081, isLocalProxy = false)
+//      println(config.isLocal)
 
 //      val proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
 //      val chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
@@ -410,7 +412,7 @@ class ChainedProxyManagerTest {
       """.stripMargin
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
-    val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config))))).get
     Assert.assertFalse(host == new InetSocketAddress("localhost", 8081))
   }
 
@@ -420,7 +422,7 @@ class ChainedProxyManagerTest {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://twitter.com")
     val manager = new GFWChainProxyManager()
     val now = System.currentTimeMillis()
-    val host = manager.getConnectHost(request.getUri)(createProxyConfig())
+    val host = manager.getConnectHost(request.getUri)(createProxyConfig()).get
     manager.getConnectHost(request.getUri)(createProxyConfig())
     manager.getConnectHost(request.getUri)(createProxyConfig())
     manager.getConnectHost(request.getUri)(createProxyConfig())

@@ -62,7 +62,24 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstr
   }
 }
 
-class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+trait Responder {
+  def isConnected: Boolean
+
+  def write(message: Any): Any
+
+  def close(): Unit
+}
+
+class ChannelResponder(channel: Channel) extends Responder {
+  def isConnected: Boolean = channel.isConnected
+
+  def write(message: Any): Any = channel.write(message)
+
+  def close(): Unit = Utils.closeChannel(channel)
+
+}
+
+class HttpRelayingHandler(browserToProxyChannel: Responder)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
 
   private def responsePreProcess(message: Any) = message match {
     case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) ⇒ {
@@ -84,13 +101,15 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConf
 
     val message = responsePreProcess(e.getMessage)
     if (browserToProxyChannel.isConnected) {
-      browserToProxyChannel.write(message).addListener {
-        future: ChannelFuture ⇒
-          message match {
-            case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
-            case response: HttpMessage if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
-            case _ ⇒
-          }
+      browserToProxyChannel.write(message) match {
+        case future: ChannelFuture ⇒ future.addListener {
+          future: ChannelFuture ⇒
+            message match {
+              case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
+              case response: HttpMessage if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
+              case _ ⇒
+            }
+        }
       }
     } else {
       if (e.getChannel.isConnected) {
@@ -108,7 +127,7 @@ class HttpRelayingHandler(val browserToProxyChannel: Channel)(implicit proxyConf
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     logger.debug("Got closed event on : %s".format(e.getChannel))
-    Utils.closeChannel(browserToProxyChannel)
+    browserToProxyChannel.close()
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {

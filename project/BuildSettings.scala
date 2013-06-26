@@ -20,6 +20,7 @@ object BuildSettings {
     startYear := Some(2013),
     scalaVersion := "2.10.1",
     resolvers ++= Dependencies.resolutionRepos,
+//    logLevel := Level.Debug,
     scalacOptions := Seq(
       "-encoding", "utf8",
       "-feature",

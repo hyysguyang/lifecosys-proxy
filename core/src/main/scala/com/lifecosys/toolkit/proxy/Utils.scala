@@ -27,11 +27,12 @@ import scala.Some
 import java.net.{ URL, InetSocketAddress }
 import java.util.regex.Pattern
 import org.jboss.netty.channel.{ ChannelFutureListener, Channel }
-import org.jboss.netty.buffer.ChannelBuffers
+import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.bouncycastle.util.encoders.Hex
 import java.nio.charset.Charset
 import org.jasypt.encryption.pbe.StandardPBEByteEncryptor
 import java.util.zip.{ Inflater, Deflater }
+import org.jboss.netty.handler.logging.LoggingHandler
 
 /**
  *
@@ -92,11 +93,17 @@ object Utils {
 
   def closeChannel(channel: Channel) {
     logger.debug("Closing channel: %s".format(channel))
-    if (channel.isOpen) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
+    if (channel.isConnected) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
   }
 
   def toHex(data: Array[Byte]): String = {
     new String(Hex.encode(data), UTF8)
+  }
+
+  def formatBuffer(channelBuffer: ChannelBuffer): String = {
+    val format = classOf[LoggingHandler].getDeclaredMethods.find(_.getName == "formatBuffer").get
+    format.setAccessible(true)
+    format.invoke(null, channelBuffer).asInstanceOf[String]
   }
 
   def generateGFWHostList = {

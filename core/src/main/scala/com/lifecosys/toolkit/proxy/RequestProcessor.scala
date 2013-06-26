@@ -29,6 +29,7 @@ import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
+import org.littleshoot.proxy.ProxyUtils
 
 /**
  *
@@ -76,24 +77,22 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
         val proxyToServerBootstrap = newClientBootstrap
         proxyToServerBootstrap.setFactory(proxyConfig.clientSocketChannelFactory)
         proxyToServerBootstrap.setPipelineFactory(proxyToServerPipeline)
-        proxyToServerBootstrap.connect(proxyHost.host.toInetSocketAddress()).addListener(connectProcess _)
+        proxyToServerBootstrap.connect(proxyHost.host.socketAddress).addListener(connectProcess _)
       }
     }
   }
 
   def connectProcess(future: ChannelFuture) {
     browserToProxyChannel.setReadable(true)
-    future.isSuccess match {
-      case true ⇒ {
-        //                  hostToChannelFuture.put(proxyHost.host, future.getChannel)
-        future.getChannel().write(httpRequest).addListener {
-          future: ChannelFuture ⇒ logger.debug("Write request to remote server %s completed.".format(future.getChannel))
-        }
+
+    if (future.isSuccess) {
+      //                  hostToChannelFuture.put(proxyHost.host, future.getChannel)
+      future.getChannel().write(httpRequest).addListener {
+        future: ChannelFuture ⇒ logger.debug("Write request to remote server %s completed.".format(future.getChannel))
       }
-      case false ⇒ {
-        logger.debug("Close browser connection...")
-        browserToProxyChannel.close()
-      }
+    } else {
+      logger.debug("Close browser connection...")
+      browserToProxyChannel.close()
     }
   }
 
@@ -122,7 +121,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpRelayingHandler(new ChannelResponder(browserToProxyChannel)))
   }
 
 }
@@ -141,7 +140,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
       case None ⇒ {
         browserToProxyChannel.setReadable(false)
         logger.debug("Starting new connection to: %s".format(proxyHost.host))
-        createProxyToServerBootstrap.connect(proxyHost.host.toInetSocketAddress()).addListener(connectComplete _)
+        createProxyToServerBootstrap.connect(proxyHost.host.socketAddress).addListener(connectComplete _)
       }
     }
   }
@@ -281,4 +280,61 @@ class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
     case _                                  ⇒ msg
   }
 }
+
+//
+//class WebProxyResponseEncoder extends OneToOneEncoder {
+//   def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) =msg match {
+//     case request: HttpRequest => {
+//       val encodedProxyRequest=new HttpRequestEncoder().encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
+//       val toSendRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/proxy")
+//       toSendRequest.setHeader(HttpHeaders.Names.HOST, host.host.host)
+//       toSendRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
+//       toSendRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
+//       toSendRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+//       toSendRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
+//       toSendRequest.setHeader("proxyHost", Host(request.getUri).toString)
+//       toSendRequest.setContent(encodedProxyRequest)
+//       super.encode(ctx, channel, toSendRequest)
+//
+//     }
+//   }
+//
+//     if (msg.isInstanceOf[ChannelBuffer])
+//    EncryptDataWrapper(Utils.cryptor.encrypt(ChannelBuffers.copiedBuffer(msg.asInstanceOf[ChannelBuffer]).array()))
+//  else
+//    msg
+//}
+//
+//class WebProxyRequestEncoder extends OneToOneDecoder {
+//  def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
+//    case EncryptDataWrapper(data) ⇒ ChannelBuffers.copiedBuffer(Utils.cryptor.decrypt(data))
+//    case _                        ⇒ msg
+//  }
+//
+//  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
+//    msg match {
+//      case request: HttpRequest  ⇒{
+//        val encodedProxyRequest=super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
+//        val toSendRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/proxy")
+//        toSendRequest.setHeader(HttpHeaders.Names.HOST, host.host.host)
+//        toSendRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
+//        toSendRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
+//        toSendRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+//        toSendRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
+//        toSendRequest.setHeader("proxyHost", Host(request.getUri).toString)
+//        toSendRequest.setContent(encodedProxyRequest)
+//        super.encode(ctx, channel, toSendRequest)
+//      }
+//      case _ => throw new RuntimeException("Unsupported message, you can't encode other message except HttpRequest.")
+//      //                      case chunk: HttpChunk  ⇒super.encode(ctx, channel, chunk).asInstanceOf[ChannelBuffer]
+//      //                      case _ ⇒{
+//      //                        val encode = classOf[ObjectEncoder].getSuperclass.getDeclaredMethods.filter(_.getName == "encode")(0)
+//      //                        encode.setAccessible(true)
+//      //                        encode.invoke(new ObjectEncoder(), null, channel, msg.asInstanceOf[Object]).asInstanceOf[ChannelBuffer]
+//      //                      }
+//    }
+//  }
+//
+//
+//}
 

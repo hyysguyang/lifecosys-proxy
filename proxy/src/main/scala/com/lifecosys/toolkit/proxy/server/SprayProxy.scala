@@ -4,15 +4,15 @@ import scala.concurrent.duration._
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.actor._
-import spray.can.{ HostConnectorSetup, Http }
+import spray.can.{ Http }
 import spray.util._
 import akka.io.IO
-import spray.can.HostConnectorInfo
-import spray.http.Uri.Authority
-import spray.http.HttpRequest
+import spray.http.Uri.{ Query, Authority }
+import spray.http.{ Uri, HttpRequest }
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 import java.net.URLDecoder
+import spray.can.Http.{ HostConnectorSetup, HostConnectorInfo }
 
 object SprayProxy extends App {
 
@@ -65,8 +65,8 @@ object SprayProxy extends App {
         val port: Int = if (authority.port > 0) authority.port else 80
         for {
           HostConnectorInfo(hostConnector, _) ← IO(Http) ? HostConnectorSetup(authority.host.address, port)
-          response ← hostConnector.ask(request).mapTo[Any]
-          //          response ← hostConnector.ask(request.copy(uri = request.uri.copy(scheme = "", authority = Authority.Empty, query = Query(query, Uri.ParsingMode.RelaxedWithRawQuery)))).mapTo[Any]
+          //          response ← hostConnector.ask(request).mapTo[Any]
+          response ← hostConnector.ask(request.copy(uri = request.uri.copy(scheme = "", authority = Authority.Empty, query = Query(query, Uri.ParsingMode.RelaxedWithRawQuery)))).mapTo[Any]
         } {
           browser ! response
         }

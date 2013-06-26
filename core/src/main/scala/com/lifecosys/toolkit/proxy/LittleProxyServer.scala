@@ -1,8 +1,8 @@
 package com.lifecosys.toolkit.proxy
 
 import org.littleshoot.proxy._
-import org.jboss.netty.channel.{ ChannelPipeline, ChannelPipelineFactory }
-import org.jboss.netty.handler.codec.http.HttpRequest
+import org.jboss.netty.channel._
+import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.bootstrap.ClientBootstrap
 import org.jboss.netty.channel.socket.ClientSocketChannelFactory
@@ -10,6 +10,14 @@ import org.jboss.netty.util.Timer
 import org.littleshoot.proxy.{ ChainProxyManager ⇒ LittleChainProxyManager }
 import org.jboss.netty.bootstrap.ServerBootstrap
 import org.jboss.netty.channel.group.ChannelGroup
+import scala.Some
+import org.jboss.netty.buffer.{ ChannelBufferInputStream, ChannelBuffer, ChannelBuffers, ChannelBufferOutputStream }
+import org.jboss.netty.handler.codec.serialization.{ ObjectEncoder, ObjectEncoderOutputStream }
+import org.jboss.netty.logging.InternalLogLevel
+import org.jboss.netty.handler.logging.LoggingHandler
+import org.jboss.netty.handler.codec.http.HttpMessageDecoder.State
+import org.apache.commons.io.IOUtils
+import org.jboss.netty.handler.codec.oneone.OneToOneDecoder
 
 /**
  *
@@ -89,9 +97,78 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends or
                 }
                 //                pipeline.addFirst("logger", new LoggingHandler(InternalLogLevel.WARN))
 
-                if (!chainProxyManager.getConnectHost(request.getUri).get.needForward) {
-                  Some(pipeline.get(classOf[ProxyHttpRequestEncoder])).foreach(_.keepProxyFormat = false)
+                //                if (!chainProxyManager.getConnectHost(request.getUri).get.needForward) {
+                //                  Some(pipeline.get(classOf[ProxyHttpRequestEncoder])).foreach(_.keepProxyFormat = false)
+                //                }
+
+                val host = chainProxyManager.getConnectHost(request.getUri).get
+                //                pipeline.replace(classOf[ProxyHttpRequestEncoder], "proxyEncoder",new ProxyHttpRequestEncoder(pipeline.get(classOf[org.littleshoot.proxy.HttpRelayingHandler]), null, host.needForward) )
+
+                val webProxyRequestEncoder = new ProxyHttpRequestEncoder(pipeline.get(classOf[org.littleshoot.proxy.HttpRelayingHandler]), null, false) {
+                  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
+                    //                    logger.warn("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& " + msg)
+                    //                    val handler = pipeline.get(classOf[org.littleshoot.proxy.HttpRelayingHandler])
+                    //                    val proxyChannel: Channel = handler.getBrowserToProxyChannel()
+                    //                    proxyChannel.getPipeline.replace(classOf[ProxyHttpResponseEncoder], "encoder", new HttpResponseEncoder {
+                    //                      override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = msg match {
+                    //                        case proxyResponse: ProxyHttpResponse ⇒ proxyResponse.getHttpResponse().getContent
+                    //                        case _                                ⇒ super.encode(ctx, channel, msg)
+                    //                      }
+                    //                    })
+                    msg match {
+                      case request: HttpRequest ⇒ {
+                        //                        handler.requestEncoded(request)
+                        val encodedProxyRequest = super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
+
+                        //                        println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+                        println(IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(encodedProxyRequest))))
+                        println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+                        val toSendRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
+                        toSendRequest.setHeader(HttpHeaders.Names.HOST, host.host.host)
+                        toSendRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
+                        toSendRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
+                        toSendRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+                        toSendRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
+                        toSendRequest.setHeader("proxyHost", Host(request.getUri).toString)
+                        toSendRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encodedProxyRequest.readableBytes().toString)
+                        toSendRequest.setContent(encodedProxyRequest)
+                        //                        toSendRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, "aaaaaaaaaaaaaaaaaaaaaaa".getBytes.length.toString)
+                        //                        toSendRequest.setContent(ChannelBuffers.copiedBuffer("aaaaaaaaaaaaaaaaaaaaaaa".getBytes))
+                        super.encode(ctx, channel, toSendRequest)
+                      }
+                      case chunk: HttpChunk ⇒ {
+                        println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+                        super.encode(ctx, channel, chunk)
+                      }
+                      case e ⇒ super.encode(ctx, channel, e)
+                      //                      case chunk: HttpChunk  ⇒super.encode(ctx, channel, chunk).asInstanceOf[ChannelBuffer]
+                      //                      case _ ⇒{
+                      //                        val encode = classOf[ObjectEncoder].getSuperclass.getDeclaredMethods.filter(_.getName == "encode")(0)
+                      //                        encode.setAccessible(true)
+                      //                        encode.invoke(new ObjectEncoder(), null, channel, msg.asInstanceOf[Object]).asInstanceOf[ChannelBuffer]
+                      //                      }
+                    }
+                  }
                 }
+
+                pipeline.replace(classOf[ProxyHttpRequestEncoder], "proxyEncoder", webProxyRequestEncoder)
+
+                val webProxyResponseDecoder = new OneToOneDecoder {
+                  def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
+                    case response: HttpResponse ⇒ logger.warn("#####################################\n" + response); ChannelBuffers.copiedBuffer(response.getContent)
+                    case _                      ⇒ msg
+                  }
+                }
+
+                //                  override def decode(ctx: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer, state: State): AnyRef = {
+                //                    val response = super.decode(ctx, channel, buffer, state).asInstanceOf[HttpResponse]
+                //                    super.decode(ctx, channel, response.getContent, state)
+                //                  }
+                //                }
+
+                //                pipeline.addAfter("decoder", "proxyDecoder", webProxyResponseDecoder)
+                //                pipeline.addAfter("proxyDecoder", "wrapperResponseDecoder", new HttpResponseDecoder(8192, 8192 * 2, 8192 * 2))
+
                 pipeline
               }
             })

@@ -29,7 +29,7 @@ object LittleProxy {
       """
         |local=true
         |chain-proxy{
-        |   host = "127.0.0.1:8081"
+        |   host = "127.0.0.1:8080"
         |   #host = ""
         |}
         |
@@ -51,7 +51,7 @@ object LittleProxy {
         |        maximumPoolSize = 30
         |    }
         |    ssl {
-        |            enabled = true
+        |            enabled = false
         |    }
         |}
       """.stripMargin).withFallback(config)
@@ -86,10 +86,10 @@ object LittleProxy {
         |}
       """.stripMargin).withFallback(config)
 
-    val proxy = new LittleProxyServer(8080)(new GFWProgrammaticCertificationProxyConfig(Some(localConfig)))
-    val server = new LittleProxyServer(8081)(new ProgrammaticCertificationProxyConfig(Some(chainedProxyConfig)))
+    val proxy = new LittleProxyServer(8081)(new ProgrammaticCertificationProxyConfig(Some(localConfig)))
+    //    val server = new LittleProxyServer(8081)(new ProgrammaticCertificationProxyConfig(Some(chainedProxyConfig)))
 
-    server.start()
+    //    server.start()
 
     proxy.start()
 

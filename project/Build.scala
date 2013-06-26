@@ -30,8 +30,9 @@ object LifecosysToolkitBuild extends Build {
     compile(netty, config, bouncycastle, jasypt, commonsIO, slf4jAPI,akkaActor) ++
       compile(spray: _*) ++
       compile(littleproxy) ++
+      compile(fluentHC) ++
       runtime(slf4jLog4j12) ++
-      test(junit, scalatest, fluentHC)
+      test(junit, scalatest)
   )
 
   lazy val proxy = Project("Proxy", file("proxy"))
@@ -44,7 +45,8 @@ object LifecosysToolkitBuild extends Build {
     .settings(jettySettings: _*)
     .settings(libraryDependencies ++=
       test(sprayTestkit) ++
-      container(jettyWebApp, servlet30)
+      compile(servlet30) ++
+      container(jettyWebApp)
   )
 
   lazy val android = Project("Android", file("android"))

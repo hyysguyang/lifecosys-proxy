@@ -26,10 +26,10 @@ object Dependencies {
   val slf4jAPI = "org.slf4j" % "slf4j-api" % "1.7.2"
   val slf4jLog4j12 = "org.slf4j" % "slf4j-log4j12" % "1.7.2"
   val log4j = "log4j" % "log4j" % "1.2.17"
-  val fluentHC = "org.apache.httpcomponents" % "fluent-hc" % "4.2.2"
+  val fluentHC = "org.apache.httpcomponents" % "fluent-hc" % "4.3-beta2"
   val junit = "junit" % "junit" % "4.8.2"
 
-  val sprayVersion="1.1-M8-SNAPSHOT"
+  val sprayVersion="1.1-SNAPSHOT"
   val sprayRouting = "io.spray" % "spray-routing" % sprayVersion
   val sprayCan = "io.spray" % "spray-can" % sprayVersion
   val sprayCaching = "io.spray" % "spray-caching" % sprayVersion

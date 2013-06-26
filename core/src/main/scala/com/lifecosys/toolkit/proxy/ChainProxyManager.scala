@@ -42,9 +42,8 @@ object Host {
 case class Host(host: String, port: Int) {
   require(!host.isEmpty)
   require(port > 0 && port < 65535)
-
+  val socketAddress = new InetSocketAddress(host, port)
   override def toString: String = s"$host:$port"
-  def toInetSocketAddress() = new InetSocketAddress(host, port)
 }
 case class ProxyHost(host: Host, needForward: Boolean)
 

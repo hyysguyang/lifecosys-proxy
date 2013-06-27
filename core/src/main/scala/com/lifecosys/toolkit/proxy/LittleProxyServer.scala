@@ -151,7 +151,9 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends or
                   }
                 }
 
-                pipeline.replace(classOf[ProxyHttpRequestEncoder], "proxyEncoder", webProxyRequestEncoder)
+                if (pipeline.get(classOf[ProxyHttpRequestEncoder]) != null) {
+                  pipeline.replace(classOf[ProxyHttpRequestEncoder], "proxyEncoder", webProxyRequestEncoder)
+                }
 
                 val webProxyResponseDecoder = new OneToOneDecoder {
                   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {

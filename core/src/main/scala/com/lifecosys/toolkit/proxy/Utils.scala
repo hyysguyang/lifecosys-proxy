@@ -93,7 +93,10 @@ object Utils {
 
   def closeChannel(channel: Channel) {
     logger.debug("Closing channel: %s".format(channel))
-    if (channel.isConnected) channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
+    if (channel.isConnected)
+      channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
+    else
+      logger.debug("Connection: %s have been closed.".format(channel))
   }
 
   def toHex(data: Array[Byte]): String = {

@@ -93,6 +93,8 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
     } else {
       logger.debug("Close browser connection...")
       browserToProxyChannel.close()
+      //      Utils.closeChannel(browserToProxyChannel)
+
     }
   }
 
@@ -121,7 +123,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpRelayingHandler(new ChannelResponder(browserToProxyChannel)))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpRelayingHandler(browserToProxyChannel))
   }
 
 }

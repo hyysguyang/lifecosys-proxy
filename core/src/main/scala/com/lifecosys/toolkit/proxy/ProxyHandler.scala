@@ -23,6 +23,7 @@ package com.lifecosys.toolkit.proxy
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.buffer.ChannelBuffer
+import java.nio.channels.ClosedChannelException
 
 /**
  *
@@ -58,28 +59,14 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstr
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
     logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
-    Utils.closeChannel(e.getChannel)
+    e.getCause match {
+      case closeException: ClosedChannelException ⇒ //Just ignore it
+      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+    }
   }
 }
 
-trait Responder {
-  def isConnected: Boolean
-
-  def write(message: Any): Any
-
-  def close(): Unit
-}
-
-class ChannelResponder(channel: Channel) extends Responder {
-  def isConnected: Boolean = channel.isConnected
-
-  def write(message: Any): Any = channel.write(message)
-
-  def close(): Unit = Utils.closeChannel(channel)
-
-}
-
-class HttpRelayingHandler(browserToProxyChannel: Responder)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+class HttpRelayingHandler(browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
 
   private def responsePreProcess(message: Any) = message match {
     case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) ⇒ {
@@ -112,10 +99,8 @@ class HttpRelayingHandler(browserToProxyChannel: Responder)(implicit proxyConfig
         }
       }
     } else {
-      if (e.getChannel.isConnected) {
-        logger.debug("Closing channel to remote server %s".format(e.getChannel))
-        Utils.closeChannel(e.getChannel)
-      }
+      logger.debug("Closing channel to remote server %s".format(e.getChannel))
+      Utils.closeChannel(e.getChannel)
     }
 
   }
@@ -127,12 +112,15 @@ class HttpRelayingHandler(browserToProxyChannel: Responder)(implicit proxyConfig
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     logger.debug("Got closed event on : %s".format(e.getChannel))
-    browserToProxyChannel.close()
+    Utils.closeChannel(browserToProxyChannel)
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
     logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
-    Utils.closeChannel(e.getChannel)
+    e.getCause match {
+      case closeException: ClosedChannelException ⇒ //Just ignore it
+      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+    }
   }
 }
 
@@ -158,7 +146,10 @@ class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: Prox
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
     logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
-    Utils.closeChannel(e.getChannel)
+    e.getCause match {
+      case closeException: ClosedChannelException ⇒ //Just ignore it
+      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+    }
   }
 }
 

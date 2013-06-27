@@ -27,8 +27,17 @@ import java.security.spec.{RSAPrivateCrtKeySpec, RSAPublicKeySpec}
 import java.math.BigInteger
 import java.net.InetSocketAddress
 import com.lifecosys.toolkit.proxy.Utils
-import org.apache.http.client.fluent.Request
+import org.apache.http.client.fluent.{Executor, Request}
 import org.apache.http.HttpHost
+import org.apache.http.client.HttpClient
+import org.apache.http.impl.client.{HttpClients, DefaultHttpClient}
+import org.apache.http.client.methods.{HttpPost, HttpGet}
+import org.apache.http.entity.{ContentType, ByteArrayEntity}
+import java.io.File
+import org.apache.commons.io.{IOUtils, FileUtils}
+import org.apache.http.conn.ssl.SSLSocketFactory
+import javax.net.ssl.{X509TrustManager, SSLContext}
+import java.security.cert.X509Certificate
 
 /**
  *
@@ -41,15 +50,48 @@ class UtilsTest {
 
   Security.addProvider(new BouncyCastleProvider)
 
+
+  def createStubSSLClientContext = {
+    val clientContext = SSLContext.getInstance("TLS")
+    clientContext.init(null, Array(new X509TrustManager {
+      def getAcceptedIssuers: Array[X509Certificate] = {
+        return new Array[X509Certificate](0)
+      }
+
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all client" + chain(0).getSubjectDN)
+      }
+
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all server" + chain(0).getSubjectDN)
+      }
+    }), null)
+
+    clientContext
+  }
+
+
   @Test
   def investigation {
+
+
+      val httpClient = HttpClients.custom()
+        .setSSLSocketFactory(new SSLSocketFactory(createStubSSLClientContext))
+        .setProxy(new HttpHost("localhost", 8081))
+        .build()
+
+//    val client = new HttpPost("http://localhost:8080/proxy")
+//    client.setEntity(new ByteArrayEntity("This is just a test".getBytes(),ContentType.APPLICATION_OCTET_STREAM))
+//    Request.Put("http://localhost:8080/proxy").bodyByteArray("This is just a test".getBytes()).execute.returnContent.toString
     //    Assert.assertTrue(new GFWListJava().isBlockedByGFW("http://facebook.com"))
-    val string: String = Request.Get("http://twitter.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString
-    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+
+
+    val string = IOUtils.toString(httpClient.execute(new HttpGet("https://developer.apple.com/")).getEntity.getContent)
+//    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
     println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
     println(string)
     println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+//    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
   }
 
   @Test

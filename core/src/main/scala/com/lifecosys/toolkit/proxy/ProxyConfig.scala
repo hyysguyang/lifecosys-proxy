@@ -28,7 +28,7 @@ import collection.mutable
 import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioServerSocketChannelFactory }
 import java.util.concurrent.{ SynchronousQueue, TimeUnit, ThreadPoolExecutor }
 import com.lifecosys.toolkit.ssl.{ DefaultStaticCertificationSSLManager, ProgrammaticCertificationSSLManager, SSLManager }
-import com.typesafe.config.{ ConfigFactory, Config }
+import com.typesafe.config.{ ConfigValue, ConfigFactory, Config }
 
 /**
  *
@@ -49,7 +49,7 @@ trait ProxyConfig {
 
   val isLocal: Boolean
 
-  val chainProxies: scala.collection.mutable.ArrayBuffer[Host]
+  val chainProxies: scala.collection.mutable.ArrayBuffer[ProxyHost]
 
   val serverSocketChannelFactory: ServerSocketChannelFactory
 
@@ -90,9 +90,14 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   override val serverSocketChannelFactory = new NioServerSocketChannelFactory(serverExecutor, serverExecutor)
   override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor)
   override val isLocal = thisConfig.getBoolean("local")
-  override val chainProxies = thisConfig.getString("chain-proxy.host") match {
-    case host: String if host.trim.length > 0 ⇒ mutable.ArrayBuffer[Host](Host(thisConfig.getString("chain-proxy.host")))
-    case _                                    ⇒ mutable.ArrayBuffer[Host]()
+  import scala.collection.JavaConversions._
+  override val chainProxies = {
+    def createProxyHost(hostConfig: ConfigValue) = {
+      val server = hostConfig.atKey("server")
+      ProxyHost(Host(server.getString("server.host")), ProxyType(server.getString("server.type")))
+    }
+    val proxyList = thisConfig.getList("chain-proxy").toList.map(createProxyHost _).toSet.toList
+    mutable.ArrayBuffer[ProxyHost](proxyList: _*)
   }
 
   lazy override val serverSSLContext = sslManger.getServerSSLContext

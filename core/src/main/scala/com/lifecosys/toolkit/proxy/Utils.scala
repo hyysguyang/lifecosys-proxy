@@ -33,6 +33,8 @@ import java.nio.charset.Charset
 import org.jasypt.encryption.pbe.StandardPBEByteEncryptor
 import java.util.zip.{ Inflater, Deflater }
 import org.jboss.netty.handler.logging.LoggingHandler
+import javax.net.ssl.{ X509TrustManager, SSLContext }
+import java.security.cert.X509Certificate
 
 /**
  *
@@ -54,6 +56,25 @@ object Utils {
     standardEncryptor.setAlgorithm("PBEWithSHAAnd3KeyTripleDES")
     standardEncryptor.setPassword("""nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
     standardEncryptor
+  }
+
+  lazy val trustAllSSLContext = {
+    val clientContext = SSLContext.getInstance("TLS")
+    clientContext.init(null, Array(new X509TrustManager {
+      def getAcceptedIssuers: Array[X509Certificate] = {
+        return new Array[X509Certificate](0)
+      }
+
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all client" + chain(0).getSubjectDN)
+      }
+
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all server" + chain(0).getSubjectDN)
+      }
+    }), null)
+
+    clientContext
   }
 
   /**

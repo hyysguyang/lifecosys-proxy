@@ -32,21 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger
  * @version 1.0 1/3/13 9:22 PM
  */
 
-object Host {
-  def apply(uri: String): Host = {
-    val hostAndPort = Utils.extractHostAndPort(uri)
-    Host(hostAndPort._1, hostAndPort._2)
-  }
-}
-
-case class Host(host: String, port: Int) {
-  require(!host.isEmpty)
-  require(port > 0 && port < 65535)
-  val socketAddress = new InetSocketAddress(host, port)
-  override def toString: String = s"$host:$port"
-}
-case class ProxyHost(host: Host, needForward: Boolean)
-
 trait FailedHostProcess {
   def hasFailedToProxy(uri: String): Boolean = false
   def store(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit
@@ -96,7 +81,7 @@ trait ChainProxyManager {
    */
   def connectFailed(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit = logger.warn(s"Can't connect to server: $hostAndPort")
 
-  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): Option[ProxyHost] = if (failedHostProcess.hasFailedToProxy(uri)) None else fetchConnectHost(uri)
+  def getConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): Option[ConnectHost] = if (failedHostProcess.hasFailedToProxy(uri)) None else fetchConnectHost(uri)
 
   /**
    * DON'T return None for Public API..
@@ -104,7 +89,7 @@ trait ChainProxyManager {
    * @param proxyConfig
    * @return
    */
-  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): Option[ProxyHost]
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig): Option[ConnectHost]
 }
 
 class DefaultChainProxyManager extends ChainProxyManager {
@@ -120,8 +105,8 @@ class DefaultChainProxyManager extends ChainProxyManager {
    * @return
    */
   def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = proxyConfig.chainProxies.headOption match {
-    case Some(host) ⇒ Some(ProxyHost(host, true))
-    case None       ⇒ Some(ProxyHost(Host(uri), false))
+    case Some(proxyHost) ⇒ Some(ConnectHost(proxyHost.host, true, proxyHost.serverType))
+    case None            ⇒ Some(ConnectHost(Host(uri), false))
   }
 
   override def connectFailed(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit = {
@@ -129,7 +114,8 @@ class DefaultChainProxyManager extends ChainProxyManager {
     val host = Host(hostAndPort)
     retryStatistic.get(host) match {
       case Some(retryTimes) if (retryTimes.incrementAndGet() >= 3) ⇒ {
-        proxyConfig.chainProxies -= host //If our proxy server failed service
+        proxyConfig.chainProxies.remove(proxyConfig.chainProxies.lastIndexWhere(_.host == host)) //If our proxy server failed service
+
         failedHostProcess.store(hostAndPort)
       }
       case None ⇒ retryStatistic += host -> new AtomicInteger(1)
@@ -156,7 +142,7 @@ sealed class SmartHostsChainProxyManager extends ChainProxyManager {
 
   def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
     val requestHost = Host(uri)
-    smartHosts.get(requestHost.host).map(host ⇒ ProxyHost(Host(host, requestHost.port), false))
+    smartHosts.get(requestHost.host).map(host ⇒ ConnectHost(Host(host, requestHost.port), false))
   }
 
   override def connectFailed(hostAndPort: String)(implicit proxyConfig: ProxyConfig): Unit = {
@@ -182,7 +168,7 @@ class GFWListChainProxyManager extends ChainProxyManager {
    * @param proxyConfig
    * @return
    */
-  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = if (isBlocked(Utils.extractHostAndPort(uri)._1)) None else Some(ProxyHost(Host(uri), false))
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = if (isBlocked(Utils.extractHostAndPort(uri)._1)) None else Some(ConnectHost(Host(uri), false))
 
   def isBlocked(host: String): Boolean = {
     def matchHost(gfwHost: String) = {

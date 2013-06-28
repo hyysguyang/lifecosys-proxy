@@ -38,6 +38,7 @@ import org.apache.commons.io.{IOUtils, FileUtils}
 import org.apache.http.conn.ssl.SSLSocketFactory
 import javax.net.ssl.{X509TrustManager, SSLContext}
 import java.security.cert.X509Certificate
+import com.typesafe.config.ConfigFactory
 
 /**
  *
@@ -87,6 +88,7 @@ class UtilsTest {
 
 
     val string = IOUtils.toString(httpClient.execute(new HttpGet("https://developer.apple.com/")).getEntity.getContent)
+//    val string = IOUtils.toString(httpClient.execute(new HttpGet("http://stackoverflow.com/questions/5206010/using-apache-httpclient-for-https")).getEntity.getContent)
 //    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
     println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
     println(string)

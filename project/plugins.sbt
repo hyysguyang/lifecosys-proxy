@@ -9,7 +9,7 @@ addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.0-SNAPSHOT")
 addSbtPlugin("org.scala-sbt" % "sbt-android-plugin" % "0.6.3-20130429-SNAPSHOT")
 
 
-addSbtPlugin("com.earldouglas" % "xsbt-web-plugin" % "0.2.12")
+addSbtPlugin("com.earldouglas" % "xsbt-web-plugin" % "0.3.0")
 
 addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.8.8")
 

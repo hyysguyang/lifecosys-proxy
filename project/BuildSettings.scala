@@ -78,8 +78,18 @@ object BuildSettings {
 
   import com.earldouglas.xsbtwebplugin._
   import WebPlugin._
+  import PluginKeys._
 
-  lazy val jettySettings = basicSettings ++ noPublishing ++ webSettings //  ++ disableJettyLogSettings
+  val jettyPort=8080
+  val jettySSLPort=8443
+  def webContainer = config("container")
+
+  lazy val jettySettings = basicSettings ++ noPublishing ++ webSettings ++ Seq(
+    port in webContainer := jettyPort,
+    ssl in webContainer := Some(8443, "/Develop/Project/home/lifecosys-toolkit/src/main/conf/keystore","killccp", "killccp"),
+    scanInterval in Compile := 60
+  )
+  //  ++ disableJettyLogSettings
   //
   //  lazy val disableJettyLogSettings = inConfig(container.Configuration) {
   //    seq(

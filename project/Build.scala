@@ -19,7 +19,7 @@ object LifecosysToolkitBuild extends Build {
   // -------------------------------------------------------------------------------------------------------------------
 
   lazy val root = Project("lifecosys-toolkit", file("."))
-    .aggregate(core, proxy,bibleServer,android)
+    .aggregate(core, proxy,proxyWeb,android)
     .settings(basicSettings: _*)
     .settings(noPublishing: _*)
 
@@ -39,7 +39,7 @@ object LifecosysToolkitBuild extends Build {
     .dependsOn(core)
     .settings(moduleSettings: _*)
 
-  lazy val bibleServer = Project("BibleServer", file("bible-server"))
+  lazy val proxyWeb = Project("ProxyWeb", file("proxy-web"))
     .dependsOn(core)
     .settings(moduleSettings: _*)
     .settings(jettySettings: _*)

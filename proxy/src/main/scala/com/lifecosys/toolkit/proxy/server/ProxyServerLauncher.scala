@@ -48,6 +48,7 @@ object ProxyServerLauncher {
       new GFWProgrammaticCertificationProxyConfig(Some(config))
     else
       new ProgrammaticCertificationProxyConfig(Some(config))
-    ProxyServer(proxyConfig).start
+    //    ProxyServer(proxyConfig).start
+    ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))).start
   }
 }

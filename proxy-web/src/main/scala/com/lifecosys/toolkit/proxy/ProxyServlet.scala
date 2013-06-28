@@ -51,6 +51,12 @@ class ProxyServlet extends HttpServlet {
 
     println("#######################" + proxyRequest)
 
+    if(proxyRequest.getRequestLine.getMethod == "CONNECT"){
+      response.getWriter.write("HTTP/1.1 200 Connection established\r\n\r\n")
+      response.getWriter.flush()
+      return
+    }
+
     val httpHost = new HttpHost(Host(request.getHeader("proxyHost")).host, Host(request.getHeader("proxyHost")).port)
     val proxyResponse = synchronized(httpClient.execute(httpHost, proxyRequest))
     try {

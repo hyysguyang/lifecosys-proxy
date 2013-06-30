@@ -49,6 +49,6 @@ object ProxyServerLauncher {
     else
       new ProgrammaticCertificationProxyConfig(Some(config))
     //    ProxyServer(proxyConfig).start
-    ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))).start
+    ProxyServer(proxyConfig).start
   }
 }

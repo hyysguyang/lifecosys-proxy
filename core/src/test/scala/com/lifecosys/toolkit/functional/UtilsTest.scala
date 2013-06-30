@@ -78,7 +78,7 @@ class UtilsTest {
 
       val httpClient = HttpClients.custom()
         .setSSLSocketFactory(new SSLSocketFactory(createStubSSLClientContext))
-        .setProxy(new HttpHost("localhost", 8081))
+        .setProxy(new HttpHost("localhost", 8080))
         .build()
 
 //    val client = new HttpPost("http://localhost:8080/proxy")

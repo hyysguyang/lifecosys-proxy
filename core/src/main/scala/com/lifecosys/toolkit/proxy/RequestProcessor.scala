@@ -68,12 +68,12 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
   if (!connectHost.needForward) httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
 
   val httpRequestEncoder = connectHost.serverType match {
-    case DefaultProxyType ⇒ new HttpRequestEncoder()
-    case WebProxyType     ⇒ new WebProxyHttpRequestEncoder(connectHost)
+    case WebProxyType ⇒ new WebProxyHttpRequestEncoder(connectHost, Host(httpRequest.getUri))
+    case _            ⇒ new HttpRequestEncoder()
   }
 
   def process {
-    logger.debug("Process request with %s".format((connectHost.host, connectHost.needForward)))
+    logger.debug(s"Process request with $connectHost")
     hostToChannelFuture.remove(connectHost.host) match {
       case Some(channel) if channel.isConnected ⇒ {
         logger.error("###########Use existed Proxy to server conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
@@ -147,6 +147,9 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
   val browserToProxyContext = browserToProxyChannelContext
 
   val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
+
+  require(connectHost.serverType != WebProxyType, "Web proxy don't support HTTPS access.")
+
   val browserToProxyChannel = browserToProxyContext.getChannel
 
   def process {
@@ -219,11 +222,7 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     pipeline.addLast("proxyServer-connectionHandler", new ConnectionRequestHandler(future.getChannel))
 
     def sendRequestToChainedProxy {
-      val httpRequestEncoder = connectHost.serverType match {
-        case DefaultProxyType ⇒ new HttpRequestEncoder()
-        case WebProxyType     ⇒ new WebProxyHttpRequestEncoder(connectHost)
-      }
-      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", httpRequestEncoder)
+      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", new HttpRequestEncoder())
       future.getChannel.write(httpRequest).addListener {
         writeFuture: ChannelFuture ⇒
           {
@@ -331,7 +330,7 @@ class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
 //    msg
 //}
 //
-class WebProxyHttpRequestEncoder(connectHost: ConnectHost) extends HttpRequestEncoder {
+class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host) extends HttpRequestEncoder {
 
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
     val sentHttpRequest = msg match {
@@ -344,11 +343,22 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost) extends HttpRequestEn
         toSendRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
         toSendRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
         toSendRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
-        toSendRequest.setHeader("proxyHost", Host(request.getUri).toString)
+        toSendRequest.setHeader("proxyHost", proxyHost.toString)
         toSendRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encodedProxyRequest.readableBytes().toString)
         toSendRequest.setContent(encodedProxyRequest)
         toSendRequest
       }
+      case e: ChannelBuffer ⇒
+        val toSendRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
+        toSendRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
+        toSendRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
+        toSendRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
+        toSendRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+        toSendRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
+        toSendRequest.setHeader("proxyHost", proxyHost.toString)
+        toSendRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, e.readableBytes().toString)
+        toSendRequest.setContent(e)
+        toSendRequest
       case e ⇒ e
     }
     super.encode(ctx, channel, sentHttpRequest)

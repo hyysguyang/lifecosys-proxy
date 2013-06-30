@@ -127,9 +127,8 @@ class HttpRelayingHandler(browserToProxyChannel: Channel)(implicit proxyConfig: 
 class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
     logger.debug("=====%s receive message:\n %s".format(ctx.getChannel, e.getMessage))
-    val msg: ChannelBuffer = e.getMessage.asInstanceOf[ChannelBuffer]
     if (relayChannel.isConnected) {
-      relayChannel.write(msg)
+      relayChannel.write(e.getMessage)
     }
   }
 

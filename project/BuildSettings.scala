@@ -86,7 +86,7 @@ object BuildSettings {
 
   lazy val jettySettings = basicSettings ++ noPublishing ++ webSettings ++ Seq(
     port in webContainer := jettyPort,
-    ssl in webContainer := Some(8443, "/Develop/Project/home/lifecosys-toolkit/src/main/conf/keystore","killccp", "killccp"),
+    ssl in webContainer := Some(8443, file("src/main/conf/keystore").getAbsolutePath,"killccp", "killccp"),
     scanInterval in Compile := 60
   )
   //  ++ disableJettyLogSettings

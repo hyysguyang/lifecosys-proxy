@@ -23,6 +23,7 @@ import org.apache.http.impl.io.{DefaultHttpRequestParser, HttpTransportMetricsIm
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.config.RequestConfig.Builder
 import org.apache.http.client.protocol.HttpClientContext
+import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  *
@@ -30,7 +31,7 @@ import org.apache.http.client.protocol.HttpClientContext
  * @author Young Gu 
  * @version 1.0 6/21/13 10:28 AM
  */
-class ProxyServlet extends HttpServlet {
+class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   val error = "ERROR"
 

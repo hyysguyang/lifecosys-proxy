@@ -30,6 +30,7 @@ import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
+import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -53,7 +54,7 @@ object ProxyServer {
  *
  * @param proxyConfig
  */
-class ProxyServer(val proxyConfig: ProxyConfig) {
+class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
   require(proxyConfig != null)
 
   implicit val currentProxyConfig = proxyConfig

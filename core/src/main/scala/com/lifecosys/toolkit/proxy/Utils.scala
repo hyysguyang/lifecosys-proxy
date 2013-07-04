@@ -35,6 +35,7 @@ import java.util.zip.{ Inflater, Deflater }
 import org.jboss.netty.handler.logging.LoggingHandler
 import javax.net.ssl.{ X509TrustManager, SSLContext }
 import java.security.cert.X509Certificate
+import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  *
@@ -42,7 +43,7 @@ import java.security.cert.X509Certificate
  * @author Young Gu
  * @version 1.0 12/19/12 4:57 PM
  */
-object Utils {
+object Utils extends Logging {
   val UTF8: Charset = Charset.forName("UTF-8")
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r

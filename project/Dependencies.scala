@@ -4,7 +4,9 @@ object Dependencies {
 
   val resolutionRepos = Seq(
     "Local Maven Repository" at "file:////Develop/MavenRepository",
-    "spray repo" at "http://repo.spray.io/"
+    "spray repo" at "http://repo.spray.io/",
+    Opts.resolver.sonatypeReleases,
+    Opts.resolver.sonatypeSnapshots
   )
 
   def compile(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "compile")
@@ -23,9 +25,8 @@ object Dependencies {
   val bouncycastle = "org.bouncycastle" % "bcprov-jdk16" % "1.46"
   val jasypt = "org.jasypt" % "jasypt" % "1.9.0"
   val commonsIO = "commons-io" % "commons-io" % "2.1"
-  val slf4jAPI = "org.slf4j" % "slf4j-api" % "1.7.2"
+ val scalalogging = "com.typesafe" %% "scalalogging-slf4j" % "1.1.0-SNAPSHOT"
   val slf4jLog4j12 = "org.slf4j" % "slf4j-log4j12" % "1.7.2"
-  val log4j = "log4j" % "log4j" % "1.2.17"
   val fluentHC = "org.apache.httpcomponents" % "fluent-hc" % "4.3-beta2"
   val junit = "junit" % "junit" % "4.8.2"
 

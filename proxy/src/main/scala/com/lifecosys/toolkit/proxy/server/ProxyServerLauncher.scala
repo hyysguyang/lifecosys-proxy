@@ -41,7 +41,6 @@ object ProxyServerLauncher {
     Utils.installJCEPolicy
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
     Security.addProvider(new BouncyCastleProvider)
-    proxy.logger = Logger()
 
     val config = ConfigFactory.load()
     val proxyConfig = if (config.getBoolean("local"))
@@ -49,6 +48,6 @@ object ProxyServerLauncher {
     else
       new ProgrammaticCertificationProxyConfig(Some(config))
     //    ProxyServer(proxyConfig).start
-    ProxyServer(proxyConfig).start
+    ProxyServer(new GFWProgrammaticCertificationProxyConfig(Some(config))).start
   }
 }

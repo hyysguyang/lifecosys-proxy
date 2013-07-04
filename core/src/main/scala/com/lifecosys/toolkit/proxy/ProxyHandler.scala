@@ -24,6 +24,7 @@ import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.buffer.ChannelBuffer
 import java.nio.channels.ClosedChannelException
+import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  *
@@ -33,7 +34,8 @@ import java.nio.channels.ClosedChannelException
  * @version 1.0 1/1/13 5:54 PM
  */
 
-class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+class ProxyHandler(implicit proxyConfig: ProxyConfig)
+    extends SimpleChannelUpstreamHandler with Logging {
   val proxyToServerSSLEnable = proxyConfig.proxyToServerSSLEnable
 
   override def messageReceived(ctx: ChannelHandlerContext, me: MessageEvent) {
@@ -66,7 +68,8 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstr
   }
 }
 
-class HttpRelayingHandler(browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+class HttpRelayingHandler(browserToProxyChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends SimpleChannelUpstreamHandler with Logging {
 
   private def responsePreProcess(message: Any) = message match {
     case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) ⇒ {
@@ -124,7 +127,8 @@ class HttpRelayingHandler(browserToProxyChannel: Channel)(implicit proxyConfig: 
   }
 }
 
-class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig) extends SimpleChannelUpstreamHandler {
+class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends SimpleChannelUpstreamHandler with Logging {
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
     logger.debug("=====%s receive message:\n %s".format(ctx.getChannel, e.getMessage))
     if (relayChannel.isConnected) {

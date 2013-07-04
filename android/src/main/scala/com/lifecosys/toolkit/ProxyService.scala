@@ -45,7 +45,6 @@ class ProxyService extends Service {
     override def handleMessage(msg: Message) {
       logger.info("Proxy service starting with %s".format(msg))
 
-      proxy.logger = logger
       InternalLoggerFactory.setDefaultFactory(new AndroidInternalLoggerFactory)
       proxyServer = ProxyServer(new GFWProgrammaticCertificationProxyConfig())
       proxyServer.start

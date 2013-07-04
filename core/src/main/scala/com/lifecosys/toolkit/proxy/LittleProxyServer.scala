@@ -18,6 +18,7 @@ import org.jboss.netty.handler.logging.LoggingHandler
 import org.jboss.netty.handler.codec.http.HttpMessageDecoder.State
 import org.apache.commons.io.IOUtils
 import org.jboss.netty.handler.codec.oneone.OneToOneDecoder
+import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  *
@@ -25,7 +26,8 @@ import org.jboss.netty.handler.codec.oneone.OneToOneDecoder
  * @author Young Gu
  * @version 1.0 6/6/13 3:46 PM
  */
-class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig) extends org.littleshoot.proxy.DefaultHttpProxyServer(port) {
+class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig)
+    extends org.littleshoot.proxy.DefaultHttpProxyServer(port) with Logging {
   val chainProxyManager = proxyConfig.getChainProxyManager
 
   val littleChainProxyManager = if (proxyConfig.chainProxies.isEmpty) null else new LittleChainProxyManager() {

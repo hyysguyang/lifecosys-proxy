@@ -35,7 +35,6 @@ import collection.mutable
 package object proxy {
   val timer = new HashedWheelTimer
   val hostToChannelFuture = mutable.Map[Host, Channel]()
-  var logger: Logger = Logger.NULL_LOGGER
 
   implicit def channelPipelineInitializer(f: ChannelPipeline ⇒ Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
     def getPipeline: ChannelPipeline = {

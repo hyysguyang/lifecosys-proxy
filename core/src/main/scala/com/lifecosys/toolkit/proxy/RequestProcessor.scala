@@ -32,6 +32,7 @@ import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
 import org.jboss.netty.handler.codec.http
+import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  *
@@ -41,7 +42,7 @@ import org.jboss.netty.handler.codec.http
  * @version 1.0 1/1/13 5:50 PM
  */
 
-trait RequestProcessor {
+trait RequestProcessor extends Logging {
   def process
 
   val httpRequest: HttpRequest
@@ -76,7 +77,7 @@ class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext
     logger.debug(s"Process request with $connectHost")
     hostToChannelFuture.remove(connectHost.host) match {
       case Some(channel) if channel.isConnected ⇒ {
-        logger.error("###########Use existed Proxy to server conntection: {}################## Size {}##################", channel, hostToChannelFuture.size)
+        logger.error(s"###########Use existed Proxy to server conntection: $channel################## Size ${hostToChannelFuture.size}##################")
         channel.write(httpRequest)
       }
       case _ ⇒ {
@@ -330,7 +331,8 @@ class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
 //    msg
 //}
 //
-class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host) extends HttpRequestEncoder {
+class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)
+    extends HttpRequestEncoder with Logging {
 
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
     val sentHttpRequest = msg match {

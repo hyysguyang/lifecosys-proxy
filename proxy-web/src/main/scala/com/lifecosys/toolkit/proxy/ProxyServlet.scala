@@ -16,6 +16,7 @@ import org.apache.http.impl.client.HttpClients
 import org.apache.http.impl.io.{ DefaultHttpRequestParser, HttpTransportMetricsImpl, SessionInputBufferImpl }
 import org.apache.http.client.config.RequestConfig
 import com.typesafe.scalalogging.slf4j.Logging
+import org.apache.commons.lang3.StringUtils
 
 /**
  *
@@ -23,6 +24,30 @@ import com.typesafe.scalalogging.slf4j.Logging
  * @author Young Gu
  * @version 1.0 6/21/13 10:28 AM
  */
+class OutboundConnectionHandler(var response:HttpServletResponse) extends SimpleChannelUpstreamHandler with Logging {
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    val buffer: ChannelBuffer = e.getMessage.asInstanceOf[ChannelBuffer]
+    synchronized {
+      logger.debug(s"###########Receive (${buffer.readableBytes})bytes from remote server###########")
+      logger.debug(Utils.formatBuffer(ChannelBuffers.copiedBuffer(buffer)))
+      logger.debug("##################################################")
+      buffer.readBytes(response.getOutputStream, buffer.readableBytes)
+      response.getOutputStream.flush
+    }
+  }
+
+  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+
+    e.getCause.printStackTrace()
+    e.getChannel.close
+  }
+
+  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    logger.error("###################3Got closed event on : %s".format(e.getChannel))
+  }
+}
+
+
 class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   val error = "ERROR"
@@ -31,83 +56,105 @@ class ProxyServlet extends HttpServlet with Logging {
   val cf = new NioClientSocketChannelFactory(executor, executor)
   val responder = new NettyResponder
 
-  var out: ServletOutputStream = null;
+  val CONNECT_LENGTH=HttpMethod.CONNECT.getName.getBytes(Utils.UTF8).length
+
 
   val httpClient = HttpClients.custom.setDefaultRequestConfig(RequestConfig.custom().setRedirectsEnabled(false).build()).build()
 
-  final class OutboundConnectionHandler() extends SimpleChannelUpstreamHandler {
-    override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      val buffer: ChannelBuffer = e.getMessage.asInstanceOf[ChannelBuffer]
-      synchronized {
-        logger.error(s"Write response: ${buffer.readableBytes} bytes")
-        buffer.readBytes(out, buffer.readableBytes)
-        out.flush
-      }
-    }
-
-    override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-
-      e.getCause.printStackTrace()
-      e.getChannel.close
-    }
-  }
 
   val futures = scala.collection.mutable.Map[Host, ChannelFuture]()
-  val connectProxyResponse = "HTTP/1.1 200 Connection established\r\n\r\n"
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
 
     //    val httpclient: CloseableHttpClient = HttpClients.createDefault()
     //val clientContext=HttpClientContext.create()
     //    clientContext.setRequestConfig(RequestConfig.custom().setRedirectsEnabled(false).build())
 
-    logger.error("################Service#####################")
+
+    logger.error(s"########Request Session ID: ${request.getRequestedSessionId}, ${request.getSession(false)}")
+    logger.error(s"########Request ${request}, ${response}")
+
+    if(StringUtils.isEmpty(request.getRequestedSessionId) && request.getSession(false)==null){
+      request.getSession(true)
+    }
+
     val proxyRequestChannelBuffer = ChannelBuffers.dynamicBuffer(512)
     val bufferStream = new ChannelBufferOutputStream(proxyRequestChannelBuffer)
     IOUtils.copy(request.getInputStream, bufferStream)
     IOUtils.closeQuietly(bufferStream)
-    logger.error(Utils.formatBuffer(proxyRequestChannelBuffer))
-    logger.error("################Service#####################")
-    try {
-      val buffer = new SessionInputBufferImpl(new HttpTransportMetricsImpl(), 1024, 2048, null, null)
-      buffer.bind(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer)))
-      val parser = new DefaultHttpRequestParser(buffer)
-      val proxyRequest = parser.parse()
 
-      logger.error("#######################" + proxyRequest)
-
-      if (proxyRequest.getRequestLine.getMethod == "CONNECT") {
+    if(proxyRequestChannelBuffer.readableBytes()==CONNECT_LENGTH &&
+      HttpMethod.CONNECT.getName == IOUtils.toString(new ChannelBufferInputStream(proxyRequestChannelBuffer))){
+      val proxyHost = Host(request.getHeader("proxyHost"))
+      val cb = new ClientBootstrap(cf)
+      cb.setOption("keepAlive", true)
+      cb.setOption("connectTimeoutMillis", 1200 * 1000)
+      cb.getPipeline.addLast("handler", new OutboundConnectionHandler(response))
+      val channelFuture = cb.connect(proxyHost.socketAddress).awaitUninterruptibly()
+      if (channelFuture.isSuccess()) {
+        futures.put(proxyHost, channelFuture)
         response.setStatus(200)
         response.setContentType("application/octet-stream")
-
-        response.setContentLength(connectProxyResponse.getBytes("UTF-8").length)
-        response.getOutputStream.write(connectProxyResponse.getBytes("UTF-8"))
+        response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
+        response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
         response.getOutputStream.flush()
-
         return
       }
-    } catch {
-      case e ⇒
-    }
+      else{
+        channelFuture.getChannel.close()
+        response.setStatus(200)
+        response.setContentType("application/octet-stream")
+        response.setContentLength("HTTP/1.1 400 Can't establish connection\r\n\r\n".getBytes("UTF-8").length)
+        response.getOutputStream.write("HTTP/1.1 400 Can't establish connection\r\n\r\n".getBytes("UTF-8"))
+        response.getOutputStream.flush()
+        return
+      }
 
-    out = response.getOutputStream
+    }
+//    try {
+//      val buffer = new SessionInputBufferImpl(new HttpTransportMetricsImpl(), 1024, 2048, null, null)
+//      buffer.bind(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer)))
+//      val parser = new DefaultHttpRequestParser(buffer)
+//      val proxyRequest = parser.parse()
+//
+//      logger.error("#######################" + proxyRequest)
+//
+//      if (proxyRequest.getRequestLine.getMethod == "CONNECT") {
+//        response.setStatus(200)
+//        response.setContentType("application/octet-stream")
+//        response.setContentLength(connectProxyResponse.getBytes("UTF-8").length)
+//        response.getOutputStream.write(connectProxyResponse.getBytes("UTF-8"))
+//        response.getOutputStream.flush()
+//
+//        return
+//      }
+//    } catch {
+//      case e ⇒
+//    }
+
+    val out = response.getOutputStream
     val host: Host = Host(request.getHeader("proxyHost"))
     val future = futures.get(host) match {
-      case Some(f) ⇒ f
-      case None ⇒ {
-        val cb = new ClientBootstrap(cf)
-        cb.setOption("keepAlive", true)
-        cb.setOption("connectTimeoutMillis", 1200 * 1000)
-        cb.getPipeline.addLast("handler", new OutboundConnectionHandler)
-        val channelFuture = cb.connect(host.socketAddress).awaitUninterruptibly()
-        futures.put(host, channelFuture)
-
-        channelFuture
-
+      case Some(f) ⇒ {
+        logger.error(f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response.hashCode()+"2222222222222")
+        f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response=response
+        logger.error(f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response.hashCode()+"2222222222222")
+        f
       }
+//      case None ⇒ {
+//        val cb = new ClientBootstrap(cf)
+//        cb.setOption("keepAlive", true)
+//        cb.setOption("connectTimeoutMillis", 1200 * 1000)
+//        cb.getPipeline.addLast("handler", new OutboundConnectionHandler(response))
+//        val channelFuture = cb.connect(host.socketAddress).awaitUninterruptibly()
+//        futures.put(host, channelFuture)
+//
+//        channelFuture
+
+//      }
     }
 
     if (!future.isSuccess()) {
-      return ;
+      return
     }
 
     var lastWriteFuture: ChannelFuture = null
@@ -120,6 +167,9 @@ class ProxyServlet extends HttpServlet with Logging {
     out.flush()
 
     if (channel.isConnected) {
+      logger.debug(s"###########Write proxy request buffer (${proxyRequestChannelBuffer.readableBytes})bytes to remote server###########")
+      logger.debug(Utils.formatBuffer(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer)))
+      logger.debug("##################################################")
       channel.write(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))
     }
 
@@ -273,6 +323,10 @@ class ProxyServlet extends HttpServlet with Logging {
       })
     }
   }
+
+
+
+
 
   class OutboundHandler(implicit asyncContext: AsyncContext) extends SimpleChannelUpstreamHandler {
     val stream = asyncContext.getResponse.getOutputStream

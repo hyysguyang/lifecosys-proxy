@@ -89,10 +89,11 @@ object Utils extends Logging {
 
   def extractHostAndPort(uri: String) = {
 
-    val url = if (uri.startsWith("http"))
-      new URL(uri)
+    val trimmedUri = uri.trim
+    val url = if (trimmedUri.startsWith("http"))
+      new URL(trimmedUri)
     else
-      new URL("http://" + uri)
+      new URL("http://" + trimmedUri)
     url.getHost -> Some(url.getPort).filter(_ > 0).getOrElse(80)
   }
 

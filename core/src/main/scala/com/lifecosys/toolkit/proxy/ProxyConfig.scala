@@ -28,7 +28,7 @@ import collection.mutable
 import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioServerSocketChannelFactory }
 import java.util.concurrent.{ SynchronousQueue, TimeUnit, ThreadPoolExecutor }
 import com.lifecosys.toolkit.ssl.{ DefaultStaticCertificationSSLManager, ProgrammaticCertificationSSLManager, SSLManager }
-import com.typesafe.config.{ ConfigValue, ConfigFactory, Config }
+import com.typesafe.config.{ ConfigList, ConfigValue, ConfigFactory, Config }
 
 /**
  *
@@ -96,7 +96,7 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
       val server = hostConfig.atKey("server")
       ProxyHost(Host(server.getString("server.host")), ProxyType(server.getString("server.type")))
     }
-    val proxyList = thisConfig.getList("chain-proxy").toList.map(createProxyHost _).toSet.toList
+    val proxyList = thisConfig.getValue("chain-proxy").asInstanceOf[ConfigList].map(createProxyHost _).toSet.toList
     mutable.ArrayBuffer[ProxyHost](proxyList: _*)
   }
 

@@ -24,6 +24,7 @@ import logging.Logger
 import org.jboss.netty.channel._
 import org.jboss.netty.util.HashedWheelTimer
 import collection.mutable
+import org.jboss.netty.bootstrap.ClientBootstrap
 
 /**
  *
@@ -46,6 +47,13 @@ package object proxy {
 
   implicit def channelFutureListener(f: ChannelFuture ⇒ Unit): ChannelFutureListener = new ChannelFutureListener {
     def operationComplete(future: ChannelFuture) = f(future)
+  }
+
+  def newClientBootstrap = {
+    val proxyToServerBootstrap = new ClientBootstrap()
+    proxyToServerBootstrap.setOption("keepAlive", true)
+    proxyToServerBootstrap.setOption("connectTimeoutMillis", 1200 * 1000)
+    proxyToServerBootstrap
   }
 
 }

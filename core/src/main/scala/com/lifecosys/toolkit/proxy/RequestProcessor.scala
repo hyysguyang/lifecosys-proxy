@@ -32,6 +32,8 @@ import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
 import org.jboss.netty.handler.codec.http
+import org.jboss.netty.channel.socket.nio.NioSocketChannelConfig
+import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
 
 /**
@@ -47,13 +49,6 @@ trait RequestProcessor extends Logging {
 
   val httpRequest: HttpRequest
   val browserToProxyContext: ChannelHandlerContext
-
-  def newClientBootstrap = {
-    val proxyToServerBootstrap = new ClientBootstrap()
-    proxyToServerBootstrap.setOption("keepAlive", true)
-    proxyToServerBootstrap.setOption("connectTimeoutMillis", 1200 * 1000)
-    proxyToServerBootstrap
-  }
 }
 
 class DefaultRequestProcessor(request: HttpRequest, browserToProxyChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig) extends RequestProcessor {
@@ -149,18 +144,36 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
 
   val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
 
-  require(connectHost.serverType != WebProxyType, "Web proxy don't support HTTPS access.")
+  val httpRequestEncoder = connectHost.serverType match {
+    case WebProxyType ⇒ new WebProxyHttpRequestEncoder(connectHost, Host(request.getUri))
+    case _            ⇒ new HttpRequestEncoder()
+  }
+  //  require(connectHost.serverType != WebProxyType, "Web proxy don't support HTTPS access.")
 
   val browserToProxyChannel = browserToProxyContext.getChannel
 
   def process {
-    logger.debug("Process request with %s".format((connectHost.host, connectHost.needForward)))
+    logger.debug("##########ConnectionRequestProcessor################Process request with %s".format((connectHost.host, connectHost.needForward)))
     hostToChannelFuture.get(connectHost.host) match {
       case Some(channel) if channel.isConnected ⇒ browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8")))
       case None ⇒ {
-        browserToProxyChannel.setReadable(false)
-        logger.debug("Starting new connection to: %s".format(connectHost.host))
-        createProxyToServerBootstrap.connect(connectHost.host.socketAddress).addListener(connectComplete _)
+        if (connectHost.serverType == WebProxyType) {
+          val pipeline = browserToProxyChannel.getPipeline
+          //Remove codec related handle for connect request, it's necessary for HTTPS.
+          List("proxyServer-encoder", "proxyServer-decoder", "proxyServer-proxyHandler").foreach(pipeline remove _)
+          pipeline.addLast("proxyServer-connectionHandler", new WebProxyConnectionRequestHandler(connectHost, Host(request.getUri)))
+
+          browserToProxyChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8"))).addListener {
+            future: ChannelFuture ⇒ logger.debug("Finished write request to %s \n %s ".format(future.getChannel, Utils.connectProxyResponse))
+          }
+
+        } else {
+          logger.debug("Starting new connection to: %s".format(connectHost.host))
+          browserToProxyChannel.setReadable(false)
+          createProxyToServerBootstrap.connect(connectHost.host.socketAddress).addListener(connectComplete _)
+
+        }
+
       }
     }
   }
@@ -179,11 +192,11 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
           pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
         }
 
-        if (connectHost.serverType == WebProxyType) {
-          val engine = Utils.trustAllSSLContext.createSSLEngine
-          engine.setUseClientMode(true)
-          pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
-        }
+        //        if (connectHost.serverType == WebProxyType) {
+        //          val engine = Utils.trustAllSSLContext.createSSLEngine
+        //          engine.setUseClientMode(true)
+        //          pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
+        //        }
 
         if (connectHost.serverType != WebProxyType && connectHost.needForward) {
           pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
@@ -220,14 +233,30 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     val pipeline = browserToProxyChannel.getPipeline
     //Remove codec related handle for connect request, it's necessary for HTTPS.
     List("proxyServer-encoder", "proxyServer-decoder", "proxyServer-proxyHandler").foreach(pipeline remove _)
+    //    if (connectHost.serverType == WebProxyType)
+    //      pipeline.addLast("proxyServer-connectionHandler", new WebProxyConnectionRequestHandler(connectHost, Host(request.getUri)))
+    //    else
     pipeline.addLast("proxyServer-connectionHandler", new ConnectionRequestHandler(future.getChannel))
 
+    //    if (connectHost.serverType == WebProxyType) {
+    //      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-decoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+    //    }
+    //    future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", httpRequestEncoder)
+
     def sendRequestToChainedProxy {
-      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", new HttpRequestEncoder())
+
+      if (connectHost.serverType == WebProxyType) {
+        future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-decoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+      }
+      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", httpRequestEncoder)
+
       future.getChannel.write(httpRequest).addListener {
         writeFuture: ChannelFuture ⇒
           {
-            writeFuture.getChannel.getPipeline.remove("proxyServerToRemote-encoder")
+
+            if (connectHost.serverType != WebProxyType) {
+              writeFuture.getChannel.getPipeline.remove("proxyServerToRemote-encoder")
+            }
             logger.debug("Finished write request to %s\n %s ".format(future.getChannel, httpRequest))
           }
       }
@@ -240,6 +269,94 @@ class ConnectionRequestProcessor(request: HttpRequest, browserToProxyChannelCont
     }
 
     browserToProxyChannel.setReadable(true)
+  }
+}
+
+class WebProxyConnectionRequestHandler(connectHost: ConnectHost, proxyHost: Host)(implicit proxyConfig: ProxyConfig)
+    extends SimpleChannelUpstreamHandler with Logging {
+
+  def createProxyToServerBootstrap(browserToProxyChannel: Channel) = {
+    val proxyToServerBootstrap = newClientBootstrap
+    proxyToServerBootstrap.setFactory(proxyConfig.clientSocketChannelFactory)
+    proxyToServerBootstrap.setPipelineFactory {
+      pipeline: ChannelPipeline ⇒
+
+        //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
+
+        //        val engine = Utils.trustAllSSLContext.createSSLEngine
+        //        engine.setUseClientMode(true)
+        //        pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
+
+        pipeline.addLast("proxyServerToRemote-decoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+        pipeline.addLast("proxyServerToRemote-encoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost))
+
+        pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
+        pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
+          override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
+            logger.debug("Channel idle........%s".format(e.getChannel))
+            Utils.closeChannel(e.getChannel)
+          }
+        })
+
+        pipeline.addLast("proxyServerToRemote-connectionHandler", new ConnectionRequestHandler(browserToProxyChannel))
+    }
+    proxyToServerBootstrap
+  }
+
+  val channels = scala.collection.mutable.MutableList[Channel]()
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    logger.debug("=====%s receive message:\n %s".format(ctx.getChannel, e.getMessage))
+
+    logger.error(s"#################################${ctx.getChannel}###############################################")
+    logger.error(s"Length: ${e.getMessage.asInstanceOf[ChannelBuffer].readableBytes()}\n${Utils.formatBuffer(e.getMessage.asInstanceOf[ChannelBuffer])}")
+    logger.error(s"################################################################################")
+
+    val browserToProxyChannel = e.getChannel
+    browserToProxyChannel.setReadable(false)
+    createProxyToServerBootstrap(e.getChannel).connect(connectHost.host.socketAddress).addListener(connectComplete _)
+
+    def connectComplete(future: ChannelFuture): Unit = {
+      logger.debug("####################Connection successful: %s".format(future.getChannel))
+      browserToProxyChannel.setReadable(true)
+
+      if (!future.isSuccess) {
+        logger.debug("Close browser connection...")
+        Utils.closeChannel(browserToProxyChannel)
+        return
+      }
+
+      val channel = future.getChannel
+      synchronized(channels += channel)
+      channel.write(e.getMessage).addListener {
+        writeFuture: ChannelFuture ⇒
+          {
+            //            writeFuture.getChannel.getPipeline.remove("proxyServerToRemote-encoder")
+            logger.debug("####################Finished write request to %s\n %s ".format(future.getChannel, e.getMessage))
+          }
+      }
+    }
+
+  }
+
+  override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    val ch: Channel = e.getChannel
+    logger.debug("CONNECT channel opened on: %s".format(ch))
+    proxyConfig.allChannels.add(e.getChannel)
+  }
+
+  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    logger.debug("Got closed event on : %s".format(e.getChannel))
+    //    channels.foreach(Utils.closeChannel(_))
+    //    synchronized(channels.clear())
+    //        Utils.closeChannel(relayChannel)
+  }
+
+  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
+    e.getCause match {
+      case closeException: ClosedChannelException ⇒ //Just ignore it
+      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+    }
   }
 }
 

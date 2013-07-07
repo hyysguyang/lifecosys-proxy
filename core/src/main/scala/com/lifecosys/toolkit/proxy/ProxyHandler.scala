@@ -22,8 +22,9 @@ package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
-import org.jboss.netty.buffer.ChannelBuffer
+import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBufferInputStream, ChannelBuffer }
 import java.nio.channels.ClosedChannelException
+import org.apache.http.impl.io.{ DefaultHttpRequestParser, HttpTransportMetricsImpl, SessionInputBufferImpl }
 import com.typesafe.scalalogging.slf4j.Logging
 
 /**
@@ -127,13 +128,48 @@ class HttpRelayingHandler(browserToProxyChannel: Channel)(implicit proxyConfig: 
   }
 }
 
-class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: ProxyConfig)
+class ConnectionRequestHandler(channel: Channel)(implicit proxyConfig: ProxyConfig)
     extends SimpleChannelUpstreamHandler with Logging {
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug("=====%s receive message:\n %s".format(ctx.getChannel, e.getMessage))
-    if (relayChannel.isConnected) {
-      relayChannel.write(e.getMessage)
+    logger.error(s"#################################${ctx.getChannel}###############################################")
+    logger.error(s"=====${ctx.getChannel} receive message: \n ${e.getMessage}")
+    e.getMessage match {
+
+      case response: HttpResponse                  ⇒ logger.error(s"Length: ${response.getContent.readableBytes()}\n${Utils.formatBuffer(response.getContent)}")
+      case response: HttpChunk if !response.isLast ⇒ logger.error(s"Length: ${response.getContent.readableBytes()}\n${Utils.formatBuffer(response.getContent)}")
+      case response: HttpChunk if response.isLast  ⇒ logger.error(s"Length: ${response.getContent.readableBytes()}\n${Utils.formatBuffer(response.getContent)}")
+      case response: ChannelBuffer                 ⇒ logger.error(s"Length: ${response.readableBytes()}\n${Utils.formatBuffer(response)}")
+      case e                                       ⇒ logger.error(s"=====${ctx.getChannel} receive unknown message: \n ${e}")
     }
+    logger.error(s"################################################################################")
+
+    //    try {
+    //      val buffer = new SessionInputBufferImpl(new HttpTransportMetricsImpl(), 1024, 2048, null, null)
+    //      buffer.bind(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(e.getMessage.asInstanceOf[ChannelBuffer])))
+    //      val parser = new DefaultHttpRequestParser(buffer)
+    //      val proxyRequest = parser.parse()
+    //
+    //      println("#######################" + proxyRequest)
+    //    }
+    //    catch {
+    //      case e => println("#######################")
+    //    }
+    //
+
+    def writeResponse(msg: Any) {
+      if (channel.isConnected) {
+        channel.write(msg)
+      }
+    }
+    e.getMessage match {
+
+      case response: HttpResponse if !response.isChunked ⇒ writeResponse(response.getContent)
+      case response: HttpResponse if response.isChunked ⇒
+      case response: HttpChunk if !response.isLast ⇒ writeResponse(response.getContent)
+      case response: HttpChunk if response.isLast ⇒
+      case e ⇒ writeResponse(e)
+    }
+
   }
 
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -143,8 +179,8 @@ class ConnectionRequestHandler(relayChannel: Channel)(implicit proxyConfig: Prox
   }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug("Got closed event on : %s".format(e.getChannel))
-    Utils.closeChannel(relayChannel)
+    logger.error("Got closed event on : %s".format(e.getChannel))
+    Utils.closeChannel(channel)
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {

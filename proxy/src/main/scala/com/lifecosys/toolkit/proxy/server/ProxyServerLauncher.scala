@@ -38,6 +38,7 @@ import com.lifecosys.toolkit.logging.Logger
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
+    System.setProperty("javax.net.debug", "all")
     Utils.installJCEPolicy
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
     Security.addProvider(new BouncyCastleProvider)
@@ -48,6 +49,6 @@ object ProxyServerLauncher {
     else
       new ProgrammaticCertificationProxyConfig(Some(config))
     //    ProxyServer(proxyConfig).start
-    ProxyServer(new GFWProgrammaticCertificationProxyConfig(Some(config))).start
+    ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))).start
   }
 }

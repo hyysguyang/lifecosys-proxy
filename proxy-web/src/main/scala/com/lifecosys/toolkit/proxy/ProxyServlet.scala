@@ -48,6 +48,16 @@ class OutboundConnectionHandler(var response:HttpServletResponse) extends Simple
 }
 
 
+case class ChannelKey(sessionId:String,host:Host)
+
+class ChannelManager{
+  private[this] val channels=scala.collection.mutable.Map[ChannelKey,Channel]()
+  def get(channelKey:ChannelKey)=channels.get(channelKey)
+  def add(channelKey:ChannelKey,channel:Channel)=channels += channelKey -> channel
+}
+
+object DefaultChannelManager extends ChannelManager
+
 class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   val error = "ERROR"
@@ -62,7 +72,6 @@ class ProxyServlet extends HttpServlet with Logging {
   val httpClient = HttpClients.custom.setDefaultRequestConfig(RequestConfig.custom().setRedirectsEnabled(false).build()).build()
 
 
-  val futures = scala.collection.mutable.Map[Host, ChannelFuture]()
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
 
     //    val httpclient: CloseableHttpClient = HttpClients.createDefault()
@@ -77,21 +86,24 @@ class ProxyServlet extends HttpServlet with Logging {
       request.getSession(true)
     }
 
+    require(StringUtils.isNotEmpty(request.getSession.getId),"Session have not been created, server error.")
     val proxyRequestChannelBuffer = ChannelBuffers.dynamicBuffer(512)
     val bufferStream = new ChannelBufferOutputStream(proxyRequestChannelBuffer)
     IOUtils.copy(request.getInputStream, bufferStream)
     IOUtils.closeQuietly(bufferStream)
 
+    val proxyHost = Host(request.getHeader("proxyHost"))
+    val channelKey: ChannelKey = ChannelKey(request.getSession.getId, proxyHost)
+
     if(proxyRequestChannelBuffer.readableBytes()==CONNECT_LENGTH &&
-      HttpMethod.CONNECT.getName == IOUtils.toString(new ChannelBufferInputStream(proxyRequestChannelBuffer))){
-      val proxyHost = Host(request.getHeader("proxyHost"))
+    HttpMethod.CONNECT.getName == IOUtils.toString(new ChannelBufferInputStream(proxyRequestChannelBuffer))){
       val cb = new ClientBootstrap(cf)
       cb.setOption("keepAlive", true)
       cb.setOption("connectTimeoutMillis", 1200 * 1000)
       cb.getPipeline.addLast("handler", new OutboundConnectionHandler(response))
       val channelFuture = cb.connect(proxyHost.socketAddress).awaitUninterruptibly()
-      if (channelFuture.isSuccess()) {
-        futures.put(proxyHost, channelFuture)
+      if (channelFuture.isSuccess() && channelFuture.getChannel.isConnected) {
+        DefaultChannelManager.add(channelKey,channelFuture.getChannel)
         response.setStatus(200)
         response.setContentType("application/octet-stream")
         response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
@@ -99,7 +111,7 @@ class ProxyServlet extends HttpServlet with Logging {
         response.getOutputStream.flush()
         return
       }
-      else{
+      else{//todo: error process
         channelFuture.getChannel.close()
         response.setStatus(200)
         response.setContentType("application/octet-stream")
@@ -131,15 +143,14 @@ class ProxyServlet extends HttpServlet with Logging {
 //      case e ⇒
 //    }
 
-    val out = response.getOutputStream
-    val host: Host = Host(request.getHeader("proxyHost"))
-    val future = futures.get(host) match {
-      case Some(f) ⇒ {
-        logger.error(f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response.hashCode()+"2222222222222")
-        f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response=response
-        logger.error(f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response.hashCode()+"2222222222222")
-        f
-      }
+
+
+//    val future = futures.get(host) match {
+//      case Some(f) ⇒ {
+//        logger.error(f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response.hashCode()+"2222222222222")
+//        logger.error(f.getChannel.getPipeline.get(classOf[OutboundConnectionHandler]).response.hashCode()+"2222222222222")
+//        f
+//      }
 //      case None ⇒ {
 //        val cb = new ClientBootstrap(cf)
 //        cb.setOption("keepAlive", true)
@@ -151,26 +162,29 @@ class ProxyServlet extends HttpServlet with Logging {
 //        channelFuture
 
 //      }
-    }
-
-    if (!future.isSuccess()) {
-      return
-    }
-
-    var lastWriteFuture: ChannelFuture = null
-
-    val channel = future.getChannel
-    response.setStatus(HttpServletResponse.SC_OK)
-    response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
-    response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
-    // Initiate chunked encoding by flushing the headers.
-    out.flush()
-
+//    }
+val channel=DefaultChannelManager.get(channelKey).get
+    channel.getPipeline.get(classOf[OutboundConnectionHandler]).response=response
     if (channel.isConnected) {
       logger.debug(s"###########Write proxy request buffer (${proxyRequestChannelBuffer.readableBytes})bytes to remote server###########")
       logger.debug(Utils.formatBuffer(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer)))
       logger.debug("##################################################")
+
+      response.setStatus(HttpServletResponse.SC_OK)
+      response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+      response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
+      // Initiate chunked encoding by flushing the headers.
+      response.getOutputStream.flush()
+
       channel.write(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))
+    }else{
+      //todo: error process
+      channel.close()
+      response.setStatus(200)
+      response.setContentType("application/octet-stream")
+      response.setContentLength("HTTP/1.1 400 Can't establish connection\r\n\r\n".getBytes("UTF-8").length)
+      response.getOutputStream.write("HTTP/1.1 400 Can't establish connection\r\n\r\n".getBytes("UTF-8"))
+      response.getOutputStream.flush()
     }
 
     //    var lastWriteFuture: ChannelFuture = null

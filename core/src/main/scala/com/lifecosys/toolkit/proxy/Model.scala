@@ -25,11 +25,13 @@ object ProxyType {
   def apply(proxyType: String) = proxyType.toLowerCase() match {
     case "net" ⇒ DefaultProxyType
     case "web" ⇒ WebProxyType
+    case _     ⇒ NoneProxyType
   }
 }
 sealed trait ProxyType
 case object NoneProxyType extends ProxyType
 case object DefaultProxyType extends ProxyType
 case object WebProxyType extends ProxyType
+
 case class ProxyHost(host: Host, serverType: ProxyType = DefaultProxyType)
 case class ConnectHost(host: Host, needForward: Boolean, serverType: ProxyType = NoneProxyType)

@@ -42,12 +42,25 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig)
 
   override def messageReceived(ctx: ChannelHandlerContext, me: MessageEvent) {
 
-    logger.debug("Receive request: %s ".format(me.getMessage))
-    me.getMessage match {
-      case request: HttpRequest if HttpMethod.CONNECT == request.getMethod ⇒ new ConnectionRequestProcessor(request, ctx).process
-      case request: HttpRequest ⇒ new DefaultRequestProcessor(request, ctx).process
-      case _ ⇒ throw new UnsupportedOperationException("Unsupported Request..........")
+    require(me.getMessage.isInstanceOf[HttpRequest])
+    val httpRequest = me.getMessage.asInstanceOf[HttpRequest]
+    logger.debug(s"Receive request: $httpRequest")
+
+    val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
+    if (connectHost.serverType == WebProxyType) {
+      if (HttpMethod.CONNECT == httpRequest.getMethod) {
+        new WebProxyHttpsRequestProcessor(httpRequest, ctx).process
+      } else {
+        new WebProxyHttpRequestProcessor(httpRequest, ctx).process
+      }
+    } else {
+      me.getMessage match {
+        case request: HttpRequest if HttpMethod.CONNECT == request.getMethod ⇒ new NetHttpsRequestProcessor(request, ctx).process
+        case request: HttpRequest ⇒ new DefaultHttpRequestProcessor(request, ctx).process
+        case _ ⇒ throw new UnsupportedOperationException("Unsupported Request..........")
+      }
     }
+
   }
 
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -126,6 +139,42 @@ class HttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyCo
       case closeException: ClosedChannelException ⇒ //Just ignore it
       case exception                              ⇒ Utils.closeChannel(e.getChannel)
     }
+  }
+}
+
+class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends SimpleChannelUpstreamHandler with Logging {
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    logger.error(s"################################################################################")
+    logger.error(Utils.formatMessage(e.getMessage))
+    def writeResponse(msg: Any) = if (browserChannel.isConnected) {
+      browserChannel.write(msg).addListener {
+        future: ChannelFuture ⇒
+          logger.debug("Write response to browser completed.")
+          e.getMessage match {
+            case response: HttpResponse if response.getHeader("response-completed").toBoolean ⇒ Utils.closeChannel(browserChannel)
+          }
+      }
+    }
+
+    e.getMessage match {
+      case response: HttpResponse if !response.isChunked ⇒ {
+        if (response.getContent.readableBytes() == Utils.connectProxyResponse.getBytes(Utils.UTF8).length &&
+          Utils.connectProxyResponse == IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(response.getContent)))) {
+          import scala.collection.JavaConverters._
+          val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
+          val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
+          browserChannel.setAttachment(jsessionid)
+        }
+
+        writeResponse(response.getContent)
+      }
+      case response: HttpResponse if response.isChunked ⇒
+      case response: HttpChunk if !response.isLast ⇒ writeResponse(response.getContent)
+      case response: HttpChunk if response.isLast ⇒
+      case e ⇒ writeResponse(e)
+    }
+
   }
 }
 

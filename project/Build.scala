@@ -38,6 +38,7 @@ object LifecosysToolkitBuild extends Build {
   lazy val proxy = Project("Proxy", file("proxy"))
     .dependsOn(core)
     .settings(moduleSettings: _*)
+    .settings(libraryDependencies ++=test(junit, scalatest))
 
   lazy val proxyWeb = Project("ProxyWeb", file("proxy-web"))
     .dependsOn(core)

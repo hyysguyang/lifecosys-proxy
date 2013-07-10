@@ -20,20 +20,20 @@
 
 package com.lifecosys.toolkit.functional
 
-import org.apache.http.client.fluent.{Executor, Request}
+import org.apache.http.client.fluent.{ Executor, Request }
 import org.apache.http.HttpHost
 import java.net.InetSocketAddress
 import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
-import org.junit.{Assert, Test, After, Before}
+import org.junit.{ Assert, Test, After, Before }
 import org.jboss.netty.channel.ChannelException
-import org.jboss.netty.logging.{Slf4JLoggerFactory, InternalLoggerFactory}
-import javax.net.ssl.{X509TrustManager, SSLContext}
+import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
+import javax.net.ssl.{ X509TrustManager, SSLContext }
 import java.security.cert.X509Certificate
 import ProxyTestUtils._
 import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
-import org.jboss.netty.handler.codec.http.{HttpMethod, HttpVersion, DefaultHttpRequest}
+import org.jboss.netty.handler.codec.http.{ HttpMethod, HttpVersion, DefaultHttpRequest }
 import scala.Some
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -60,7 +60,6 @@ object ProxyTestUtils {
     proxyContent.toString.filter(_.isWhitespace).replace("\n", "").replace("\r", "")
   }
 
-
   def createStubSSLClientContext = {
     val clientContext = SSLContext.getInstance("TLS")
     clientContext.init(null, Array(new X509TrustManager {
@@ -80,7 +79,6 @@ object ProxyTestUtils {
     clientContext
   }
 
-
   def createProxyConfig(bindPort: Int = 8080,
                         chainedPort: Option[Int] = None,
                         isServerSSLEnable: Boolean = false,
@@ -88,12 +86,12 @@ object ProxyTestUtils {
                         isLocalProxy: Boolean = true,
                         chainProxyManager: ChainProxyManager = new DefaultChainProxyManager) = {
 
-    val chainProxy=chainedPort match {
-      case Some(port) => s"""host = "localhost:$port" """
-      case None => ""
+    val chainProxy = chainedPort match {
+      case Some(port) ⇒ s"""host = "localhost:$port" """
+      case None       ⇒ ""
     }
 
-    val configString=s"""
+    val configString = s"""
       |port = $bindPort
       |local=$isLocalProxy
       |chain-proxy{
@@ -126,37 +124,29 @@ object ProxyTestUtils {
       |}
     """.stripMargin
 
-
-    val config=ConfigFactory.parseString(configString).withFallback(ConfigFactory.load())
-
+    val config = ConfigFactory.parseString(configString).withFallback(ConfigFactory.load())
 
     new DefaultStaticCertificationProxyConfig(Some(config)) {
       override def getChainProxyManager: ChainProxyManager = chainProxyManager
     }
 
-
-
-
-
   }
 
+  def main(args: Array[String]) {
 
-    def main(args: Array[String]) {
+    //      println(Request.Get("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString)
+    println(Request.Get("https://freezegfw-one.appspot.com/2").execute.returnContent.toString)
 
-//      println(Request.Get("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString)
-      println(Request.Get("https://freezegfw-one.appspot.com/2").execute.returnContent.toString)
+    //      val config= createProxyConfig(bindPort = 8081, isLocalProxy = false)
+    //      println(config.isLocal)
 
-//      val config= createProxyConfig(bindPort = 8081, isLocalProxy = false)
-//      println(config.isLocal)
-
-//      val proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-//      val chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
-//
-//      chainProxy start
-//
-//      proxy start
-    }
-
+    //      val proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
+    //      val chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
+    //
+    //      chainProxy start
+    //
+    //      proxy start
+  }
 
 }
 
@@ -177,7 +167,6 @@ class SimpleProxyTest {
 
   }
 
-
   @Test(expected = classOf[ChannelException])
   def testShutdown {
     proxy.start
@@ -189,7 +178,6 @@ class SimpleProxyTest {
     ProxyServer(createProxyConfig()).start
 
   }
-
 
   @Test
   def testSimplePage {
@@ -205,7 +193,6 @@ class SimpleProxyTest {
     Assert.assertTrue(request("http://baidu.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
   }
 
-
   @Test
   def testAccessHttps {
     proxy start
@@ -215,12 +202,10 @@ class SimpleProxyTest {
 
 }
 
-
 class ChainedProxyTest {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   var proxy: ProxyServer = null
   var chainProxy: ProxyServer = null
-
 
   @After
   def after() {
@@ -232,7 +217,6 @@ class ChainedProxyTest {
     chainProxy = null
 
   }
-
 
   @Test
   def testAccessViaChainedProxy {
@@ -247,7 +231,6 @@ class ChainedProxyTest {
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }
-
 
   def gfwChainProxyManager = new GFWChainProxyManager {
 
@@ -285,7 +268,6 @@ class ChainedProxyTest {
     Assert.assertTrue(proxyContent.toString.length > 0)
   }
 
-
   @Test
   def testAccessViaUnavailableChainedProxy {
     proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
@@ -296,11 +278,10 @@ class ChainedProxyTest {
     try {
       request("http://www.yahoo.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
     } catch {
-      case _: Throwable => Assert.assertTrue(true)
+      case _: Throwable ⇒ Assert.assertTrue(true)
     }
 
   }
-
 
   @Test
   def testAccessViaChainedProxyForHttps {
@@ -314,7 +295,6 @@ class ChainedProxyTest {
     Assert.assertTrue(proxyContent.toString.length > 0)
 
   }
-
 
   @Test
   def testAccessViaChainedProxy_withSSLSupport {
@@ -341,7 +321,6 @@ class ChainedProxyTest {
     Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
 
   }
-
 
   @Test
   def testAccessViaChainedProxy_withSSLSupport_forProgrammaticCertification {
@@ -383,7 +362,6 @@ class ChainedProxyTest {
         |}
       """.stripMargin
 
-
     proxy = ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
     chainProxy = ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(chainedConfig)))))
 
@@ -397,7 +375,6 @@ class ChainedProxyTest {
   }
 
 }
-
 
 class ChainedProxyManagerTest {
   Security.addProvider(new BouncyCastleProvider)

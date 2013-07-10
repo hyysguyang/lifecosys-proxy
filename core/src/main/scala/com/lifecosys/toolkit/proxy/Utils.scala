@@ -36,6 +36,7 @@ import org.jboss.netty.handler.logging.LoggingHandler
 import javax.net.ssl.{ X509TrustManager, SSLContext }
 import java.security.cert.X509Certificate
 import com.typesafe.scalalogging.slf4j.Logging
+import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage, HttpResponse }
 
 /**
  *
@@ -57,25 +58,6 @@ object Utils extends Logging {
     standardEncryptor.setAlgorithm("PBEWithSHAAnd3KeyTripleDES")
     standardEncryptor.setPassword("""nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
     standardEncryptor
-  }
-
-  lazy val trustAllSSLContext = {
-    val clientContext = SSLContext.getInstance("TLS")
-    clientContext.init(null, Array(new X509TrustManager {
-      def getAcceptedIssuers: Array[X509Certificate] = {
-        return new Array[X509Certificate](0)
-      }
-
-      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all client" + chain(0).getSubjectDN)
-      }
-
-      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all server" + chain(0).getSubjectDN)
-      }
-    }), null)
-
-    clientContext
   }
 
   /**
@@ -126,10 +108,39 @@ object Utils extends Logging {
     new String(Hex.encode(data), UTF8)
   }
 
+  def formatMessage(message: Any): String = message match {
+    case response: HttpMessage ⇒ s"$response \n length:  ${response.getContent.readableBytes()}\n ${formatBuffer(response.getContent)}"
+    case chunk: HttpChunk      ⇒ s"$chunk - isLast: ${chunk.isLast}} \n length:  ${chunk.getContent.readableBytes()}\n  ${formatBuffer(chunk.getContent)}"
+    case buffer: ChannelBuffer ⇒ s"$buffer \n length:  ${buffer.readableBytes()}\n  ${formatBuffer(buffer)}"
+    case unknownMessage        ⇒ "Unknown message."
+  }
+
   def formatBuffer(channelBuffer: ChannelBuffer): String = {
     val format = classOf[LoggingHandler].getDeclaredMethods.find(_.getName == "formatBuffer").get
     format.setAccessible(true)
     format.invoke(null, channelBuffer).asInstanceOf[String]
+  }
+
+  /**
+   * Just for testing...
+   */
+  lazy val trustAllSSLContext = {
+    val clientContext = SSLContext.getInstance("TLS")
+    clientContext.init(null, Array(new X509TrustManager {
+      def getAcceptedIssuers: Array[X509Certificate] = {
+        return new Array[X509Certificate](0)
+      }
+
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all client" + chain(0).getSubjectDN)
+      }
+
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
+        System.err.println("Trust all server" + chain(0).getSubjectDN)
+      }
+    }), null)
+
+    clientContext
   }
 
   def generateGFWHostList = {

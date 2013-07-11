@@ -35,10 +35,7 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig)
       chainProxyManager.getConnectHost(request.getUri).get.host.toString
     }
 
-    def onCommunicationError(hostAndPort: String) = {
-      println("################################################")
-      chainProxyManager.connectFailed(hostAndPort)
-    }
+    def onCommunicationError(hostAndPort: String) = chainProxyManager.connectFailed(hostAndPort)
   }
 
   override protected def preBind(serverBootstrap: ServerBootstrap,
@@ -104,12 +101,12 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig)
                 //                }
 
                 val host = chainProxyManager.getConnectHost(request.getUri).get
-                //                pipeline.replace(classOf[ProxyHttpRequestEncoder], "proxyEncoder",new ProxyHttpRequestEncoder(pipeline.get(classOf[org.littleshoot.proxy.HttpRelayingHandler]), null, host.needForward) )
+                //                pipeline.replace(classOf[ProxyHttpRequestEncoder], "proxyEncoder",new ProxyHttpRequestEncoder(pipeline.get(classOf[org.littleshoot.proxy.NetHttpResponseRelayingHandler]), null, host.needForward) )
 
                 val webProxyRequestEncoder = new ProxyHttpRequestEncoder(pipeline.get(classOf[org.littleshoot.proxy.HttpRelayingHandler]), null, false) {
                   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
                     //                    logger.warn("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& " + msg)
-                    //                    val handler = pipeline.get(classOf[org.littleshoot.proxy.HttpRelayingHandler])
+                    //                    val handler = pipeline.get(classOf[org.littleshoot.proxy.NetHttpResponseRelayingHandler])
                     //                    val proxyChannel: Channel = handler.getBrowserToProxyChannel()
                     //                    proxyChannel.getPipeline.replace(classOf[ProxyHttpResponseEncoder], "encoder", new HttpResponseEncoder {
                     //                      override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = msg match {
@@ -159,7 +156,7 @@ class LittleProxyServer(port: Int)(implicit proxyConfig: ProxyConfig)
 
                 val webProxyResponseDecoder = new OneToOneDecoder {
                   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
-                    case response: HttpResponse ⇒ logger.warn("#####################################\n" + response); ChannelBuffers.copiedBuffer(response.getContent)
+                    case response: HttpResponse ⇒ ChannelBuffers.copiedBuffer(response.getContent)
                     case _                      ⇒ msg
                   }
                 }

@@ -20,7 +20,6 @@
 
 package com.lifecosys.toolkit.proxy
 
-import java.net.InetSocketAddress
 import io.Source
 import java.util.concurrent.atomic.AtomicInteger
 import com.typesafe.scalalogging.slf4j.Logging

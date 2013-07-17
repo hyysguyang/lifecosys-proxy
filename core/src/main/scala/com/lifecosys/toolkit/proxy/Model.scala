@@ -1,6 +1,8 @@
 package com.lifecosys.toolkit.proxy
 
 import java.net.InetSocketAddress
+import org.jboss.netty.handler.codec.http.Cookie
+import org.jboss.netty.buffer.ChannelBuffer
 
 /**
  *
@@ -35,3 +37,19 @@ case object WebProxyType extends ProxyType
 
 case class ProxyHost(host: Host, serverType: ProxyType = DefaultProxyType)
 case class ConnectHost(host: Host, needForward: Boolean, serverType: ProxyType = NoneProxyType)
+
+case class ChannelKey(sessionId: String, host: Host)
+
+trait HttpsPhase
+case object Connect extends HttpsPhase
+case object ClientHello extends HttpsPhase
+case object ClientKeyExchange extends HttpsPhase
+case object Handshake extends HttpsPhase
+case object TransferData extends HttpsPhase
+
+case class HttpsState(sessionId: Option[Cookie] = None, var phase: HttpsPhase = Connect)
+
+case class DataHolder(length: Int, var buffer: ChannelBuffer) {
+  def ready = buffer.readableBytes() >= length
+  def contentLength = Math.max(length, buffer.readableBytes())
+}

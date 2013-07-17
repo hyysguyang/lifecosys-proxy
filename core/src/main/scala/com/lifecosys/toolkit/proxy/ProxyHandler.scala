@@ -22,7 +22,7 @@ package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
-import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBufferInputStream, ChannelBuffer }
+import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBufferInputStream }
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.io.IOUtils
@@ -39,7 +39,7 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig)
     extends SimpleChannelUpstreamHandler with Logging {
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug(s"############${e.getChannel} receive message###############\n${Utils.formatMessage(e.getMessage)}")
+    logger.debug(s"${e.getChannel} receive message\n${Utils.formatMessage(e.getMessage)}")
 
     require(e.getMessage.isInstanceOf[HttpRequest], "Unsupported Request..........")
     val httpRequest = e.getMessage.asInstanceOf[HttpRequest]
@@ -59,7 +59,7 @@ class ProxyHandler(implicit proxyConfig: ProxyConfig)
 
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     logger.debug("New channel opened: %s".format(e.getChannel))
-    proxyConfig.allChannels.add(e.getChannel)
+    //    proxyConfig.allChannels.add(e.getChannel)
     super.channelOpen(ctx, e)
 
   }
@@ -116,7 +116,7 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
 
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     logger.debug("New channel opened: %s".format(e.getChannel))
-    proxyConfig.allChannels.add(e.getChannel)
+    //    proxyConfig.allChannels.add(e.getChannel)
   }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -149,7 +149,7 @@ abstract class BaseRelayingHandler(relayingChannel: Channel)(implicit proxyConfi
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     val ch: Channel = e.getChannel
     logger.debug("CONNECT channel opened on: %s".format(ch))
-    proxyConfig.allChannels.add(e.getChannel)
+    //    proxyConfig.allChannels.add(e.getChannel)
   }
 }
 
@@ -184,6 +184,9 @@ trait WebProxyRelayingHandler {
 
   def processMessage(browserChannel: Channel)(message: Any)(write: (Any) ⇒ Unit) {
     message match {
+      case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
+        throw new RuntimeException("WebProx Error:")
+      }
       case response: HttpResponse if !response.isChunked ⇒ {
         if (response.getContent.readableBytes() == Utils.connectProxyResponse.getBytes(Utils.UTF8).length &&
           Utils.connectProxyResponse == IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(response.getContent)))) {
@@ -191,6 +194,7 @@ trait WebProxyRelayingHandler {
           val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
           val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
           browserChannel.setAttachment(jsessionid)
+          //          browserChannel.setAttachment(HttpsState(jsessionid, ClientHello))
         }
 
         write(response.getContent)
@@ -201,7 +205,6 @@ trait WebProxyRelayingHandler {
       case unknownMessage                               ⇒ write(unknownMessage)
     }
   }
-
 }
 class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends BaseRelayingHandler(browserChannel) with WebProxyRelayingHandler with Logging {
@@ -217,32 +220,67 @@ class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig:
     }
     processMessage(browserChannel)(e.getMessage)(writeResponse(writeListener) _)
   }
-}
-
-class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) with WebProxyRelayingHandler with Logging {
-
-  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
-    def writeListener = (future: ChannelFuture) ⇒ logger.debug(s"Write data to browser channel ${browserChannel} completed.")
-    processMessage(browserChannel)(e.getMessage)(writeResponse(writeListener) _)
-  }
-
-  override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    val ch: Channel = e.getChannel
-    logger.debug("CONNECT channel opened on: %s".format(ch))
-    proxyConfig.allChannels.add(e.getChannel)
-  }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.warn("Got closed event on : %s".format(e.getChannel))
-    //    Utils.closeChannel(browserChannel)
+    logger.debug("Got closed event on : %s".format(e.getChannel))
+    //    channels.foreach(Utils.closeChannel(_))
+    //    synchronized(channels.clear())
+    Utils.closeChannel(browserChannel)
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
     logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
     e.getCause match {
       case closeException: ClosedChannelException ⇒ //Just ignore it
-      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+      case exception ⇒ {
+        Utils.closeChannel(e.getChannel)
+        Utils.closeChannel(browserChannel)
+      }
+    }
+  }
+}
+
+class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends BaseRelayingHandler(browserChannel) with WebProxyRelayingHandler with Logging {
+
+  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
+    def writeListener = (future: ChannelFuture) ⇒ {
+      e.getMessage match {
+        case response: HttpResponse if !response.isChunked && response.getHeader("response-completed").toBoolean ⇒ {
+          //          Utils.channelFutures += Channels.succeededFuture(e.getChannel)
+          //          Utils.closeChannel(browserChannel)
+        }
+      }
+      logger.debug(s"Write data to browser channel ${browserChannel} completed.")
+    }
+    processMessage(browserChannel)(e.getMessage)(writeResponse(writeListener) _)
+  }
+
+  override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    val ch: Channel = e.getChannel
+    logger.debug("Open channel to remote webproxy: %s".format(ch))
+    //    proxyConfig.allChannels.add(e.getChannel)
+  }
+
+  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    logger.warn("Got closed event on : %s".format(e.getChannel))
+    //    Utils.closeChannel(browserChannel)
+  }
+  //
+  //  override def channelConnected(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+  //    val sslHandler: SslHandler = ctx.getPipeline.get(classOf[SslHandler])
+  //    // Begin handshake.
+  //    sslHandler.handshake
+  //  }
+
+  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
+    e.getCause match {
+      case closeException: ClosedChannelException ⇒ //Just ignore it
+      case exception ⇒ {
+        Utils.closeChannel(e.getChannel)
+        Utils.closeChannel(browserChannel)
+      }
     }
   }
 }

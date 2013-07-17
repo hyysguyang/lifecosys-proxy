@@ -22,7 +22,6 @@ package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.channel._
-import org.jboss.netty.bootstrap.ClientBootstrap
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 import org.jboss.netty.buffer.{ ChannelBufferInputStream, ChannelBuffer, ChannelBuffers }
@@ -31,8 +30,6 @@ import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecod
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
-import org.jboss.netty.handler.codec.http
-import org.jboss.netty.channel.socket.nio.NioSocketChannelConfig
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
 
@@ -295,6 +292,8 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
 class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
     extends HttpsRequestProcessor(request, browserChannelContext) {
 
+  browserChannelContext.getChannel.setAttachment(HttpsState)
+
   protected def connect {
     val pipeline = browserToProxyContext.getChannel.getPipeline
     //Remove codec related handle for connect request, it's necessary for HTTPS.
@@ -314,7 +313,7 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
     proxyToServerBootstrap.setPipelineFactory {
       pipeline: ChannelPipeline ⇒
 
-        //pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel))
+        //        pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR))
 
         if (proxyConfig.proxyToServerSSLEnable) {
           val engine = proxyConfig.clientSSLContext.createSSLEngine
@@ -339,8 +338,63 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
   }
 
   val channels = scala.collection.mutable.MutableList[Channel]()
+  private[this] var channel: Option[Channel] = None
+  var data: Option[DataHolder] = None
+
   override def messageReceived(browserChannelContext: ChannelHandlerContext, e: MessageEvent) {
     logger.debug(s"${browserChannelContext.getChannel} Receive message:\n ${Utils.formatMessage(e.getMessage)}")
+
+    //    val buffer = e.getMessage.asInstanceOf[ChannelBuffer]
+
+    //                    var dataLength: Int =0
+    //                                var sslRecord = ByteBuffer.allocateDirect(6)
+    //                                buffer.readBytes(sslRecord)
+    //                                sslRecord.flip()
+    //                                dataLength= sslRecord.remaining()
+    //                                //Store sslRecord first
+    //                                var sentBuffer: ChannelBuffer=ChannelBuffers.copiedBuffer(sslRecord)
+    //        val recordType=sslRecord.get()
+    //        dataLength += sslRecord.getShort(3)
+    //                                sentBuffer=ChannelBuffers.wrappedBuffer(sentBuffer, buffer)
+    //                    synchronized(data=Some(DataHolder(dataLength,sentBuffer)))
+    //
+    //    if(recordType)
+
+    //        val state: HttpsState = browserChannelContext.getChannel.getAttachment.asInstanceOf[HttpsState]
+    //
+    //        state.phase match {
+    //          case ClientHello => {
+    //            state.phase=ClientKeyExchange
+    //            var dataLength: Int =0
+    //                        var sslRecord = ByteBuffer.allocateDirect(6)
+    //                        buffer.readBytes(sslRecord)
+    //                        sslRecord.flip()
+    //                        dataLength= sslRecord.remaining()
+    //                        //Store sslRecord first
+    //                        var sentBuffer: ChannelBuffer=ChannelBuffers.copiedBuffer(sslRecord)
+    //            dataLength += sslRecord.getShort(3)
+    //                        sentBuffer=ChannelBuffers.wrappedBuffer(sentBuffer, buffer)
+    //            synchronized(data=Some(DataHolder(dataLength,sentBuffer)))
+    //
+    //          }
+    //        }
+
+    //    logger.error(s"#############${Utils.channelFutures.size}######################")
+    //
+    //    val headOption: Option[ChannelFuture] = Utils.channelFutures.headOption
+    //
+    //    if (headOption.isDefined && headOption.get.getChannel.isConnected) {
+    //      logger.error(s"Using existed connection......${headOption.get.getChannel}")
+    //      Utils.channelFutures = Utils.channelFutures.tail
+    //      headOption.get.getChannel.write(e.getMessage).addListener {
+    //        writeFuture: ChannelFuture ⇒
+    //          {
+    //            logger.debug(s"Finished write request to ${channel.get}")
+    //          }
+    //      }
+    //      return
+    //
+    //    }
 
     val browserChannel = browserChannelContext.getChannel
     browserChannel.setReadable(false)
@@ -355,19 +409,54 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
         return
       }
 
-      val channel = future.getChannel
-      //      synchronized(channels += channel)
-      channel.write(e.getMessage).addListener {
-        writeFuture: ChannelFuture ⇒ logger.debug(s"Finished write request to ${future.getChannel}\n ")
+      channel = Some(future.getChannel)
+
+      future.getChannel.write(e.getMessage).addListener {
+        writeFuture: ChannelFuture ⇒
+          {
+            logger.debug(s"Finished write request to ${future.getChannel}")
+          }
       }
     }
+
+    //    def createConnectAndSendData {
+    //      logger.error(s"###################ddddddddddddddddddddddddddd################")
+    //      val browserChannel = browserChannelContext.getChannel
+    //      browserChannel.setReadable(false)
+    //      createProxyToServerBootstrap(browserChannelContext).connect(connectHost.host.socketAddress).addListener(connectComplete _)
+
+    //      def connectComplete(future: ChannelFuture): Unit = {
+    //        logger.debug(s"Connect to ${future.getChannel} successful")
+    //        browserChannel.setReadable(true)
+    //        if (!future.isSuccess) {
+    //          logger.debug("Close browser connection...")
+    //          Utils.closeChannel(browserChannel)
+    //          return
+    //        }
+    //
+    //        channel = Some(future.getChannel)
+    //        future.getChannel.write(e.getMessage).addListener {
+    //          writeFuture: ChannelFuture ⇒ logger.debug(s"Finished write request to ${future.getChannel}")
+    //        }
+    //      }
+    //    }
+    //    channel match {
+    //      case Some(ch) if ch.isConnected ⇒
+    //        logger.error(s"###############Use existed...####################"); ch.write(e.getMessage).addListener {
+    //          writeFuture: ChannelFuture ⇒ logger.debug(s"Finished write request to $ch")
+    //        }
+    //      case _ ⇒ {
+    //
+    //      }
+    //
+    //    }
 
   }
 
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     val ch: Channel = e.getChannel
     logger.debug("CONNECT channel opened on: %s".format(ch))
-    proxyConfig.allChannels.add(e.getChannel)
+    //    proxyConfig.allChannels.add(e.getChannel)
   }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -490,6 +579,19 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     wrappedRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
     wrappedRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
     wrappedRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
+    //        wrappedRequest.setHeader(HttpHeaders.Names.TE, "trailers")
+    //    browserChannel.getAttachment match {
+    //      case state: HttpsState ⇒ state.sessionId match {
+    //        case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
+    //          val encoder = new CookieEncoder(false)
+    //          encoder.addCookie(jsessionid.asInstanceOf[Cookie])
+    //          wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, encoder.encode())
+    //        }
+    //        case _ ⇒
+    //      }
+    //      case _ ⇒
+    //    }
+    //
 
     browserChannel.getAttachment match {
       case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {

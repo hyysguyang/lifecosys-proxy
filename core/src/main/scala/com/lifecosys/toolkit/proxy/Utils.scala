@@ -23,20 +23,20 @@ package com.lifecosys.toolkit.proxy
 import java.security.spec.{ RSAPrivateCrtKeySpec, RSAPublicKeySpec }
 import java.security.{ KeyPairGenerator, Security, KeyFactory }
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import scala.Some
 import java.net.{ URL, InetSocketAddress }
 import java.util.regex.Pattern
-import org.jboss.netty.channel.{ ChannelFutureListener, Channel }
+import org.jboss.netty.channel.{ ChannelFuture, ChannelFutureListener, Channel }
 import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.bouncycastle.util.encoders.Hex
 import java.nio.charset.Charset
 import org.jasypt.encryption.pbe.StandardPBEByteEncryptor
 import java.util.zip.{ Inflater, Deflater }
-import org.jboss.netty.handler.logging.LoggingHandler
 import javax.net.ssl.{ X509TrustManager, SSLContext }
 import java.security.cert.X509Certificate
-import com.typesafe.scalalogging.slf4j.Logging
-import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage, HttpResponse }
+import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage }
+import org.apache.commons.io.{ IOUtils, HexDump }
+import java.io.{ ByteArrayInputStream, ByteArrayOutputStream }
+import scala.Some
 
 /**
  *
@@ -44,13 +44,15 @@ import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage, HttpResponse
  * @author Young Gu
  * @version 1.0 12/19/12 4:57 PM
  */
-object Utils extends Logging {
+object Utils {
   val UTF8: Charset = Charset.forName("UTF-8")
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"
   val deflater = new Deflater
   val inflater = new Inflater
+
+  var channelFutures = scala.collection.mutable.MutableList[ChannelFuture]()
 
   lazy val cryptor = {
     val standardEncryptor = new StandardPBEByteEncryptor
@@ -97,11 +99,8 @@ object Utils extends Logging {
   }
 
   def closeChannel(channel: Channel) {
-    logger.debug("Closing channel: %s".format(channel))
     if (channel.isConnected)
       channel.write(ChannelBuffers.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE)
-    else
-      logger.debug("Connection: %s have been closed.".format(channel))
   }
 
   def toHex(data: Array[Byte]): String = {
@@ -109,16 +108,23 @@ object Utils extends Logging {
   }
 
   def formatMessage(message: Any): String = message match {
-    case response: HttpMessage ⇒ s"$response \n length:  ${response.getContent.readableBytes()}\n ${formatBuffer(response.getContent)}"
-    case chunk: HttpChunk      ⇒ s"$chunk - isLast: ${chunk.isLast}} \n length:  ${chunk.getContent.readableBytes()}\n  ${formatBuffer(chunk.getContent)}"
-    case buffer: ChannelBuffer ⇒ s"$buffer \n length:  ${buffer.readableBytes()}\n  ${formatBuffer(buffer)}"
+    case response: HttpMessage ⇒ s"$response \n length:  ${response.getContent.readableBytes()}\n ${hexDumpToString(response.getContent.array())}"
+    case chunk: HttpChunk      ⇒ s"$chunk - isLast: ${chunk.isLast}} \n length:  ${chunk.getContent.readableBytes()}\n  ${hexDumpToString(chunk.getContent.array())}"
+    case buffer: ChannelBuffer ⇒ s"$buffer \n length:  ${buffer.readableBytes()}\n  ${hexDumpToString(buffer.array())}"
     case unknownMessage        ⇒ "Unknown message."
   }
 
-  def formatBuffer(channelBuffer: ChannelBuffer): String = {
-    val format = classOf[LoggingHandler].getDeclaredMethods.find(_.getName == "formatBuffer").get
-    format.setAccessible(true)
-    format.invoke(null, channelBuffer).asInstanceOf[String]
+  def hexDumpToString(bytes: Array[Byte]): String = {
+    if (bytes.length > 0) {
+      //    val splitLine="-------------------------------------------------------------------------\n"
+      val splitLine = "#########################################################################"
+      val output = new ByteArrayOutputStream()
+      HexDump.dump(bytes, bytes.length, output, 0)
+      splitLine + "\n" + IOUtils.toString(new ByteArrayInputStream(output.toByteArray)) + splitLine
+    } else {
+      "##############################EMPTY BUFFER###############################"
+    }
+
   }
 
   /**
@@ -212,3 +218,4 @@ object Utils extends Logging {
   }
 
 }
+

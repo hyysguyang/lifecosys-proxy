@@ -10,12 +10,7 @@ import org.jboss.netty.util.Timer
 import org.littleshoot.proxy.{ ChainProxyManager ⇒ LittleChainProxyManager }
 import org.jboss.netty.bootstrap.ServerBootstrap
 import org.jboss.netty.channel.group.ChannelGroup
-import scala.Some
-import org.jboss.netty.buffer.{ ChannelBufferInputStream, ChannelBuffer, ChannelBuffers, ChannelBufferOutputStream }
-import org.jboss.netty.handler.codec.serialization.{ ObjectEncoder, ObjectEncoderOutputStream }
-import org.jboss.netty.logging.InternalLogLevel
-import org.jboss.netty.handler.logging.LoggingHandler
-import org.jboss.netty.handler.codec.http.HttpMessageDecoder.State
+import org.jboss.netty.buffer.{ ChannelBufferInputStream, ChannelBuffer, ChannelBuffers }
 import org.apache.commons.io.IOUtils
 import org.jboss.netty.handler.codec.oneone.OneToOneDecoder
 import com.typesafe.scalalogging.slf4j.Logging

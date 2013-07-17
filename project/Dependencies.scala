@@ -24,7 +24,7 @@ object Dependencies {
   val config = "com.typesafe" % "config" % "1.0.0"
   val bouncycastle = "org.bouncycastle" % "bcprov-jdk16" % "1.46"
   val jasypt = "org.jasypt" % "jasypt" % "1.9.0"
-  val commonsIO = "commons-io" % "commons-io" % "2.1"
+  val commonsIO = "commons-io" % "commons-io" % "2.4"
  val scalalogging = "com.typesafe" %% "scalalogging-slf4j" % "1.1.0-SNAPSHOT"
   val slf4jLog4j12 = "org.slf4j" % "slf4j-log4j12" % "1.7.2"
   val fluentHC = "org.apache.httpcomponents" % "fluent-hc" % "4.3-beta2"

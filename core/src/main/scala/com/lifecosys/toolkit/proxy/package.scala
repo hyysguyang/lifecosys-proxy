@@ -20,7 +20,6 @@
 
 package com.lifecosys.toolkit
 
-import logging.Logger
 import org.jboss.netty.channel._
 import org.jboss.netty.util.HashedWheelTimer
 import collection.mutable

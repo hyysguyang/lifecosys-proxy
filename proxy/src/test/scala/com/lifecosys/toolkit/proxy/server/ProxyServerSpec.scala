@@ -59,7 +59,7 @@ trait BaseSpec extends FeatureSpec with BeforeAndAfterAll {
   }
 
   def createHttpClient: HttpClientBuilder = {
-    HttpClients.custom().setDefaultSocketConfig(SocketConfig.custom().setSoTimeout(30 * 1000).build())
+    HttpClients.custom().setDefaultSocketConfig(SocketConfig.custom().setSoTimeout(60 * 1000).build())
       .setProxy(new HttpHost("localhost", httpClientProxyPort))
   }
 
@@ -109,6 +109,8 @@ class SimpleChainedNetProxySpec extends BaseSpec with BeforeAndAfterAll {
 }
 
 class SimpleWebProxySpec extends BaseSpec with BeforeAndAfterAll {
+  //    System.setProperty("javax.net.debug", "all")
+
   def httpClientProxyPort: Int = 19060
   override def proxyServer = {
     val config = ConfigFactory.parseResources("WebProxy-application.conf").withFallback(ConfigFactory.load())
@@ -121,6 +123,7 @@ class SimpleWebProxySpec extends BaseSpec with BeforeAndAfterAll {
 }
 
 class SimpleHttpsWebProxySpec extends BaseSpec with BeforeAndAfterAll {
+  //  System.setProperty("javax.net.debug", "all")
   def httpClientProxyPort: Int = 19061
   override def proxyServer = {
     val config = ConfigFactory.parseResources("HTTPSWebProxy-application.conf").withFallback(ConfigFactory.load())

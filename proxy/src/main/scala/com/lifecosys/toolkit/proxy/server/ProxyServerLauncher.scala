@@ -27,6 +27,16 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import com.lifecosys.toolkit.proxy
 import com.lifecosys.toolkit.logging.Logger
+import javax.net.ssl.SSLContext
+import org.jboss.netty.channel.socket.nio.{ NioWorkerPool, NioSocketChannel, NioWorker, NioClientSocketChannelFactory }
+import java.nio.channels.{ ClosedChannelException, SocketChannel, SelectionKey }
+import org.jboss.netty.channel.ReceiveBufferSizePredictor
+import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBufferFactory }
+import java.nio.ByteBuffer
+import org.jboss.netty.channel.Channels._
+import scala.Some
+import com.typesafe.scalalogging.slf4j.Logging
+import java.util.concurrent.Executor
 
 /**
  *
@@ -38,7 +48,7 @@ import com.lifecosys.toolkit.logging.Logger
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    System.setProperty("javax.net.debug", "all")
+    //    System.setProperty("javax.net.debug", "all")
     Utils.installJCEPolicy
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
     Security.addProvider(new BouncyCastleProvider)
@@ -48,6 +58,19 @@ object ProxyServerLauncher {
       new GFWProgrammaticCertificationProxyConfig(Some(config))
     else
       new ProgrammaticCertificationProxyConfig(Some(config))
-    ProxyServer(proxyConfig).start
+    //    ProxyServer(proxyConfig).start
+
+    val c = new ProgrammaticCertificationProxyConfig(Some(config)) {
+      lazy override val clientSSLContext: SSLContext = Utils.trustAllSSLContext
+      val pool: NioWorkerPool = new NioWorkerPool(clientExecutor, 10) {
+        override def newWorker(executor: Executor): NioWorker = {
+          new NioWorker(executor, null)
+        }
+      }
+      override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, 1, pool)
+    }
+    ProxyServer(c).start
   }
+
 }
+

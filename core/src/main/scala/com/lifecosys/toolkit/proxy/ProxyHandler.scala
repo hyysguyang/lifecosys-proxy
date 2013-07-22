@@ -35,45 +35,23 @@ import org.apache.commons.io.IOUtils
  * @version 1.0 1/1/13 5:54 PM
  */
 
-class ProxyHandler(implicit proxyConfig: ProxyConfig)
+abstract class BaseRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends SimpleChannelUpstreamHandler with Logging {
 
+  def writeResponse(writeListener: ChannelFutureListener)(msg: Any) =
+    if (relayingChannel.isConnected) relayingChannel.write(msg) addListener writeListener
+
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug(s"${e.getChannel} receive message\n${Utils.formatMessage(e.getMessage)}")
-
-    require(e.getMessage.isInstanceOf[HttpRequest], "Unsupported Request..........")
-    val httpRequest = e.getMessage.asInstanceOf[HttpRequest]
-
-    implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
-
-    val requestProcessor = connectHost.serverType match {
-      case WebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new WebProxyHttpsRequestProcessor(httpRequest, ctx)
-      case WebProxyType ⇒ new WebProxyHttpRequestProcessor(httpRequest, ctx)
-      case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx)
-      case other ⇒ new DefaultHttpRequestProcessor(httpRequest, ctx)
-    }
-
-    requestProcessor process
-
+    logger.debug(s"############${e.getChannel} receive message###############\n ${Utils.formatMessage(e.getMessage)}")
+    processMessage(ctx, e)
   }
+
+  def processMessage(ctx: ChannelHandlerContext, e: MessageEvent)
 
   override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug("New channel opened: %s".format(e.getChannel))
+    val ch: Channel = e.getChannel
+    logger.debug("CONNECT channel opened on: %s".format(ch))
     //    proxyConfig.allChannels.add(e.getChannel)
-    super.channelOpen(ctx, e)
-
-  }
-
-  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug("Got closed event on : %s".format(e.getChannel))
-  }
-
-  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
-    e.getCause match {
-      case closeException: ClosedChannelException ⇒ //Just ignore it
-      case exception                              ⇒ Utils.closeChannel(e.getChannel)
-    }
   }
 }
 
@@ -130,26 +108,6 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
       case closeException: ClosedChannelException ⇒ //Just ignore it
       case exception                              ⇒ Utils.closeChannel(e.getChannel)
     }
-  }
-}
-
-abstract class BaseRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends SimpleChannelUpstreamHandler with Logging {
-
-  def writeResponse(writeListener: ChannelFutureListener)(msg: Any) =
-    if (relayingChannel.isConnected) relayingChannel.write(msg) addListener writeListener
-
-  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug(s"############${e.getChannel} receive message###############\n ${Utils.formatMessage(e.getMessage)}")
-    processMessage(ctx, e)
-  }
-
-  def processMessage(ctx: ChannelHandlerContext, e: MessageEvent)
-
-  override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    val ch: Channel = e.getChannel
-    logger.debug("CONNECT channel opened on: %s".format(ch))
-    //    proxyConfig.allChannels.add(e.getChannel)
   }
 }
 

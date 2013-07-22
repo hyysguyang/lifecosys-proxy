@@ -17,7 +17,7 @@ import java.nio.ByteBuffer
 /**
  *
  *
- * @author Young GuP
+ * @author Young Gu
  * @version 1.0 6/21/13 10:28 AM
  */
 trait ChannelManager {

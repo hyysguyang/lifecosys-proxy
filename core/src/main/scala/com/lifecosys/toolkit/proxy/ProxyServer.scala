@@ -31,6 +31,7 @@ import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
 import com.typesafe.scalalogging.slf4j.Logging
+import java.nio.channels.ClosedChannelException
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -93,7 +94,7 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyServer-proxyHandler", new ProxyHandler)
+    pipeline.addLast("proxyServer-proxyHandler", new ProxyRequestHandler)
   }
 
   def shutdown = {
@@ -144,3 +145,46 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
     logger.info("Proxy server started on " + proxyConfig.port)
   }
 }
+
+class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
+    extends SimpleChannelUpstreamHandler with Logging {
+
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    logger.debug(s"${e.getChannel} receive message\n${Utils.formatMessage(e.getMessage)}")
+
+    require(e.getMessage.isInstanceOf[HttpRequest], "Unsupported Request..........")
+    val httpRequest = e.getMessage.asInstanceOf[HttpRequest]
+
+    implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
+
+    val requestProcessor = connectHost.serverType match {
+      case WebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new WebProxyHttpsRequestProcessor(httpRequest, ctx)
+      case WebProxyType ⇒ new WebProxyHttpRequestProcessor(httpRequest, ctx)
+      case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx)
+      case other ⇒ new DefaultHttpRequestProcessor(httpRequest, ctx)
+    }
+
+    requestProcessor process
+
+  }
+
+  override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    logger.debug("New channel opened: %s".format(e.getChannel))
+    //    proxyConfig.allChannels.add(e.getChannel)
+    super.channelOpen(ctx, e)
+
+  }
+
+  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    logger.debug("Got closed event on : %s".format(e.getChannel))
+  }
+
+  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
+    e.getCause match {
+      case closeException: ClosedChannelException ⇒ //Just ignore it
+      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+    }
+  }
+}
+

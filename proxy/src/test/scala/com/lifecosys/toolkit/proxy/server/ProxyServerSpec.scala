@@ -1,7 +1,6 @@
 package com.lifecosys.toolkit.proxy.server
 
-import com.lifecosys.toolkit.proxy.server.ProxyServerLauncher
-import com.lifecosys.toolkit.proxy.{ ProxyServer, ProgrammaticCertificationProxyConfig, GFWProgrammaticCertificationProxyConfig, Utils }
+import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
 import java.security.Security
 import org.apache.commons.io.IOUtils
@@ -15,6 +14,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import org.junit.{ BeforeClass, Assert, Test }
 import org.scalatest._
+import scala.Some
 
 /**
  *

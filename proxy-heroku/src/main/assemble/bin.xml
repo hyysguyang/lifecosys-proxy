@@ -1,0 +1,80 @@
+<!--
+  ~ ===Begin Copyright Notice===
+  ~
+  ~ NOTICE
+  ~
+  ~ THIS SOFTWARE IS THE PROPERTY OF AND CONTAINS CONFIDENTIAL INFORMATION OF
+  ~ LIFECOSYS AND/OR ITS AFFILIATES OR SUBSIDIARIES AND SHALL NOT BE DISCLOSED
+  ~ WITHOUT PRIOR WRITTEN PERMISSION. LICENSED CUSTOMERS MAY COPY AND ADAPT
+  ~ THIS SOFTWARE FOR THEIR OWN USE IN ACCORDANCE WITH THE TERMS OF THEIR
+  ~ SOFTWARE LICENSE AGREEMENT. ALL OTHER RIGHTS RESERVED.
+  ~
+  ~ (c) COPYRIGHT 2013 LIFECOCYS. ALL RIGHTS RESERVED. THE WORD AND DESIGN
+  ~ MARKS SET FORTH HEREIN ARE TRADEMARKS AND/OR REGISTERED TRADEMARKS OF
+  ~ LIFECOSYS AND/OR ITS AFFILIATES AND SUBSIDIARIES. ALL RIGHTS RESERVED.
+  ~ ALL LIFECOSYS TRADEMARKS LISTED HEREIN ARE THE PROPERTY OF THEIR RESPECTIVE
+  ~ OWNERS.
+  ~
+  ~ ===End Copyright Notice===
+  -->
+
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0 http://maven.apache.org/xsd/assembly-1.1.0.xsd">
+    <id>bin</id>
+    <formats>
+        <format>tar.gz</format>
+        <format>tar.bz2</format>
+        <format>zip</format>
+    </formats>
+    <fileSets>
+        <fileSet>
+            <directory>${project.basedir}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>README*</include>
+                <include>LICENSE*</include>
+                <include>NOTICE*</include>
+                <include>COPYRIGHT*</include>
+                <include>*.txt</include>
+                <include>license/**</include>
+            </includes>
+        </fileSet>
+
+        <fileSet>
+            <directory>${project.build.directory}/appassembler/jsw/lifecosys-proxy</directory>
+            <outputDirectory>.</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.build.directory}/appassembler/bin</directory>
+            <outputDirectory>/bin</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/src/main/config</directory>
+            <outputDirectory>/conf</outputDirectory>
+        </fileSet>
+
+        <!--NOTE: a trick to create the logs directory to avoid the error when jsw write the pid file-->
+        <fileSet>
+            <directory>${project.build.directory}/appassembler/conf</directory>
+            <outputDirectory>/logs</outputDirectory>
+            <includes>
+                <include>readme.txt</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+
+
+    <dependencySets>
+        <dependencySet>
+            <outputDirectory>/lib</outputDirectory>
+            <!--<useTransitiveDependencies>false</useTransitiveDependencies>-->
+            <useProjectArtifact>false</useProjectArtifact>
+            <!--<includes>-->
+            <!--<include>*:</include>  &lt;!&ndash; however specific you need here &ndash;&gt;-->
+            <!--</includes>-->
+            <unpack>false</unpack>
+            <scope>runtime</scope>
+        </dependencySet>
+    </dependencySets>
+</assembly>

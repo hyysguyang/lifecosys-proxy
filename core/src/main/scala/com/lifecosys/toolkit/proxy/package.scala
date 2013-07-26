@@ -24,6 +24,7 @@ import org.jboss.netty.channel._
 import org.jboss.netty.util.HashedWheelTimer
 import collection.mutable
 import org.jboss.netty.bootstrap.ClientBootstrap
+import com.lifecosys.toolkit.ssl.DefaultEncryptor
 
 /**
  *
@@ -35,6 +36,8 @@ import org.jboss.netty.bootstrap.ClientBootstrap
 package object proxy {
   val timer = new HashedWheelTimer
   val hostToChannelFuture = mutable.Map[Host, Channel]()
+
+  val encryptor = new DefaultEncryptor
 
   implicit def channelPipelineInitializer(f: ChannelPipeline ⇒ Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
     def getPipeline: ChannelPipeline = {

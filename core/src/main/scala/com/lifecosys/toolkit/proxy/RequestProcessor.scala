@@ -43,8 +43,9 @@ import com.typesafe.scalalogging.slf4j.Logging
 
 trait RequestProcessor extends Logging {
   def process
-  val httpRequest: HttpRequest
-  val browserToProxyContext: ChannelHandlerContext
+  def httpRequestEncoder: HttpMessageEncoder
+  def httpRequest: HttpRequest
+  def browserToProxyContext: ChannelHandlerContext
 }
 
 abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost) extends RequestProcessor {
@@ -57,8 +58,6 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext:
   //Can't play online video since we send the full url for http request,
   // Exactly, we need use the relative url to access the remote server.
   if (!connectHost.needForward) httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
-
-  def httpRequestEncoder: HttpMessageEncoder
 
   def process {
     logger.debug(s"Process request with $connectHost")
@@ -175,10 +174,6 @@ abstract class HttpsRequestProcessor(request: HttpRequest, browserChannelContext
 
   implicit val browserToProxyContext = browserChannelContext
 
-  val httpRequestEncoder = connectHost.serverType match {
-    case WebProxyType ⇒ new WebProxyHttpRequestEncoder(connectHost, Host(request.getUri))
-    case _            ⇒ new HttpRequestEncoder()
-  }
   //  require(connectHost.serverType != WebProxyType, "Web proxy don't support HTTPS access.")
 
   val browserChannel = browserToProxyContext.getChannel
@@ -197,6 +192,8 @@ abstract class HttpsRequestProcessor(request: HttpRequest, browserChannelContext
 
 class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
     extends HttpsRequestProcessor(request, browserChannelContext) {
+
+  val httpRequestEncoder = new HttpRequestEncoder()
 
   protected def connect {
     logger.debug("Starting new connection to: %s".format(connectHost.host))
@@ -293,6 +290,8 @@ class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannelContext:
     extends HttpsRequestProcessor(request, browserChannelContext) {
 
   browserChannelContext.getChannel.setAttachment(HttpsState)
+
+  val httpRequestEncoder = new WebProxyHttpRequestEncoder(connectHost, Host(request.getUri))
 
   protected def connect {
     val pipeline = browserToProxyContext.getChannel.getPipeline

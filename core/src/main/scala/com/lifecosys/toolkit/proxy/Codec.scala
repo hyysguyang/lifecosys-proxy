@@ -32,6 +32,7 @@ import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
+import java.util.zip.Deflater
 
 /**
  *
@@ -110,14 +111,21 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
   val browserChannel = browserChannelContext.getChannel
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
+    def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
+      val encrypt: Array[Byte] = encryptor.encrypt(content.array())
+      val compressedData = Utils.deflate(encrypt, Deflater.BEST_COMPRESSION)
+      val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
+      wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
+      wrappedRequest.setContent(encryptedBuffer)
+    }
     val toBeSentMessage = msg match {
       case request: HttpRequest ⇒ { //TODO:Maybe we can remove this since we should only receive channel buffer
         val encodedProxyRequest = super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
         logger.debug("Encoded proxy request:\n" + IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(encodedProxyRequest))))
         val wrappedRequest = createWrappedRequest
         wrappedRequest.setHeader("proxyRequestMethod", request.getMethod)
-        wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encodedProxyRequest.readableBytes().toString)
-        wrappedRequest.setContent(encodedProxyRequest)
+
+        setContent(wrappedRequest, encodedProxyRequest)
         wrappedRequest
       }
       case buffer: ChannelBuffer ⇒
@@ -128,9 +136,13 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
         } else {
           wrappedRequest.setHeader("proxyRequestMethod", "HTTPS-DATA-TRANSFER")
         }
-        wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, buffer.readableBytes().toString)
-        wrappedRequest.setContent(buffer)
-
+        //        val encrypt: Array[Byte] = encryptor.encrypt(buffer.array())
+        //        val compressedData = Utils.deflate(encrypt, Deflater.BEST_COMPRESSION)
+        //        val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
+        //        wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
+        //        wrappedRequest.setContent(encryptedBuffer)
+        //        wrappedRequest
+        setContent(wrappedRequest, buffer)
         wrappedRequest
       case e ⇒ e
     }

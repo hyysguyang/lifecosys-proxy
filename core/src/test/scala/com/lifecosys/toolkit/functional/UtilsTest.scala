@@ -40,6 +40,14 @@ import javax.net.ssl.{ X509TrustManager, SSLContext }
 import java.security.cert.X509Certificate
 import com.typesafe.config.ConfigFactory
 
+import java.security._
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import com.lifecosys.toolkit.proxy.Utils
+import org.scalatest.{ BeforeAndAfterAll, FeatureSpec }
+import java.util.zip.Deflater
+import org.apache.commons.io.IOUtils
+import java.security.spec.RSAPublicKeySpec
+
 /**
  *
  *
@@ -47,111 +55,105 @@ import com.typesafe.config.ConfigFactory
  * @version 1.0 12/19/12 4:58 PM
  */
 
-class UtilsTest {
+class UtilsTest extends FeatureSpec with BeforeAndAfterAll {
 
-  Security.addProvider(new BouncyCastleProvider)
-
-  def createStubSSLClientContext = {
-    val clientContext = SSLContext.getInstance("TLS")
-    clientContext.init(null, Array(new X509TrustManager {
-      def getAcceptedIssuers: Array[X509Certificate] = {
-        return new Array[X509Certificate](0)
-      }
-
-      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all client" + chain(0).getSubjectDN)
-      }
-
-      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all server" + chain(0).getSubjectDN)
-      }
-    }), null)
-
-    clientContext
+  override protected def beforeAll() {
+    Utils.installJCEPolicy
+    Security.insertProviderAt(new BouncyCastleProvider, 1)
   }
 
-  @Test
-  def investigation {
-
-    val httpClient = HttpClients.custom()
-      .setSSLSocketFactory(new SSLSocketFactory(createStubSSLClientContext))
-      .setProxy(new HttpHost("localhost", 8080))
-      .build()
-
-    //    val client = new HttpPost("http://localhost:8080/proxy")
-    //    client.setEntity(new ByteArrayEntity("This is just a test".getBytes(),ContentType.APPLICATION_OCTET_STREAM))
-    //    Request.Put("http://localhost:8080/proxy").bodyByteArray("This is just a test".getBytes()).execute.returnContent.toString
-    //    Assert.assertTrue(new GFWListJava().isBlockedByGFW("http://facebook.com"))
-
-    val string = IOUtils.toString(httpClient.execute(new HttpGet("https://developer.apple.com/")).getEntity.getContent)
-    //    val string = IOUtils.toString(httpClient.execute(new HttpGet("http://stackoverflow.com/questions/5206010/using-apache-httpclient-for-https")).getEntity.getContent)
-    //    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-    println(string)
-    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-    //    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-  }
-
-  @Test
-  def testGenerateHexKeySpec {
-    Security.addProvider(new BouncyCastleProvider)
-
-    val keyPairGenerator: KeyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC")
-    keyPairGenerator.initialize(64)
-    val keyPair: KeyPair = keyPairGenerator.generateKeyPair
-
-    val keyFactory = KeyFactory.getInstance("RSA", "BC")
-    val publicKeySpec = keyFactory.getKeySpec(keyPair.getPublic, classOf[RSAPublicKeySpec])
-    val privateKeySpec = keyFactory.getKeySpec(keyPair.getPrivate, classOf[RSAPrivateCrtKeySpec])
-
-    val actualPublicKeySpec = new RSAPublicKeySpec(new BigInteger(Utils.toHex(publicKeySpec.getModulus.toByteArray), 16), new BigInteger(Utils.toHex(publicKeySpec.getPublicExponent.toByteArray), 16))
-    val actualPrivateSpec = new RSAPrivateCrtKeySpec(
-      new BigInteger(Utils.toHex(privateKeySpec.getModulus.toByteArray), 16),
-      new BigInteger(Utils.toHex(privateKeySpec.getPublicExponent.toByteArray), 16),
-      new BigInteger(Utils.toHex(privateKeySpec.getPrivateExponent.toByteArray), 16),
-      new BigInteger(Utils.toHex(privateKeySpec.getPrimeP.toByteArray), 16),
-      new BigInteger(Utils.toHex(privateKeySpec.getPrimeQ.toByteArray), 16),
-      new BigInteger(Utils.toHex(privateKeySpec.getPrimeExponentP.toByteArray), 16),
-      new BigInteger(Utils.toHex(privateKeySpec.getPrimeExponentQ.toByteArray), 16),
-      new BigInteger(Utils.toHex(privateKeySpec.getCrtCoefficient.toByteArray), 16))
-    Assert.assertTrue(keyPair.getPublic == keyFactory.generatePublic(actualPublicKeySpec))
-    Assert.assertTrue(keyPair.getPrivate == keyFactory.generatePrivate(actualPrivateSpec))
-
-  }
-
-  @Test
-  def testParseHost {
-    var host = Utils.extractHost("http://127.0.0.1:8990/")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = Utils.extractHost("https://127.0.0.1:8990/")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = Utils.extractHost("127.0.0.1:8990/")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = Utils.extractHost("127.0.0.1:8990")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 8990), host)
-
-    host = Utils.extractHost("127.0.0.1")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
-
-    host = Utils.extractHost("127.0.0.1/test/sss/tyty/8989")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
-
-    host = Utils.extractHost("127.0.0.1/test/sss/tyty/89:89")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
-
-    host = Utils.extractHost("127.0.0.1//test/hello/index.html")
-    Assert.assertEquals(new InetSocketAddress("127.0.0.1", 80), host)
-
-    host = Utils.extractHost("http://download-ln.jetbrains.com/idea/ideaIC-12.0.1.tar.gz")
-    Assert.assertEquals(new InetSocketAddress("download-ln.jetbrains.com", 80), host)
-
-    try {
-      Utils.extractHost("127.0.0.1:899000")
-    } catch {
-      case e: Exception ⇒ Assert.assertTrue(true)
+  feature("Compress data") {
+    scenario(" should compress/decompress data") {
+      val data = IOUtils.toString(getClass.getResourceAsStream("/com/lifecosys/toolkit/functional/test_deflate_data.html"))
+      val compressData = Utils.deflate(data.getBytes(Utils.UTF8), Deflater.BEST_COMPRESSION)
+      val decompressData = Utils.inflate(compressData)
+      assert(data.getBytes().length > compressData.length)
+      assert(data == new String(decompressData))
     }
   }
+
+  //  @Test
+  //  def investigation {
+  //    val httpClient = HttpClients.custom()
+  //      .setSSLSocketFactory(new SSLSocketFactory(Utils.trustAllSSLContext))
+  //      .setProxy(new HttpHost("localhost", 8080))
+  //      .build()
+  //
+  //    //    val client = new HttpPost("http://localhost:8080/proxy")
+  //    //    client.setEntity(new ByteArrayEntity("This is just a test".getBytes(),ContentType.APPLICATION_OCTET_STREAM))
+  //    //    Request.Put("http://localhost:8080/proxy").bodyByteArray("This is just a test".getBytes()).execute.returnContent.toString
+  //    //    Assert.assertTrue(new GFWListJava().isBlockedByGFW("http://facebook.com"))
+  //
+  //    val string = IOUtils.toString(httpClient.execute(new HttpGet("https://developer.apple.com/")).getEntity.getContent)
+  //    //    val string = IOUtils.toString(httpClient.execute(new HttpGet("http://stackoverflow.com/questions/5206010/using-apache-httpclient-for-https")).getEntity.getContent)
+  //    //    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+  //    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+  //    println(string)
+  //    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+  //    //    println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+  //
+  //  }
+
+  feature("Generate Hex KeySpec") {
+    scenario(" should generate correct hex key") {
+      val keyPairGenerator: KeyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC")
+      keyPairGenerator.initialize(64)
+      val keyPair: KeyPair = keyPairGenerator.generateKeyPair
+
+      val keyFactory = KeyFactory.getInstance("RSA", "BC")
+      val publicKeySpec = keyFactory.getKeySpec(keyPair.getPublic, classOf[RSAPublicKeySpec])
+      val privateKeySpec = keyFactory.getKeySpec(keyPair.getPrivate, classOf[RSAPrivateCrtKeySpec])
+
+      val actualPublicKeySpec = new RSAPublicKeySpec(new BigInteger(Utils.toHex(publicKeySpec.getModulus.toByteArray), 16), new BigInteger(Utils.toHex(publicKeySpec.getPublicExponent.toByteArray), 16))
+      val actualPrivateSpec = new RSAPrivateCrtKeySpec(
+        new BigInteger(Utils.toHex(privateKeySpec.getModulus.toByteArray), 16),
+        new BigInteger(Utils.toHex(privateKeySpec.getPublicExponent.toByteArray), 16),
+        new BigInteger(Utils.toHex(privateKeySpec.getPrivateExponent.toByteArray), 16),
+        new BigInteger(Utils.toHex(privateKeySpec.getPrimeP.toByteArray), 16),
+        new BigInteger(Utils.toHex(privateKeySpec.getPrimeQ.toByteArray), 16),
+        new BigInteger(Utils.toHex(privateKeySpec.getPrimeExponentP.toByteArray), 16),
+        new BigInteger(Utils.toHex(privateKeySpec.getPrimeExponentQ.toByteArray), 16),
+        new BigInteger(Utils.toHex(privateKeySpec.getCrtCoefficient.toByteArray), 16))
+      assert(keyPair.getPublic == keyFactory.generatePublic(actualPublicKeySpec))
+      assert(keyPair.getPrivate == keyFactory.generatePrivate(actualPrivateSpec))
+    }
+  }
+
+  feature("Parse host") {
+    scenario(" should parse all url") {
+      var host = Utils.extractHost("http://127.0.0.1:8990/")
+      assert(new InetSocketAddress("127.0.0.1", 8990) == host)
+
+      host = Utils.extractHost("https://127.0.0.1:8990/")
+      assert(new InetSocketAddress("127.0.0.1", 8990) == host)
+
+      host = Utils.extractHost("127.0.0.1:8990/")
+      assert(new InetSocketAddress("127.0.0.1", 8990) == host)
+
+      host = Utils.extractHost("127.0.0.1:8990")
+      assert(new InetSocketAddress("127.0.0.1", 8990) == host)
+
+      host = Utils.extractHost("127.0.0.1")
+      assert(new InetSocketAddress("127.0.0.1", 80) == host)
+
+      host = Utils.extractHost("127.0.0.1/test/sss/tyty/8989")
+      assert(new InetSocketAddress("127.0.0.1", 80) == host)
+
+      host = Utils.extractHost("127.0.0.1/test/sss/tyty/89:89")
+      assert(new InetSocketAddress("127.0.0.1", 80) == host)
+
+      host = Utils.extractHost("127.0.0.1//test/hello/index.html")
+      assert(new InetSocketAddress("127.0.0.1", 80) == host)
+
+      host = Utils.extractHost("http://download-ln.jetbrains.com/idea/ideaIC-12.0.1.tar.gz")
+      assert(new InetSocketAddress("download-ln.jetbrains.com", 80) == host)
+
+      try {
+        Utils.extractHost("127.0.0.1:899000")
+      } catch {
+        case e: Exception ⇒ Assert.assertTrue(true)
+      }
+    }
+  }
+
 }

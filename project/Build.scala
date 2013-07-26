@@ -19,7 +19,7 @@ object LifecosysToolkitBuild extends Build {
   // -------------------------------------------------------------------------------------------------------------------
 
   lazy val root = Project("lifecosys-toolkit", file("."))
-    .aggregate(core, proxy,proxyWeb,android)
+    .aggregate(core, proxy,proxyHeroku,proxyWeb,android)
     .settings(basicSettings: _*)
     .settings(noPublishing: _*)
 
@@ -35,10 +35,23 @@ object LifecosysToolkitBuild extends Build {
       test(junit, scalatest)
   )
 
+  import akka.sbt.AkkaKernelPlugin
+  import akka.sbt.AkkaKernelPlugin._
   lazy val proxy = Project("Proxy", file("proxy"))
     .dependsOn(core)
     .settings(moduleSettings: _*)
+    .settings((AkkaKernelPlugin.distSettings ++ Seq(distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher" )):_*)
     .settings(libraryDependencies ++=test(junit, scalatest))
+
+
+  import com.typesafe.startscript.StartScriptPlugin
+  lazy val proxyHeroku = Project("ProxyHeroku", file("proxy-heroku"))
+    .dependsOn(core)
+    .settings(moduleSettings: _*)
+    .settings(StartScriptPlugin.startScriptForClassesSettings: _*)
+    .settings(libraryDependencies ++=test(junit, scalatest))
+    .settings( mainClass in Compile := Some("com.lifecosys.toolkit.proxy.ProxyServerLauncher"))
+
 
   lazy val proxyWeb = Project("ProxyWeb", file("proxy-web"))
     .dependsOn(core)

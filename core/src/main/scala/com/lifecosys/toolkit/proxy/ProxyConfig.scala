@@ -96,8 +96,13 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
       val server = hostConfig.atKey("server")
       ProxyHost(Host(server.getString("server.host")), ProxyType(server.getString("server.type")))
     }
-    val proxyList = thisConfig.getValue("chain-proxy").asInstanceOf[ConfigList].map(createProxyHost _).toSet.toList
-    mutable.ArrayBuffer[ProxyHost](proxyList: _*)
+
+    val chainProxy: ConfigValue = thisConfig.getValue("chain-proxy")
+    if (chainProxy.isInstanceOf[ConfigList]) {
+      val proxyList = chainProxy.asInstanceOf[ConfigList].map(createProxyHost _).toSet.toList
+      mutable.ArrayBuffer[ProxyHost](proxyList: _*)
+    } else mutable.ArrayBuffer[ProxyHost]()
+
   }
 
   lazy override val serverSSLContext = sslManger.getServerSSLContext

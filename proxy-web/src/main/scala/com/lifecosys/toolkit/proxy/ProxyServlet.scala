@@ -13,6 +13,10 @@ import org.apache.commons.lang3.StringUtils
 import java.net.Socket
 import java.nio.channels.ClosedChannelException
 import java.nio.ByteBuffer
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import javax.servlet.ServletConfig
+import com.typesafe.config.ConfigFactory
 
 /**
  *
@@ -276,9 +280,16 @@ class HttpOutboundHandler(var servletResponse: HttpServletResponse) extends Simp
 }
 object ProxyServlet {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+  Utils.installJCEPolicy
+  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+  Security.addProvider(new BouncyCastleProvider)
 }
 
 class ProxyServlet extends HttpServlet with Logging {
+  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+  Utils.installJCEPolicy
+  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+  Security.addProvider(new BouncyCastleProvider)
   val channelManager = new ChannelManager {}
   val executor = Executors.newCachedThreadPool()
 
@@ -289,6 +300,14 @@ class ProxyServlet extends HttpServlet with Logging {
   }
   val clientSocketChannelFactory = new NioClientSocketChannelFactory(executor, 1, pool)
 
+//
+//  override def init(servletConfig: ServletConfig) {
+//    val config = ConfigFactory.load()
+//    val proxyConfig=new ProgrammaticCertificationProxyConfig(Some(config))
+//    servletConfig.getServletContext.setAttribute("proxyConfig",proxyConfig)
+//  }
+
+
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
     if (StringUtils.isEmpty(request.getRequestedSessionId) && request.getSession(false) == null) {
       request.getSession(true)
@@ -297,11 +316,19 @@ class ProxyServlet extends HttpServlet with Logging {
 
     require(StringUtils.isNotEmpty(request.getSession.getId), "Session have not been created, server error.")
 
-    val proxyRequestChannelBuffer = ChannelBuffers.dynamicBuffer(512)
-    val bufferStream = new ChannelBufferOutputStream(proxyRequestChannelBuffer)
-    IOUtils.copy(request.getInputStream, bufferStream)
-    IOUtils.closeQuietly(bufferStream)
+    val compressedData: Array[Byte] = IOUtils.toByteArray(request.getInputStream)
+    val data: Array[Byte] =Utils.inflate(compressedData)
 
+    val encryptedProxyRequest=data
+
+//    val encryptedProxyRequestChannelBuffer = ChannelBuffers.dynamicBuffer(512)
+//    val bufferStream = new ChannelBufferOutputStream(encryptedProxyRequestChannelBuffer)
+//    IOUtils.copy(request.getInputStream, bufferStream)
+//    IOUtils.closeQuietly(bufferStream)
+
+    logger.debug(s"Encrypted proxy request:${Utils.hexDumpToString(encryptedProxyRequest)}")
+    Utils.installJCEPolicy
+    val proxyRequestChannelBuffer = ChannelBuffers.wrappedBuffer(encryptor.decrypt(encryptedProxyRequest))
     logger.debug(s"############Process payload ###############\n${Utils.formatMessage(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))}")
 
     val proxyHost = Host(request.getHeader("proxyHost"))

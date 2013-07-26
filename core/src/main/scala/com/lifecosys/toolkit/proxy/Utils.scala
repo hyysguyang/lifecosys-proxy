@@ -21,7 +21,7 @@
 package com.lifecosys.toolkit.proxy
 
 import java.security.spec.{ RSAPrivateCrtKeySpec, RSAPublicKeySpec }
-import java.security.{ KeyPairGenerator, Security, KeyFactory }
+import java.security.{ SecureRandom, KeyPairGenerator, Security, KeyFactory }
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.net.{ URL, InetSocketAddress }
 import java.util.regex.Pattern
@@ -117,14 +117,63 @@ object Utils {
   def hexDumpToString(bytes: Array[Byte]): String = {
     if (bytes.length > 0) {
       //    val splitLine="-------------------------------------------------------------------------\n"
-      val splitLine = "#########################################################################"
+      val splitLine = "##################################################################"
       val output = new ByteArrayOutputStream()
       HexDump.dump(bytes, bytes.length, output, 0)
-      splitLine + "\n" + IOUtils.toString(new ByteArrayInputStream(output.toByteArray)) + splitLine
+      splitLine + s"Length: ${bytes.length}\n" + IOUtils.toString(new ByteArrayInputStream(output.toByteArray)) + splitLine
     } else {
       "##############################EMPTY BUFFER###############################"
     }
 
+  }
+
+  import java.io.{ ObjectInputStream, ObjectOutputStream, ByteArrayInputStream, ByteArrayOutputStream }
+  import java.util.zip.{ Deflater, Inflater }
+
+  def deflate(in: Array[Byte], compressionLevel: Int): Array[Byte] = {
+    val compresser = new Deflater(compressionLevel)
+    compresser.setInput(in)
+    compresser.finish()
+    val buf = new Array[Byte](1024)
+    val out = new scala.collection.mutable.ArrayBuffer[Byte]()
+    while (!compresser.finished) {
+      val count = compresser.deflate(buf)
+      out ++= java.util.Arrays.copyOfRange(buf, 0, count)
+    }
+    out.toArray
+  }
+
+  def inflate(in: Array[Byte]): Array[Byte] = {
+    val decompresser = new Inflater()
+    decompresser.setInput(in)
+    val buf = new Array[Byte](1024)
+    val out = new scala.collection.mutable.ArrayBuffer[Byte]()
+    while (!decompresser.finished) {
+      val count = decompresser.inflate(buf)
+      out ++= java.util.Arrays.copyOfRange(buf, 0, count)
+    }
+    out.toArray
+  }
+
+  def serialize(obj: Any): Array[Byte] = {
+    val baos = new ByteArrayOutputStream
+    val oos = new ObjectOutputStream(baos)
+    try {
+      oos.writeObject(obj)
+    } finally {
+      oos.close()
+    }
+    baos.toByteArray
+  }
+
+  def deserialize[T](ba: Array[Byte]): T = {
+    val bais = new ByteArrayInputStream(ba)
+    val ois = new ObjectInputStream(bais)
+    try {
+      ois.readObject.asInstanceOf[T]
+    } finally {
+      ois.close()
+    }
   }
 
   /**
@@ -171,6 +220,9 @@ object Utils {
   }
 
   def main(args: Array[String]) {
+
+    println(new SecureRandom().generateSeed(64).mkString(","))
+
     Security.addProvider(new BouncyCastleProvider());
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC");
     keyPairGenerator.initialize(2048);

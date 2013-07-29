@@ -38,7 +38,7 @@ case object WebProxyType extends ProxyType
 case class ProxyHost(host: Host, serverType: ProxyType = DefaultProxyType)
 case class ConnectHost(host: Host, needForward: Boolean, serverType: ProxyType = NoneProxyType)
 
-case class ChannelKey(sessionId: String, host: Host)
+case class ChannelKey(sessionId: String, proxyHost: Host)
 
 trait HttpsPhase
 case object Connect extends HttpsPhase
@@ -53,3 +53,12 @@ case class DataHolder(length: Int, var buffer: ChannelBuffer) {
   def ready = buffer.readableBytes() >= length
   def contentLength = Math.max(length, buffer.readableBytes())
 }
+
+case class Header(name: String)
+object ResponseCompleted extends Header("X-PRC")
+object ProxyHostHeader extends Header("X-PH")
+object ProxyRequestType extends Header("X-PRT")
+
+case class RequestType(value: Byte)
+object HTTP extends RequestType(0)
+object HTTPS extends RequestType(1)

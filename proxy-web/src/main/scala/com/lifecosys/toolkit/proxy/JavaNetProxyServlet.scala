@@ -49,7 +49,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
 
     logger.debug(s"############Process payload ###############\n${Utils.formatMessage(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))}")
 
-    val proxyHost = Host(request.getHeader("proxyHost"))
+    val proxyHost = Host(request.getHeader(ProxyHostHeader.name))
     val channelKey: ChannelKey = ChannelKey(request.getSession.getId, proxyHost)
 
     if (HttpMethod.CONNECT.getName != request.getHeader("proxyRequestMethod") && "HTTPS-DATA-TRANSFER" != request.getHeader("proxyRequestMethod")) {
@@ -64,7 +64,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
         socket.connect(proxyHost.socketAddress, 30 * 1000)
         request.getSession(false).setAttribute("socket", socket)
         response.setContentType("application/octet-stream")
-        response.setHeader("response-completed", "true")
+        response.setHeader(ResponseCompleted.name, "true")
         response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
         response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
         response.getOutputStream.flush()
@@ -154,7 +154,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
         if (socket.isConnected) {
           response.setStatus(200)
           response.setContentType("application/octet-stream")
-          response.setHeader("response-completed", "true")
+          response.setHeader(ResponseCompleted.name, "true")
           response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
           response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
           response.getOutputStream.flush()
@@ -196,7 +196,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
           //            logger.error(s"Receive message ${Utils.hexDumpToString(responseData)}")
           //            response.setContentLength(responseData.length)
           //            response.setStatus(HttpServletResponse.SC_OK)
-          //            response.setHeader("response-completed", "true")
+          //            response.setHeader(ResponseCompleted.name, "true")
           //            response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
           //            response.getOutputStream.write(responseData)
           //            response.getOutputStream.flush()
@@ -234,7 +234,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
       }
       response.setContentLength(total)
       response.setStatus(HttpServletResponse.SC_OK)
-      response.setHeader("response-completed", "true")
+      response.setHeader(ResponseCompleted.name, "true")
       response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
       response.getOutputStream.flush()
 
@@ -249,7 +249,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
       //      channel.getPipeline.get(classOf[HttpOutboundHandler]).servletResponse = response
       //      if (channel.isConnected) {
       //        response.setStatus(HttpServletResponse.SC_OK)
-      //        response.setHeader("response-completed", "false")
+      //        response.setHeader(ResponseCompleted.name, "false")
       //        response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
       //        response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED)
       //        //        response.setHeader(HttpHeaders.Names.TRAILER, "checksum")
@@ -273,7 +273,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
   }
 
   def writeErrorResponse(response: HttpServletResponse) {
-    response.setHeader("response-completed", "true")
+    response.setHeader(ResponseCompleted.name, "true")
     response.setStatus(200)
     response.setContentType("application/octet-stream")
     response.setContentLength("HTTP/1.1 400 Can't establish connection\r\n\r\n".getBytes("UTF-8").length)

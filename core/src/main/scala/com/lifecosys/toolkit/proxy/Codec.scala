@@ -123,19 +123,13 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
         val encodedProxyRequest = super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
         logger.debug("Encoded proxy request:\n" + IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(encodedProxyRequest))))
         val wrappedRequest = createWrappedRequest
-        wrappedRequest.setHeader("proxyRequestMethod", request.getMethod)
-
+        //        wrappedRequest.setHeader(ProxyRequestType.name, HTTP.value)
         setContent(wrappedRequest, encodedProxyRequest)
         wrappedRequest
       }
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = createWrappedRequest
-        if (HttpMethod.CONNECT.getName.getBytes(Utils.UTF8).length == buffer.readableBytes() &&
-          HttpMethod.CONNECT.getName == IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(buffer)))) {
-          wrappedRequest.setHeader("proxyRequestMethod", HttpMethod.CONNECT)
-        } else {
-          wrappedRequest.setHeader("proxyRequestMethod", "HTTPS-DATA-TRANSFER")
-        }
+        wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
         //        val encrypt: Array[Byte] = encryptor.encrypt(buffer.array())
         //        val compressedData = Utils.deflate(encrypt, Deflater.BEST_COMPRESSION)
         //        val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
@@ -179,7 +173,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
       }
       case _ ⇒
     }
-    wrappedRequest.setHeader("proxyHost", proxyHost.toString)
+    wrappedRequest.setHeader(ProxyHostHeader.name, proxyHost.toString)
     wrappedRequest
   }
 }

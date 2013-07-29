@@ -172,7 +172,7 @@ class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig:
     def writeListener = (future: ChannelFuture) ⇒ {
       logger.debug(s"Write data to browser channel ${browserChannel} completed.")
       e.getMessage match { //Note:"response-completed" header should not be null, so we ignore to check it.
-        case response: HttpResponse if response.getHeader("response-completed").toBoolean ⇒ Utils.closeChannel(browserChannel)
+        case response: HttpResponse if response.getHeader(ResponseCompleted.name).toBoolean ⇒ Utils.closeChannel(browserChannel)
         case _ ⇒ //Just ignore it.
       }
     }
@@ -204,10 +204,11 @@ class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
     def writeListener = (future: ChannelFuture) ⇒ {
       e.getMessage match {
-        case response: HttpResponse if !response.isChunked && response.getHeader("response-completed").toBoolean ⇒ {
+        case response: HttpResponse if !response.isChunked && response.getHeader(ResponseCompleted.name).toBoolean ⇒ {
           //          Utils.channelFutures += Channels.succeededFuture(e.getChannel)
           //          Utils.closeChannel(browserChannel)
         }
+        case _ ⇒
       }
       logger.debug(s"Write data to browser channel ${browserChannel} completed.")
     }

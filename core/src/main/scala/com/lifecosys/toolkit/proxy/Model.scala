@@ -40,12 +40,30 @@ case class ConnectHost(host: Host, needForward: Boolean, serverType: ProxyType =
 
 case class ChannelKey(sessionId: String, proxyHost: Host)
 
-trait HttpsPhase
-case object Connect extends HttpsPhase
-case object ClientHello extends HttpsPhase
-case object ClientKeyExchange extends HttpsPhase
-case object Handshake extends HttpsPhase
-case object TransferData extends HttpsPhase
+trait HttpsPhase {
+  def move: HttpsPhase
+}
+case object Init extends HttpsPhase {
+  def move: HttpsPhase = Connect
+}
+case object Connect extends HttpsPhase {
+  def move: HttpsPhase = ClientHello
+}
+case object ClientHello extends HttpsPhase {
+  def move: HttpsPhase = ClientKeyExchange
+}
+case object ClientKeyExchange extends HttpsPhase {
+  def move: HttpsPhase = ClientFinish
+}
+case object ClientFinish extends HttpsPhase {
+  def move: HttpsPhase = ClientVerifyData
+}
+case object ClientVerifyData extends HttpsPhase {
+  def move: HttpsPhase = TransferData
+}
+case object TransferData extends HttpsPhase {
+  def move: HttpsPhase = throw new UnsupportedOperationException("TransferData phase can't move forward.")
+}
 
 case class HttpsState(sessionId: Option[Cookie] = None, var phase: HttpsPhase = Connect)
 

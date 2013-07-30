@@ -32,7 +32,7 @@ trait ChannelManager {
   def add(channelKey: ChannelKey, channel: Channel) = channels += channelKey -> channel
 }
 
-class HttpsOutboundHandler(var servletResponse: HttpServletResponse) extends SimpleChannelUpstreamHandler with Logging {
+class HttpsOutboundHandler(var servletResponse: HttpServletResponse = null) extends SimpleChannelUpstreamHandler with Logging {
 
   var data: Option[DataHolder] = None
 
@@ -349,114 +349,215 @@ class ProxyServlet extends HttpServlet with Logging {
     }
   }
 
-  val httpsProcessor: ProxyServlet.this.type#HttpsRequestProcessor = new HttpsRequestProcessor()
+  val httpsProcessor = new MultiTaskHttpsRequestProcessor()
   System.setProperty("javax.net.debug", "all")
 
   private[this] val sockets = scala.collection.mutable.Map[ChannelKey, Socket]()
 
-  class HttpsRequestProcessor {
+  trait RequestProcessor {
+    def process(channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer)(implicit request: HttpServletRequest, response: HttpServletResponse)
+  }
 
-    case class Message(request: HttpServletRequest, response: HttpServletResponse, proxyRequestChannelBuffer: ChannelBuffer)
+  case class Message(request: HttpServletRequest, response: HttpServletResponse, proxyRequestChannelBuffer: ChannelBuffer)
 
-    class Task(channelKey: ChannelKey) {
-      val messages = new scala.collection.mutable.SynchronizedQueue[Message]()
-      val handler = new HttpsOutboundHandler(null) {
-        override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-          releaseTask(channelKey)
-        }
-      }
-      val channel = {
-        logger.debug(s"Connecting to: ${channelKey.proxyHost}")
-        val clientBootstrap = newClientBootstrap
-        clientBootstrap.setFactory(clientSocketChannelFactory)
-        clientBootstrap.getPipeline.addLast("handler", handler)
-        val channelFuture = clientBootstrap.connect(channelKey.proxyHost.socketAddress).awaitUninterruptibly()
-        val channel: Channel = channelFuture.getChannel
-        //TODO:Update buffer size.
-        channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(1024 * 1024))
-        logger.debug(s"Connect to completed: ${channelKey.proxyHost}, status: ${channel.isConnected}")
-        channel
-      }
-
-      val isRunning = new AtomicBoolean()
-
-      def submit(message: Message) = {
-        logger.debug(s"Enqueue HTTPS request to task: $message")
-        messages += message
-        if (!isRunning.getAndSet(true)) {
-          executor.submit(new Runnable {
-            def run = {
-              while (!messages.isEmpty) {
-                val message = messages.dequeue()
-                logger.debug(s"Processing HTTPS request: $message, ${messages.size} pending...")
-                handler.servletResponse = message.response
-                if (channel.isConnected) {
-                  channel.write(ChannelBuffers.copiedBuffer(message.proxyRequestChannelBuffer))
-                } else {
-                  //todo: error process
-                  channel.close()
-                  releaseTask(channelKey)
-                  writeErrorResponse(message.response)
-                }
-              }
-              isRunning.getAndSet(false)
-            }
-          })
-        }
-
-      }
+  abstract class Task(channelKey: ChannelKey, handler: HttpsOutboundHandler) {
+    val channel = {
+      logger.debug(s"Connecting to: ${channelKey.proxyHost}")
+      val clientBootstrap = newClientBootstrap
+      clientBootstrap.setFactory(clientSocketChannelFactory)
+      clientBootstrap.getPipeline.addLast("handler", handler)
+      val channelFuture = clientBootstrap.connect(channelKey.proxyHost.socketAddress).awaitUninterruptibly()
+      val channel: Channel = channelFuture.getChannel
+      //TODO:Update buffer size.
+      channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(1024 * 1024))
+      logger.debug(s"Connect to completed: ${channelKey.proxyHost}, status: ${channel.isConnected}")
+      channel
     }
+    def submit(message: Message): Unit
+  }
 
+  abstract class BaseHttpsRequestProcessor extends RequestProcessor {
     val tasks = scala.collection.mutable.Map[ChannelKey, Task]()
+    def releaseTask(channelKey: ChannelKey)
+
+  }
+
+  class SimpleHttpsRequestProcessor extends BaseHttpsRequestProcessor {
 
     def processHttps(request: HttpServletRequest, response: HttpServletResponse, proxyHost: Host, channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer) {
 
-      def connect {
-        val task = new Task(channelKey)
-        tasks += channelKey -> task
+      channelManager.get(channelKey) match {
+        case Some(channel) ⇒ {
+          channel.getPipeline.get(classOf[HttpsOutboundHandler]).servletResponse = response
+          if (channel.isConnected) {
 
-        if (task.channel.isConnected) {
-          //          channelManager.add(channelKey, channel)
-          response.setStatus(200)
-          response.setContentType("application/octet-stream")
-          response.setHeader(ResponseCompleted.name, "true")
-          response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
-          response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
-          response.getOutputStream.flush()
-        } else {
-          //todo: error process
-          task.channel.close()
-          releaseTask(channelKey)
-          writeErrorResponse(response)
-        }
-      }
-      tasks.get(channelKey) match {
-        case Some(task) ⇒ {
-          if (task.channel.isConnected) {
             response.setStatus(HttpServletResponse.SC_OK)
             response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
             response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
             // Initiate chunked encoding by flushing the headers.
             response.getOutputStream.flush()
 
-            task.submit(Message(request, response, proxyRequestChannelBuffer))
+            channel.write(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))
           } else {
             //todo: error process
-            task.channel.close()
-            releaseTask(channelKey)
+            channel.close()
             writeErrorResponse(response)
           }
 
         }
         case None ⇒ {
-          return connect
+          val clientBootstrap = newClientBootstrap
+          clientBootstrap.setFactory(clientSocketChannelFactory)
+          clientBootstrap.getPipeline.addLast("handler", new HttpsOutboundHandler(response))
+          val channelFuture = clientBootstrap.connect(proxyHost.socketAddress).awaitUninterruptibly()
+          val channel: Channel = channelFuture.getChannel
+          //TODO:Update buffer size.
+          channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(1024 * 1024))
+          if (channelFuture.isSuccess() && channel.isConnected) {
+            channelManager.add(channelKey, channel)
+            response.setStatus(200)
+            response.setContentType("application/octet-stream")
+            response.setHeader("response-completed", "true")
+            response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
+            response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
+            response.getOutputStream.flush()
+            return
+          } else {
+            //todo: error process
+            channelFuture.getChannel.close()
+            writeErrorResponse(response)
+            return
+          }
+
         }
+      }
+
+      //      if (HttpMethod.CONNECT.getName == request.getHeader("proxyRequestMethod")) {
+      //        val clientBootstrap = newClientBootstrap
+      //        clientBootstrap.setFactory(clientSocketChannelFactory)
+      //        clientBootstrap.getPipeline.addLast("handler", new HttpsOutboundHandler(response))
+      //        val channelFuture = clientBootstrap.connect(proxyHost.socketAddress).awaitUninterruptibly()
+      //        val channel: Channel = channelFuture.getChannel
+      //        //TODO:Update buffer size.
+      //        channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(1024 * 1024))
+      //        if (channelFuture.isSuccess() && channel.isConnected) {
+      //          channelManager.add(channelKey, channel)
+      //          response.setStatus(200)
+      //          response.setContentType("application/octet-stream")
+      //          response.setHeader("response-completed", "true")
+      //          response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
+      //          response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
+      //          response.getOutputStream.flush()
+      //          return
+      //        } else {
+      //          //todo: error process
+      //          channelFuture.getChannel.close()
+      //          writeErrorResponse(response)
+      //          return
+      //        }
+      //
+      //      } else if ("HTTPS-DATA-TRANSFER" == request.getHeader("proxyRequestMethod")) {
+      //
+      //        val channel = channelManager.get(channelKey).get
+      //        channel.getPipeline.get(classOf[HttpsOutboundHandler]).servletResponse = response
+      //        if (channel.isConnected) {
+      //
+      //          response.setStatus(HttpServletResponse.SC_OK)
+      //          response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+      //          response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
+      //          // Initiate chunked encoding by flushing the headers.
+      //          response.getOutputStream.flush()
+      //
+      //          channel.write(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))
+      //        } else {
+      //          //todo: error process
+      //          channel.close()
+      //          writeErrorResponse(response)
+      //        }
+      //
+      //      }
+
+    }
+
+    def process(channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer)(implicit request: HttpServletRequest, response: HttpServletResponse) {}
+
+    def releaseTask(channelKey: ChannelKey) {}
+  }
+
+  class MultiTaskHttpsRequestProcessor extends BaseHttpsRequestProcessor {
+    def processHttps(request: HttpServletRequest, response: HttpServletResponse, proxyHost: Host, channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer) {
+      class QueuedTask(channelKey: ChannelKey, handler: HttpsOutboundHandler) extends Task(channelKey, handler) {
+        val isRunning = new AtomicBoolean()
+        val messages = new scala.collection.mutable.SynchronizedQueue[Message]()
+
+        def submit(message: Message) = channelConnected {
+          response.setStatus(HttpServletResponse.SC_OK)
+          response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+          response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
+          // Initiate chunked encoding by flushing the headers.
+          response.getOutputStream.flush()
+          process(message)
+        }
+
+        def process(message: Message) {
+          logger.debug(s"Enqueue HTTPS request to task: $message")
+          messages += message
+          if (!isRunning.get) {
+            isRunning.set(true)
+            executor.submit(new Runnable {
+              def run = {
+                while (!messages.isEmpty) {
+                  val message = messages.dequeue()
+                  logger.debug(s"Processing HTTPS request: $message, ${messages.size} pending...")
+                  handler.servletResponse = message.response
+                  channel.write(ChannelBuffers.copiedBuffer(message.proxyRequestChannelBuffer))
+                }
+                isRunning.set(false)
+              }
+            })
+          }
+        }
+
+        def channelConnected(processor: ⇒ Unit) = {
+          if (channel.isConnected) processor
+          else {
+            channel.close()
+            releaseTask(channelKey)
+            writeErrorResponse(response)
+          }
+        }
+
+      }
+
+      def handler = new HttpsOutboundHandler() {
+        override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+          releaseTask(channelKey)
+        }
+      }
+
+      def connect {
+        val task = new QueuedTask(channelKey, handler)
+        tasks += channelKey -> task
+        task channelConnected {
+          response.setStatus(200)
+          response.setContentType("application/octet-stream")
+          response.setHeader(ResponseCompleted.name, "true")
+          response.setContentLength(Utils.connectProxyResponse.getBytes("UTF-8").length)
+          response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
+          response.getOutputStream.flush()
+        }
+      }
+      tasks.get(channelKey) match {
+        case Some(task) ⇒ task.submit(Message(request, response, proxyRequestChannelBuffer))
+        case None       ⇒ connect
       }
     }
 
     def releaseTask(channelKey: ChannelKey) {
       tasks -= channelKey
     }
+
+    def process(channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer)(implicit request: HttpServletRequest, response: HttpServletResponse) {}
   }
 
   class HttpRequestProcessor(response: HttpServletResponse, proxyHost: Host, channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer) {

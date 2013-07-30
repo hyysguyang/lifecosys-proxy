@@ -137,6 +137,7 @@ class NetHttpsRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: Pr
     }
   }
 }
+case class State(jsessionid: Option[Cookie] = None, phase: HttpsPhase = Init)
 
 trait WebProxyRelayingHandler {
 
@@ -151,8 +152,10 @@ trait WebProxyRelayingHandler {
           import scala.collection.JavaConverters._
           val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
           val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
-          browserChannel.setAttachment(jsessionid)
-          //          browserChannel.setAttachment(HttpsState(jsessionid, ClientHello))
+          browserChannel.getAttachment match {
+            case State(_, phase) ⇒ browserChannel.setAttachment(State(jsessionid, phase))
+            case _               ⇒
+          }
         }
 
         write(response.getContent)

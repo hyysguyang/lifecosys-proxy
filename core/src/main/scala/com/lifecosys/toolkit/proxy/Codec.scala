@@ -112,6 +112,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
+      logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
       val encrypt: Array[Byte] = encryptor.encrypt(content.array())
       val compressedData = Utils.deflate(encrypt, Deflater.BEST_COMPRESSION)
       val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
@@ -166,7 +167,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     //
 
     browserChannel.getAttachment match {
-      case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
+      case State(Some(jsessionid), phase) ⇒ {
         val encoder = new CookieEncoder(false)
         encoder.addCookie(jsessionid.asInstanceOf[Cookie])
         wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, encoder.encode())

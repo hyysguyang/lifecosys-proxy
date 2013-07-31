@@ -29,7 +29,7 @@ trait BaseSpec extends FeatureSpec with BeforeAndAfterAll {
   def chainedProxyServer: Option[ProxyServer] = None
 
   override protected def beforeAll() {
-    Utils.installJCEPolicy
+    //    Utils.installJCEPolicy
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
     Security.addProvider(new BouncyCastleProvider)
     chainedProxyServer.foreach(_ start)

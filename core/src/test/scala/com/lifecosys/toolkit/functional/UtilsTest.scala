@@ -58,7 +58,6 @@ import java.security.spec.RSAPublicKeySpec
 class UtilsTest extends FeatureSpec with BeforeAndAfterAll {
 
   override protected def beforeAll() {
-    Utils.installJCEPolicy
     Security.insertProviderAt(new BouncyCastleProvider, 1)
   }
 

@@ -15,7 +15,6 @@ import com.lifecosys.toolkit.proxy.Utils
 class EncryptorTest extends FeatureSpec with BeforeAndAfterAll {
 
   override protected def beforeAll() {
-    Utils.installJCEPolicy
     Security.insertProviderAt(new BouncyCastleProvider, 1)
   }
 

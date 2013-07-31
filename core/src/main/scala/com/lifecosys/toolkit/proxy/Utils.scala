@@ -62,15 +62,6 @@ object Utils {
     standardEncryptor
   }
 
-  /**
-   * Just to avoid the security exception since we need strong encryption.
-   */
-  def installJCEPolicy {
-    val field = Class.forName("javax.crypto.JceSecurity").getDeclaredField("isRestricted")
-    field.setAccessible(true)
-    field.set(null, java.lang.Boolean.FALSE)
-  }
-
   def extractHostAndPort(uri: String) = {
 
     val trimmedUri = uri.trim

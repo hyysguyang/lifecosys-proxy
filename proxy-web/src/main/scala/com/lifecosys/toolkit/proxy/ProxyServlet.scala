@@ -284,14 +284,12 @@ class HttpOutboundHandler(var servletResponse: HttpServletResponse) extends Simp
 
 object ProxyServlet {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-  Utils.installJCEPolicy
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   Security.addProvider(new BouncyCastleProvider)
 }
 
 class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-  Utils.installJCEPolicy
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   Security.addProvider(new BouncyCastleProvider)
   val channelManager = new ChannelManager {}
@@ -329,7 +327,6 @@ class ProxyServlet extends HttpServlet with Logging {
     //    IOUtils.copy(request.getInputStream, bufferStream)
     //    IOUtils.closeQuietly(bufferStream)
     logger.debug(s"############Process payload ###############\n${Utils.hexDumpToString(encryptedProxyRequest)}")
-    Utils.installJCEPolicy
     val proxyRequestChannelBuffer = ChannelBuffers.wrappedBuffer(encryptor.decrypt(encryptedProxyRequest))
     logger.debug(s"Decrypted proxy request:${Utils.formatMessage(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))}")
 
@@ -491,11 +488,11 @@ class ProxyServlet extends HttpServlet with Logging {
         val messages = new scala.collection.mutable.SynchronizedQueue[Message]()
 
         def submit(message: Message) = channelConnected {
-          response.setStatus(HttpServletResponse.SC_OK)
-          response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
-          response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
+          message.response.setStatus(HttpServletResponse.SC_OK)
+          message.response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+          message.response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
           // Initiate chunked encoding by flushing the headers.
-          response.getOutputStream.flush()
+          message.response.getOutputStream.flush()
           process(message)
         }
 

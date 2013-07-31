@@ -37,7 +37,6 @@ object ProxyServerLauncher {
 
   def main(args: Array[String]) {
     //    System.setProperty("javax.net.debug", "all")
-    Utils.installJCEPolicy
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
     Security.addProvider(new BouncyCastleProvider)
 

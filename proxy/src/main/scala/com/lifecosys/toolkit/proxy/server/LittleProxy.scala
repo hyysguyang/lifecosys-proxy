@@ -15,7 +15,6 @@ import com.lifecosys.toolkit.logging.Logger
  * @version 1.0 6/6/13 3:46 PM
  */
 object LittleProxy {
-  Utils.installJCEPolicy
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   Security.addProvider(new BouncyCastleProvider)
 

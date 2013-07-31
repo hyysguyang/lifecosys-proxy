@@ -53,4 +53,7 @@ keytool -genkey -alias lifecosys-proxy-server -keysize 4096 -validity 3650 -keya
 
 
 
+Prerequisites:
+
+1. Install Unlimited JCE Policy for oracle jdk.
           

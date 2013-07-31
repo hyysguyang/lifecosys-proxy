@@ -48,7 +48,6 @@ object ProxyTestUtils {
 
   Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
 
-  Utils.installJCEPolicy
   Security.addProvider(new BouncyCastleProvider)
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
 

@@ -71,7 +71,7 @@ class JavaNetRelayingHandler(socket: Socket)(implicit proxyConfig: ProxyConfig)
         synchronized(phase -= phase.head)
       }
     } catch {
-      case e ⇒ e.printStackTrace()
+      case e: Throwable ⇒ e.printStackTrace()
     }
 
   }

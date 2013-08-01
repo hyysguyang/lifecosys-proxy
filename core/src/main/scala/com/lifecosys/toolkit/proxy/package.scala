@@ -34,6 +34,7 @@ import com.lifecosys.toolkit.ssl.DefaultEncryptor
  * @version 1.0 1/12/13 3:59 PM
  */
 package object proxy {
+  val DEFAULT_BUFFER_SIZE = 1024 * 8
   val timer = new HashedWheelTimer
   val hostToChannelFuture = mutable.Map[Host, Channel]()
 

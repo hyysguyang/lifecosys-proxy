@@ -205,7 +205,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
           //          }
 
         } catch {
-          case e ⇒ e.printStackTrace()
+          case e : Throwable⇒ e.printStackTrace()
         }
       }
 
@@ -227,7 +227,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
       output.flush()
 
       var total = 0
-      val buffer = new Array[Byte](1024)
+      val buffer = new Array[Byte](DEFAULT_BUFFER_SIZE)
       for (length ← Some(input.read(buffer)); if length > 0) {
         response.getOutputStream.write(buffer, 0, length)
         total += length

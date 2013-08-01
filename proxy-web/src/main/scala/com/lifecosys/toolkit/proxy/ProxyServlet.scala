@@ -318,14 +318,7 @@ class ProxyServlet extends HttpServlet with Logging {
     require(StringUtils.isNotEmpty(request.getSession.getId), "Session have not been created, server error.")
 
     val compressedData: Array[Byte] = IOUtils.toByteArray(request.getInputStream)
-    val data: Array[Byte] = Utils.inflate(compressedData)
-
-    val encryptedProxyRequest = data
-
-    //    val encryptedProxyRequestChannelBuffer = ChannelBuffers.dynamicBuffer(512)
-    //    val bufferStream = new ChannelBufferOutputStream(encryptedProxyRequestChannelBuffer)
-    //    IOUtils.copy(request.getInputStream, bufferStream)
-    //    IOUtils.closeQuietly(bufferStream)
+    val encryptedProxyRequest = Utils.inflate(compressedData)
     logger.debug(s"############Process payload ###############\n${Utils.hexDumpToString(encryptedProxyRequest)}")
     val proxyRequestChannelBuffer = ChannelBuffers.wrappedBuffer(encryptor.decrypt(encryptedProxyRequest))
     logger.debug(s"Decrypted proxy request:${Utils.formatMessage(ChannelBuffers.copiedBuffer(proxyRequestChannelBuffer))}")
@@ -337,7 +330,7 @@ class ProxyServlet extends HttpServlet with Logging {
     def requestType = try {
       RequestType(request.getHeader(ProxyRequestType.name).toByte)
     } catch {
-      case _ ⇒ HTTP
+      case e : Throwable ⇒ HTTP
     }
 
     requestType match {
@@ -366,7 +359,7 @@ class ProxyServlet extends HttpServlet with Logging {
       val channelFuture = clientBootstrap.connect(channelKey.proxyHost.socketAddress).awaitUninterruptibly()
       val channel: Channel = channelFuture.getChannel
       //TODO:Update buffer size.
-      channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(1024 * 1024))
+      channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(DEFAULT_BUFFER_SIZE))
       logger.debug(s"Connect to completed: ${channelKey.proxyHost}, status: ${channel.isConnected}")
       channel
     }
@@ -409,7 +402,7 @@ class ProxyServlet extends HttpServlet with Logging {
           val channelFuture = clientBootstrap.connect(proxyHost.socketAddress).awaitUninterruptibly()
           val channel: Channel = channelFuture.getChannel
           //TODO:Update buffer size.
-          channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(1024 * 1024))
+          channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(DEFAULT_BUFFER_SIZE))
           if (channelFuture.isSuccess() && channel.isConnected) {
             channelManager.add(channelKey, channel)
             response.setStatus(200)

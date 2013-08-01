@@ -42,7 +42,7 @@ import java.util.zip.Deflater
  * @version 1.0 1/1/13 5:50 PM
  */
 
-class InnerHttpChunkAggregator(maxContentLength: Int = 1024 * 128) extends HttpChunkAggregator(maxContentLength) {
+class InnerHttpChunkAggregator(maxContentLength: Int = DEFAULT_BUFFER_SIZE * 8) extends HttpChunkAggregator(maxContentLength) {
   var cumulatedThunk: Option[HttpChunk] = None
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
@@ -114,7 +114,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
       val encrypt: Array[Byte] = encryptor.encrypt(content.array())
-      val compressedData = Utils.deflate(encrypt, Deflater.BEST_COMPRESSION)
+      val compressedData = Utils.deflate(encrypt)
       val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
       wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
       wrappedRequest.setContent(encryptedBuffer)

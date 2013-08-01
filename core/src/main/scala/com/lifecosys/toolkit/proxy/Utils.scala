@@ -121,29 +121,32 @@ object Utils {
   import java.io.{ ObjectInputStream, ObjectOutputStream, ByteArrayInputStream, ByteArrayOutputStream }
   import java.util.zip.{ Deflater, Inflater }
 
-  def deflate(in: Array[Byte], compressionLevel: Int): Array[Byte] = {
-    val compresser = new Deflater(compressionLevel)
+  def deflate(in: Array[Byte]): Array[Byte] = {
+    val compresser = new Deflater(Deflater.BEST_COMPRESSION)
     compresser.setInput(in)
     compresser.finish()
-    val buf = new Array[Byte](1024)
-    val out = new scala.collection.mutable.ArrayBuffer[Byte]()
+    val buf = new Array[Byte](DEFAULT_BUFFER_SIZE)
+    val output = new ByteArrayOutputStream()
     while (!compresser.finished) {
       val count = compresser.deflate(buf)
-      out ++= java.util.Arrays.copyOfRange(buf, 0, count)
+      output.write(buf, 0, count)
     }
-    out.toArray
+    output.toByteArray
   }
 
   def inflate(in: Array[Byte]): Array[Byte] = {
     val decompresser = new Inflater()
     decompresser.setInput(in)
-    val buf = new Array[Byte](1024)
-    val out = new scala.collection.mutable.ArrayBuffer[Byte]()
+    if (decompresser.needsInput()) {
+      return Array[Byte]()
+    }
+    val buf = new Array[Byte](DEFAULT_BUFFER_SIZE)
+    val output = new ByteArrayOutputStream()
     while (!decompresser.finished) {
       val count = decompresser.inflate(buf)
-      out ++= java.util.Arrays.copyOfRange(buf, 0, count)
+      output.write(buf, 0, count)
     }
-    out.toArray
+    output.toByteArray
   }
 
   def serialize(obj: Any): Array[Byte] = {
@@ -211,6 +214,8 @@ object Utils {
   }
 
   def main(args: Array[String]) {
+
+    Utils.inflate(Array[Byte]())
 
     println(new SecureRandom().generateSeed(64).mkString(","))
 

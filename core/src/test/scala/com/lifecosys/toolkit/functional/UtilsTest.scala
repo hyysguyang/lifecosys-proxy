@@ -62,13 +62,27 @@ class UtilsTest extends FeatureSpec with BeforeAndAfterAll {
   }
 
   feature("Compress data") {
+
+    scenario(" should compress/decompress empty data") {
+      val decompressData = Utils.inflate(Utils.deflate(Array[Byte]()))
+      assert(Array[Byte]() === decompressData)
+
+      //      assert(Array[Byte]() === Utils.inflate(Array[Byte]()))
+      //      assert(Array[Byte]() === Utils.deflate(Array[Byte](), Deflater.BEST_COMPRESSION))
+    }
+
+    scenario(" should decompress empty data") {
+      assert(Array[Byte]() === Utils.inflate(Array[Byte]()))
+    }
+
     scenario(" should compress/decompress data") {
       val data = IOUtils.toString(getClass.getResourceAsStream("/com/lifecosys/toolkit/functional/test_deflate_data.html"))
-      val compressData = Utils.deflate(data.getBytes(Utils.UTF8), Deflater.BEST_COMPRESSION)
+      val compressData = Utils.deflate(data.getBytes(Utils.UTF8))
       val decompressData = Utils.inflate(compressData)
       assert(data.getBytes().length > compressData.length)
-      assert(data == new String(decompressData))
+      assert(data === new String(decompressData))
     }
+
   }
 
   //  @Test
@@ -113,8 +127,8 @@ class UtilsTest extends FeatureSpec with BeforeAndAfterAll {
         new BigInteger(Utils.toHex(privateKeySpec.getPrimeExponentP.toByteArray), 16),
         new BigInteger(Utils.toHex(privateKeySpec.getPrimeExponentQ.toByteArray), 16),
         new BigInteger(Utils.toHex(privateKeySpec.getCrtCoefficient.toByteArray), 16))
-      assert(keyPair.getPublic == keyFactory.generatePublic(actualPublicKeySpec))
-      assert(keyPair.getPrivate == keyFactory.generatePrivate(actualPrivateSpec))
+      assert(keyPair.getPublic === keyFactory.generatePublic(actualPublicKeySpec))
+      assert(keyPair.getPrivate === keyFactory.generatePrivate(actualPrivateSpec))
     }
   }
 

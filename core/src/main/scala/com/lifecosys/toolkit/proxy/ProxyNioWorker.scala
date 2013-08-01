@@ -24,7 +24,7 @@ class ProxyNioWorker(executor: Executor) extends NioWorker(executor, null) with 
     var ret: Int = 0
     var readBytes: Int = 0
     var failure: Boolean = true
-    val bb: ByteBuffer = ByteBuffer.allocateDirect(1024 * 8)
+    val bb: ByteBuffer = ByteBuffer.allocateDirect(DEFAULT_BUFFER_SIZE)
 
     try {
       def read = {

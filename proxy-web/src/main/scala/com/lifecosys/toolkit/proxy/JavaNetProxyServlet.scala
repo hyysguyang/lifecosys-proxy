@@ -205,7 +205,7 @@ class JavaNetProxyServlet extends HttpServlet with Logging {
           //          }
 
         } catch {
-          case e : Throwable⇒ e.printStackTrace()
+          case e: Throwable ⇒ e.printStackTrace()
         }
       }
 

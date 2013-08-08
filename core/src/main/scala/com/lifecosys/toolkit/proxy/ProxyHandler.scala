@@ -26,6 +26,7 @@ import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBufferInputStream }
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.io.IOUtils
+import org.apache.commons.lang3.StringUtils
 
 /**
  *
@@ -142,64 +143,48 @@ case class State(jsessionid: Option[Cookie] = None, phase: HttpsPhase = Init)
 trait WebProxyRelayingHandler {
 
   def processMessage(browserChannel: Channel)(message: Any)(write: (Any) ⇒ Unit) {
+    if (browserChannel.getPipeline.get(classOf[HttpResponseEncoder]) != null) {
+      browserChannel.getPipeline remove classOf[HttpResponseEncoder]
+    }
+
     message match {
       case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
         throw new RuntimeException("WebProx Error:")
       }
       case response: HttpResponse if !response.isChunked ⇒ {
-        if (response.getContent.readableBytes() == Utils.connectProxyResponse.getBytes(Utils.UTF8).length &&
-          Utils.connectProxyResponse == IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(response.getContent)))) {
-          import scala.collection.JavaConverters._
-          val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
+
+        //        if (response.getContent.readableBytes() == Utils.connectProxyResponse.getBytes(Utils.UTF8).length &&
+        //          Utils.connectProxyResponse == IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(response.getContent)))) {
+        //          import scala.collection.JavaConverters._
+        //          val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
+        //          val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
+        //          browserChannel.setAttachment(jsessionid)
+        ////          browserChannel.getAttachment match {
+        ////            case State(_, phase) ⇒ browserChannel.setAttachment(State(jsessionid, phase))
+        ////            case _               ⇒
+        ////          }
+        //        }
+        //
+        //        write(response.getContent)
+
+      }
+      case response: HttpResponse if response.isChunked ⇒ {
+        import scala.collection.JavaConverters._
+        val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
+        if (StringUtils.isNotEmpty(setCookie) && browserChannel.getAttachment == null) {
           val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
-          browserChannel.getAttachment match {
-            case State(_, phase) ⇒ browserChannel.setAttachment(State(jsessionid, phase))
-            case _               ⇒
-          }
+          browserChannel.setAttachment(jsessionid)
         }
 
-        write(response.getContent)
       }
-      case response: HttpResponse if response.isChunked ⇒
-      case response: HttpChunk if !response.isLast      ⇒ write(response.getContent)
-      case response: HttpChunk if response.isLast       ⇒
-      case unknownMessage                               ⇒ write(unknownMessage)
+      case response: HttpChunk if !response.isLast ⇒ write(response.getContent)
+      case response: HttpChunk if response.isLast  ⇒
+      case unknownMessage                          ⇒ write(unknownMessage)
     }
   }
 }
 class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) with WebProxyRelayingHandler with Logging {
-
-  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
-
-    def writeListener = (future: ChannelFuture) ⇒ {
-      logger.debug(s"Write data to browser channel ${browserChannel} completed.")
-      e.getMessage match { //Note:"response-completed" header should not be null, so we ignore to check it.
-        case response: HttpResponse if response.getHeader(ResponseCompleted.name).toBoolean ⇒ Utils.closeChannel(browserChannel)
-        case _ ⇒ //Just ignore it.
-      }
-    }
-    processMessage(browserChannel)(e.getMessage)(writeResponse(writeListener) _)
-  }
-
-  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug("Got closed event on : %s".format(e.getChannel))
-    //    channels.foreach(Utils.closeChannel(_))
-    //    synchronized(channels.clear())
-    Utils.closeChannel(browserChannel)
-  }
-
-  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
-    e.getCause match {
-      case closeException: ClosedChannelException ⇒ //Just ignore it
-      case exception ⇒ {
-        Utils.closeChannel(e.getChannel)
-        Utils.closeChannel(browserChannel)
-      }
-    }
-  }
-}
+  extends NetHttpResponseRelayingHandler(browserChannel)
 
 class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends BaseRelayingHandler(browserChannel) with WebProxyRelayingHandler with Logging {

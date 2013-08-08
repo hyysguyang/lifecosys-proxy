@@ -62,7 +62,7 @@ case object ClientVerifyData extends HttpsPhase {
   def move: HttpsPhase = TransferData
 }
 case object TransferData extends HttpsPhase {
-  def move: HttpsPhase = throw new UnsupportedOperationException("TransferData phase can't move forward.")
+  def move: HttpsPhase = TransferData
 }
 
 case class HttpsState(sessionId: Option[Cookie] = None, var phase: HttpsPhase = Connect)

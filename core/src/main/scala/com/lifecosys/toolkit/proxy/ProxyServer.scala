@@ -180,10 +180,12 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
     e.getCause match {
       case closeException: ClosedChannelException ⇒ //Just ignore it
-      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+      case exception ⇒ {
+        logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
+        Utils.closeChannel(e.getChannel)
+      }
     }
   }
 }

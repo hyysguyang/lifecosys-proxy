@@ -112,7 +112,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
-      logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
+      logger.debug(s"Proxy request:\n ${Utils.formatMessage(ChannelBuffers.copiedBuffer(content))}")
       val encrypt: Array[Byte] = encryptor.encrypt(content.array())
       val compressedData = Utils.deflate(encrypt)
       val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
@@ -128,6 +128,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
         setContent(wrappedRequest, encodedProxyRequest)
         wrappedRequest
       }
+      case buffer: ChannelBuffer if buffer.readableBytes() == 0 ⇒ buffer //Process for close flush buffer.
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = createWrappedRequest
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
@@ -146,7 +147,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
 
   def createWrappedRequest = {
 
-    val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
+    val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy/proxy")
     wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
     wrappedRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
     wrappedRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
@@ -167,7 +168,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     //
 
     browserChannel.getAttachment match {
-      case State(Some(jsessionid), phase) ⇒ {
+      case Some(jsessionid) ⇒ {
         val encoder = new CookieEncoder(false)
         encoder.addCookie(jsessionid.asInstanceOf[Cookie])
         wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, encoder.encode())

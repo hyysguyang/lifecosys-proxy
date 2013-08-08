@@ -16,6 +16,11 @@ import java.nio.ByteBuffer
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.util.concurrent.atomic.AtomicBoolean
+import java.io.InputStream
+import org.apache.http.impl.client.HttpClients
+import org.apache.http.client.config.RequestConfig
+import org.apache.http.impl.io.{ DefaultHttpRequestParser, HttpTransportMetricsImpl, SessionInputBufferImpl }
+import org.apache.http.{ HttpEntity, HttpHost }
 
 /**
  *
@@ -330,16 +335,16 @@ class ProxyServlet extends HttpServlet with Logging {
     def requestType = try {
       RequestType(request.getHeader(ProxyRequestType.name).toByte)
     } catch {
-      case e : Throwable ⇒ HTTP
+      case e: Throwable ⇒ HTTP
     }
 
     requestType match {
       case HTTPS ⇒ httpsProcessor.processHttps(request, response, proxyHost, channelKey, proxyRequestChannelBuffer)
-      case _     ⇒ new HttpRequestProcessor(response, proxyHost, channelKey, proxyRequestChannelBuffer).process
+      case _     ⇒ new HttpClientRequestProcessor(response, channelKey, proxyRequestChannelBuffer).process
     }
   }
 
-  val httpsProcessor = new MultiTaskHttpsRequestProcessor()
+  val httpsProcessor = new SocketHttpsRequestProcessor()
   System.setProperty("javax.net.debug", "all")
 
   private[this] val sockets = scala.collection.mutable.Map[ChannelKey, Socket]()
@@ -370,6 +375,181 @@ class ProxyServlet extends HttpServlet with Logging {
     val tasks = scala.collection.mutable.Map[ChannelKey, Task]()
     def releaseTask(channelKey: ChannelKey)
 
+  }
+
+  class SocketHttpsRequestProcessor extends RequestProcessor {
+    val tasks = scala.collection.mutable.Map[ChannelKey, SocketTask]()
+    case class SocketTask(channelKey: ChannelKey) {
+      val socket = connect
+
+      def connect = {
+        val socket = new Socket()
+        socket.setKeepAlive(true)
+        socket.setTcpNoDelay(true)
+        socket.setSoTimeout(1000 * 1000)
+        socket.connect(channelKey.proxyHost.socketAddress, 30 * 1000)
+        socket
+      }
+
+      def readDataRecord(message: Message): Array[Byte] = {
+        try {
+          val socketInput = socket.getInputStream
+          val buffer = new Array[Byte](5)
+          var size = socketInput.read(buffer)
+          while (size != 5) {
+            size += socketInput.read(buffer, size, 5 - size)
+          }
+
+          logger.error(s"[${Thread.currentThread()} | ${message.request.getSession.getId} | $socket] - Received data header: ${Utils.hexDumpToString(buffer)}")
+
+          val byteBuffer = new Array[Byte](5)
+          buffer.copyToArray(byteBuffer)
+          val dataLength = ByteBuffer.wrap(byteBuffer).getShort(3)
+          logger.error(s"[${Thread.currentThread()} | ${message.request.getSession.getId} | $socket]###########5 + dataLength###################${5 + dataLength}")
+          val data = new Array[Byte](5 + dataLength)
+          buffer.copyToArray(data)
+          size = socketInput.read(data, 5, dataLength)
+          logger.error(s"[${Thread.currentThread()} | ${message.request.getSession.getId} | $socket] - Reading data: $size")
+          while (size != dataLength) {
+            val length = socketInput.read(data, 5 + size, dataLength - size)
+            logger.error(s"[${Thread.currentThread()} | ${message.request.getSession.getId} | $socket] - Reading data: size=$size, dataLength=$dataLength, length=$length")
+            if (length > 0) {
+              size += length
+            } else {
+              logger.error("Thread.sleep(100000) Thread.sleep(100000) Thread.sleep(100000) ")
+              Thread.sleep(100000)
+            }
+          }
+
+          //        logger.debug(s"[${message.request.getSession.getId} | $socket] - Reading record completed: ${Utils.hexDumpToString(data)}")
+          logger.error(s"[${Thread.currentThread()} | ${message.request.getSession.getId} | $socket] - Reading record completed: ${data.length}")
+
+          return data
+        } catch {
+          case e: Throwable ⇒ {
+            logger.error("Error", e)
+            logger.error("Error")
+          }
+        }
+        new Array[Byte](0)
+      }
+
+      def submit(message: Message): Unit = {
+
+        message.response.setStatus(HttpServletResponse.SC_OK)
+        message.response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+        message.response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
+        message.response.setHeader(ResponseCompleted.name, "true")
+        // Initiate chunked encoding by flushing the headers.
+        message.response.getOutputStream.flush()
+
+        val socketOutput = socket.getOutputStream
+        val array: Array[Byte] = message.proxyRequestChannelBuffer.array()
+        logger.error(s"[${Thread.currentThread()} | ${message.request.getSession.getId} | $socket] - Process payload: ${Utils.hexDumpToString(array)}")
+        socketOutput.write(array)
+        socketOutput.flush()
+        val socketInput = socket.getInputStream
+
+        //        message.response.getOutputStream.write(socketInput.read())
+        //        message.response.setContentLength(socketInput.available()+1)
+        //        logger.debug(s"[${message.request.getSession.getId} | $socket] - 1 Received data : ${socketInput.available()}")
+        //        message.response.getOutputStream.write(IOUtils.toByteArray(socketInput, socketInput.available()))
+        //        logger.debug(s"[${message.request.getSession.getId} | $socket] - 2 Received data : ${socketInput.available()}")
+        //        message.response.getOutputStream.write(IOUtils.toByteArray(socketInput, socketInput.available()))
+        //        logger.debug(s"[${message.request.getSession.getId} | $socket] - 3 Received data : ${socketInput.available()}")
+
+        var record = readDataRecord(message)
+        var length = record.length
+        message.response.getOutputStream.write(record)
+        message.response.getOutputStream.flush()
+        logger.error(s"Writing response: ${record.length}")
+        while (socketInput.available() != 0) {
+          logger.error(s"[${message.request.getSession.getId} | $socket] - Reading continue data record: ${socketInput.available()}")
+          record = readDataRecord(message)
+          try {
+            message.response.getOutputStream.write(record)
+            message.response.getOutputStream.flush()
+            logger.error(s"Writing response: ${record.length}")
+          } catch {
+            case e: Throwable ⇒ logger.error("Error", e)
+          }
+          length += record.length
+        }
+
+        if (record(0) == 0x14) {
+          record = readDataRecord(message)
+          message.response.getOutputStream.write(record)
+          message.response.getOutputStream.flush()
+          logger.error(s"Writing response: ${record.length}")
+          length += record.length
+        }
+        logger.error(s"Writing total response: ${length}")
+        //        message.response.setContentLength(length)
+        message.response.getOutputStream.flush()
+
+      }
+
+    }
+    def process(channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer)(implicit request: HttpServletRequest, response: HttpServletResponse) {}
+
+    def processHttps(request: HttpServletRequest, response: HttpServletResponse, proxyHost: Host, channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer) {
+
+      def connect {
+        val task = SocketTask(channelKey)
+        tasks += channelKey -> task
+
+        response.setStatus(HttpServletResponse.SC_OK)
+        response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+        response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
+        response.setHeader(ResponseCompleted.name, "true")
+        // Initiate chunked encoding by flushing the headers.
+        response.getOutputStream.flush()
+        response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
+        response.getOutputStream.flush()
+
+        val stream: InputStream = task.socket.getInputStream
+
+        val buffer = new Array[Byte](1024)
+        var length = 0
+        var isClosed = false
+        while ((length = stream.read(buffer)) != -1) {
+          val isCloseRecord = if (length > 5) {
+            val byteBuffer = new Array[Byte](5)
+            buffer.copyToArray(byteBuffer)
+            val dataLength = ByteBuffer.wrap(byteBuffer).getShort(3)
+            buffer(0) == 0x15 && (dataLength + 5) == length
+          } else false
+
+          isClosed = isCloseRecord
+
+          logger.debug(s"Receive data: ${Utils.hexDumpToString(buffer)}")
+
+          response.getOutputStream.write(buffer, 0, length)
+          response.getOutputStream.flush()
+
+        }
+
+        logger.error("#####################Connection closed################################################")
+        //        while (stream.read(buffer)!= -1){
+        //
+        //        }
+
+        //        IOUtils.copy(stream,response.getOutputStream)
+
+      }
+
+      tasks.get(channelKey) match {
+        case Some(task) ⇒ {
+          val socketOutput = task.socket.getOutputStream
+          val array: Array[Byte] = proxyRequestChannelBuffer.array()
+          logger.error(s"[${Thread.currentThread()} | ${request.getSession.getId} | ${task.socket}}] - Process payload: ${Utils.hexDumpToString(array)}")
+          socketOutput.write(array)
+          socketOutput.flush()
+        }
+        case None ⇒ connect
+      }
+
+    }
   }
 
   class SimpleHttpsRequestProcessor extends BaseHttpsRequestProcessor {
@@ -550,6 +730,42 @@ class ProxyServlet extends HttpServlet with Logging {
     def process(channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer)(implicit request: HttpServletRequest, response: HttpServletResponse) {}
   }
 
+  class HttpClientRequestProcessor(response: HttpServletResponse, channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer) {
+
+    val httpClient = HttpClients.custom.setDefaultRequestConfig(RequestConfig.custom().setRedirectsEnabled(false).build()).build()
+
+    def process {
+      //    val httpclient: CloseableHttpClient = HttpClients.createDefault()
+      //val clientContext=HttpClientContext.create()
+      //    clientContext.setRequestConfig(RequestConfig.custom().setRedirectsEnabled(false).build())
+      val buffer = new SessionInputBufferImpl(new HttpTransportMetricsImpl(), 1024, 2048, null, null);
+      buffer.bind(new ChannelBufferInputStream(proxyRequestChannelBuffer))
+      val parser = new DefaultHttpRequestParser(buffer);
+      val proxyRequest = parser.parse()
+
+      logger.debug(s"#######################$proxyRequest")
+
+      val httpHost = new HttpHost(channelKey.proxyHost.host, channelKey.proxyHost.port)
+      val proxyResponse = httpClient.execute(httpHost, proxyRequest)
+      try {
+        response.setStatus(proxyResponse.getStatusLine.getStatusCode)
+        val entity: HttpEntity = proxyResponse.getEntity
+        if (entity.getContentType != null) response.setContentType(entity.getContentType.getValue)
+        if (entity.getContentLength >= 0) response.setContentLength(entity.getContentLength.toInt)
+        if (entity.getContentEncoding != null) response.setCharacterEncoding(entity.getContentEncoding.getValue)
+        proxyResponse.getAllHeaders.toList.foreach {
+          header ⇒ response.addHeader(header.getName, header.getValue)
+        }
+        val content = entity.getContent
+        IOUtils.copy(content, response.getOutputStream)
+        response.getOutputStream.flush()
+        IOUtils.closeQuietly(entity.getContent)
+      } finally {
+        proxyResponse.close
+      }
+    }
+
+  }
   class HttpRequestProcessor(response: HttpServletResponse, proxyHost: Host, channelKey: ChannelKey, proxyRequestChannelBuffer: ChannelBuffer) {
     val clientBootstrap = newClientBootstrap
     clientBootstrap.setFactory(clientSocketChannelFactory)

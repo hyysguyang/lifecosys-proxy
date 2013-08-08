@@ -150,7 +150,6 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: 
   override val httpRequestEncoder = new WebProxyHttpRequestEncoder(connectHost, Host(httpRequest.getUri))
 
   override def connectProcess(future: ChannelFuture) {
-    browserChannel.getPipeline remove classOf[HttpResponseEncoder]
     super.connectProcess(future)
   }
 
@@ -348,29 +347,29 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
   var phase: HttpsPhase = Init
   override def messageReceived(browserChannelContext: ChannelHandlerContext, e: MessageEvent) {
     logger.debug(s"${browserChannelContext.getChannel} Receive message:\n ${Utils.formatMessage(e.getMessage)}")
-    if (browserChannelContext.getChannel.getAttachment == null) {
-      browserChannelContext.getChannel.setAttachment(State())
-    }
-    phase = phase.move
+    //    if (browserChannelContext.getChannel.getAttachment == null) {
+    //      browserChannelContext.getChannel.setAttachment(State())
+    //    }
+    //    phase = phase.move
     val requestMessage = e.getMessage.asInstanceOf[ChannelBuffer]
-    if (phase == ClientKeyExchange) {
-      buffers += requestMessage
-
-      return
-    }
-
-    if (phase == ClientFinish) {
-      if (requestMessage.readableBytes() <= 6) {
-        buffers += requestMessage
-        return
-      } else {
-        phase = phase.move
-      }
-    }
-
-    if (phase == TransferData) {
-      buffers.clear()
-    }
+    //    if (phase == ClientKeyExchange) {
+    //      buffers += requestMessage
+    //
+    //      return
+    //    }
+    //
+    //    if (phase == ClientFinish) {
+    //      if (requestMessage.readableBytes() <= 6) {
+    //        buffers += requestMessage
+    //        return
+    //      } else {
+    //        phase = phase.move
+    //      }
+    //    }
+    //
+    //    if (phase == TransferData) {
+    //
+    //    }
     //    val buffer = e.getMessage.asInstanceOf[ChannelBuffer]
 
     //                    var dataLength: Int =0
@@ -439,10 +438,11 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
       channel = Some(future.getChannel)
 
       val requestData = ChannelBuffers.wrappedBuffer(ChannelBuffers.wrappedBuffer(buffers: _*), requestMessage)
-      future.getChannel.write(ChannelBuffers.copiedBuffer(requestData)).addListener {
+      future.getChannel.write(requestMessage).addListener {
         writeFuture: ChannelFuture ⇒
           {
             logger.debug(s"Finished write request to ${future.getChannel}")
+            buffers.clear()
           }
       }
     }

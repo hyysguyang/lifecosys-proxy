@@ -1,21 +1,20 @@
-package com.lifecosys.toolkit.proxy
+package com.lifecosys.toolkit.proxy.web
 
-import com.lifecosys.toolkit.proxy.ChannelManager
 import javax.servlet.http.{ HttpServletResponse, HttpServletRequest, HttpServlet }
-import org.jboss.netty.channel._
 import org.jboss.netty.buffer._
 import org.jboss.netty.channel.socket.nio.{ NioWorker, NioWorkerPool, NioClientSocketChannelFactory }
 import java.util.concurrent.{ Executor, Executors }
 import org.jboss.netty.handler.codec.http._
 import org.apache.commons.io.IOUtils
-import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.lang3.StringUtils
-import java.net.{ InetSocketAddress, Socket }
-import java.nio.channels.ClosedChannelException
-import java.nio.ByteBuffer
-import java.io.ByteArrayOutputStream
+import java.net.Socket
 import scala.collection.mutable
+import com.lifecosys.toolkit.proxy._
+import com.lifecosys.toolkit.proxy.web.HttpRequestProcessor
+import scala.Some
+import com.lifecosys.toolkit.proxy.ChannelKey
+import scala.Some
 
 /**
  *

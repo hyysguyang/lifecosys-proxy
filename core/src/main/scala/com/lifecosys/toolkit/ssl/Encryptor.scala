@@ -43,8 +43,8 @@ class DefaultEncryptor extends Encryptor {
     new SecretKeySpec(digester.digest, ALGORITHM)
   }
 
-  def encrypt(plainData: Array[Byte]): Array[Byte] = encryptor.doFinal(plainData)
-  def decrypt(encryptedData: Array[Byte]): Array[Byte] = decryptor.doFinal(encryptedData)
+  def encrypt(plainData: Array[Byte]): Array[Byte] = if (plainData.length == 0) plainData else synchronized(encryptor.doFinal(plainData))
+  def decrypt(encryptedData: Array[Byte]): Array[Byte] = if (encryptedData.length == 0) encryptedData else synchronized(decryptor.doFinal(encryptedData))
 
   def encrypt(input: InputStream): InputStream = {
     val cipher: Cipher = buildCipher(Cipher.ENCRYPT_MODE)

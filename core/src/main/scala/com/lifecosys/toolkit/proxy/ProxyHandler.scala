@@ -142,6 +142,13 @@ case class State(jsessionid: Option[Cookie] = None, phase: HttpsPhase = Init)
 
 trait WebProxyRelayingHandler {
 
+}
+class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+  extends NetHttpResponseRelayingHandler(browserChannel)
+
+class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends BaseRelayingHandler(browserChannel) with Logging {
+
   def processMessage(browserChannel: Channel)(message: Any)(write: (Any) ⇒ Unit) {
     if (browserChannel.getPipeline.get(classOf[HttpResponseEncoder]) != null) {
       browserChannel.getPipeline remove classOf[HttpResponseEncoder]
@@ -149,6 +156,7 @@ trait WebProxyRelayingHandler {
 
     message match {
       case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
+        logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), Utils.UTF8.name())}}")
         throw new RuntimeException("WebProx Error:")
       }
       case response: HttpResponse if !response.isChunked ⇒ {
@@ -182,12 +190,6 @@ trait WebProxyRelayingHandler {
       case unknownMessage                          ⇒ write(unknownMessage)
     }
   }
-}
-class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-  extends NetHttpResponseRelayingHandler(browserChannel)
-
-class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) with WebProxyRelayingHandler with Logging {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
     def writeListener = (future: ChannelFuture) ⇒ {

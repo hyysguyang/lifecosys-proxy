@@ -55,7 +55,7 @@ trait BaseSpec extends FeatureSpec with BeforeAndAfterAll {
     val httpClient = createHttpClient.build()
     val response: String = IOUtils.toString(httpClient.execute(new HttpGet("http://www.baidu.com/")).getEntity.getContent)
     Assertions.assert(response.length > 10000)
-
+    httpClient.close()
   }
 
   def createHttpClient: HttpClientBuilder = {
@@ -75,6 +75,7 @@ trait BaseSpec extends FeatureSpec with BeforeAndAfterAll {
       .build()
     val response: String = IOUtils.toString(httpClient.execute(new HttpGet("https://developer.apple.com/")).getEntity.getContent)
     Assertions.assert(response.length > 10000)
+    httpClient.close()
 
   }
 }
@@ -122,19 +123,19 @@ class SimpleWebProxySpec extends BaseSpec with BeforeAndAfterAll {
 
 }
 
-class SimpleHttpsWebProxySpec extends BaseSpec with BeforeAndAfterAll {
-  //  System.setProperty("javax.net.debug", "all")
-  def httpClientProxyPort: Int = 19061
-  override def proxyServer = {
-    val config = ConfigFactory.parseResources("HTTPSWebProxy-application.conf").withFallback(ConfigFactory.load())
-    val proxyConfig = new ProgrammaticCertificationProxyConfig(Some(config)) {
-      lazy override val clientSSLContext = Utils.trustAllSSLContext
-    }
-    Some(ProxyServer(proxyConfig))
-  }
-
-  feature("Proxy Server with chained HTTPS-based web proxy") {
-    scenarios
-  }
-}
+//class SimpleHttpsWebProxySpec extends BaseSpec with BeforeAndAfterAll {
+//  //  System.setProperty("javax.net.debug", "all")
+//  def httpClientProxyPort: Int = 19061
+//  override def proxyServer = {
+//    val config = ConfigFactory.parseResources("HTTPSWebProxy-application.conf").withFallback(ConfigFactory.load())
+//    val proxyConfig = new ProgrammaticCertificationProxyConfig(Some(config)) {
+//      lazy override val clientSSLContext = Utils.trustAllSSLContext
+//    }
+//    Some(ProxyServer(proxyConfig))
+//  }
+//
+//  feature("Proxy Server with chained HTTPS-based web proxy") {
+//    scenarios
+//  }
+//}
 

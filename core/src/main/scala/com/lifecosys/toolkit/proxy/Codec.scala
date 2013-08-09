@@ -112,11 +112,12 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
-      logger.debug(s"Proxy request:\n ${Utils.formatMessage(ChannelBuffers.copiedBuffer(content))}")
+      logger.error(s"Proxy request:\n ${Utils.hexDumpToString(ChannelBuffers.copiedBuffer(content).array())}")
       val encrypt: Array[Byte] = encryptor.encrypt(content.array())
       val compressedData = Utils.deflate(encrypt)
       val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
       wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
+      logger.debug(s"Proxy encryptedBuffer request:\n ${Utils.hexDumpToString(ChannelBuffers.copiedBuffer(encryptedBuffer).array())}")
       wrappedRequest.setContent(encryptedBuffer)
     }
     val toBeSentMessage = msg match {

@@ -159,8 +159,9 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: 
       engine.setUseClientMode(true)
       pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
     }
-
     super.proxyToServerPipeline(pipeline)
+    pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder)
+    pipeline.addLast("proxyServerToRemote-webProxyHttpResponseDecoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
   }
 }

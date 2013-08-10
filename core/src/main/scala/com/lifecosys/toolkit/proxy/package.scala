@@ -55,7 +55,7 @@ package object proxy {
   def newClientBootstrap = {
     val proxyToServerBootstrap = new ClientBootstrap()
     proxyToServerBootstrap.setOption("keepAlive", true)
-    proxyToServerBootstrap.setOption("connectTimeoutMillis", 1200 * 1000)
+    proxyToServerBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
     proxyToServerBootstrap
   }
 

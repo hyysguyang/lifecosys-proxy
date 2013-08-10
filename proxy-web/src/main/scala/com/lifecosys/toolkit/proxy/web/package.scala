@@ -12,15 +12,6 @@ import javax.servlet.http.HttpServletResponse
  * @version 1.0 8/9/13 1:50 PM
  */
 package object web {
-  val channelManager = new ChannelManager {}
-  val executor = Executors.newCachedThreadPool()
-
-  val pool: NioWorkerPool = new NioWorkerPool(executor, 100) {
-    override def newWorker(executor: Executor): NioWorker = {
-      new NioWorker(executor, null)
-    }
-  }
-  val clientSocketChannelFactory = new NioClientSocketChannelFactory(executor, 1, pool)
 
   def writeErrorResponse(response: HttpServletResponse) {
     response.setHeader(ResponseCompleted.name, "true")

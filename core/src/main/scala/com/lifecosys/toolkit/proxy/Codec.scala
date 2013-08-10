@@ -112,7 +112,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
-      logger.error(s"Proxy request:\n ${Utils.hexDumpToString(ChannelBuffers.copiedBuffer(content).array())}")
+      logger.debug(s"Proxy request:\n ${Utils.hexDumpToString(ChannelBuffers.copiedBuffer(content).array())}")
       val encrypt: Array[Byte] = encryptor.encrypt(content.array())
       val compressedData = Utils.deflate(encrypt)
       val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
@@ -148,6 +148,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
 
   def createWrappedRequest = {
 
+    //TODO: Please update me when commit...
     val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy/proxy")
     wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
     wrappedRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
@@ -179,5 +180,18 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     wrappedRequest.setHeader(ProxyHostHeader.name, proxyHost.toString)
     wrappedRequest
   }
+}
+
+class WebProxyResponseDecoder extends OneToOneDecoder with Logging {
+  def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
+    logger.debug(s"[${channel}] - Receive message###############\n ${Utils.formatMessage(msg)}")
+    msg match {
+      case response: HttpResponse if response.isChunked ⇒ response.getContent
+      case chunk: HttpChunk if !chunk.isLast            ⇒ chunk.getContent
+      case chunk: HttpChunk if chunk.isLast             ⇒ channel.close()
+      case unknownMessage                               ⇒ throw new RuntimeException("Unknown message.")
+    }
+  }
+
 }
 

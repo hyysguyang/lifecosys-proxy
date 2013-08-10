@@ -35,12 +35,12 @@ object LifecosysToolkitBuild extends Build {
       test(junit, scalatest)
   )
 
-  import akka.sbt.AkkaKernelPlugin
-  import akka.sbt.AkkaKernelPlugin._
+ // import akka.sbt.AkkaKernelPlugin
+ // import akka.sbt.AkkaKernelPlugin._
   lazy val proxy = Project("Proxy", file("proxy"))
     .dependsOn(core)
     .settings(moduleSettings: _*)
-    .settings((AkkaKernelPlugin.distSettings ++ Seq(distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher" )):_*)
+    //.settings((AkkaKernelPlugin.distSettings ++ Seq(distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher" )):_*)
     .settings(libraryDependencies ++=test(junit, scalatest))
 
 

@@ -1,6 +1,6 @@
 package com.lifecosys.toolkit.proxy.web.javanet;
 
-import com.lifecosys.toolkit.proxy.{ Host, Utils, ResponseCompleted, ChannelKey };
+import com.lifecosys.toolkit.proxy.{ Utils, ResponseCompleted, ChannelKey };
 import com.lifecosys.toolkit.proxy.web.{ Message, RequestProcessor }
 import java.net.Socket
 import javax.servlet.http.{ HttpServletRequest, HttpServletResponse }
@@ -13,7 +13,7 @@ import org.apache.http.impl.client.HttpClients
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.io.{ DefaultHttpRequestParser, HttpTransportMetricsImpl, SessionInputBufferImpl }
 import org.apache.http.{ HttpEntity, HttpHost }
-import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.IOUtils
 
 class SocketHttpsRequestProcessor extends RequestProcessor {
   val tasks = scala.collection.mutable.Map[ChannelKey, SocketTask]()

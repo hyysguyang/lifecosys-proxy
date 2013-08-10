@@ -19,6 +19,6 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-scalariform" % "1.0.1")
 
 addSbtPlugin("com.typesafe.startscript" % "xsbt-start-script-plugin" % "0.5.3")
 
-addSbtPlugin("com.lifecosys" % "sbt-dist-plugin" % "1.0.0")
+//addSbtPlugin("com.lifecosys" % "sbt-dist-plugin" % "1.0.0")
 
 

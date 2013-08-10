@@ -389,7 +389,7 @@ class ChainedProxyManagerTest {
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
     val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config))))).get
-    Assert.assertFalse(host == new InetSocketAddress("localhost", 8081))
+    Assert.assertFalse(host.host.socketAddress == new InetSocketAddress("localhost", 8081))
   }
 
   @Test
@@ -409,7 +409,7 @@ class ChainedProxyManagerTest {
     manager.getConnectHost(request.getUri)(createProxyConfig())
     manager.getConnectHost(request.getUri)(createProxyConfig())
     println("################################" + (System.currentTimeMillis() - now))
-    Assert.assertFalse(host.host == new InetSocketAddress("localhost", 8081))
+    Assert.assertFalse(host.host.socketAddress == new InetSocketAddress("localhost", 8081))
   }
 
 }

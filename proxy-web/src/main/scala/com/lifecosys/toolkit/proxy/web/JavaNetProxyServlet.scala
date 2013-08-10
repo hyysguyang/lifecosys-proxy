@@ -11,8 +11,6 @@ import org.apache.commons.lang3.StringUtils
 import java.net.Socket
 import scala.collection.mutable
 import com.lifecosys.toolkit.proxy._
-import com.lifecosys.toolkit.proxy.web.HttpRequestProcessor
-import scala.Some
 import com.lifecosys.toolkit.proxy.ChannelKey
 import scala.Some
 

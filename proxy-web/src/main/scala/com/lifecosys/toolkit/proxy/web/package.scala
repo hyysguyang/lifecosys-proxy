@@ -1,6 +1,7 @@
 package com.lifecosys.toolkit.proxy
 
 import javax.servlet.http.{ HttpServletRequest, HttpServletResponse }
+import org.jboss.netty.handler.codec.http.HttpHeaders
 
 /**
  *
@@ -22,4 +23,14 @@ package object web {
     response.getOutputStream.write("HTTP/1.1 400 Can't establish connection\r\n\r\n".getBytes("UTF-8"))
     response.getOutputStream.flush()
   }
+
+  def initializeChunkedResponse(response: HttpServletResponse) {
+    response.setStatus(HttpServletResponse.SC_OK)
+    response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+    response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
+    response.setHeader(ResponseCompleted.name, "true")
+    // Initiate chunked encoding by flushing the headers.
+    response.getOutputStream.flush()
+  }
+
 }

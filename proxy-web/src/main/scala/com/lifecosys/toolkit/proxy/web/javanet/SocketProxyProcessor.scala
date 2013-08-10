@@ -52,15 +52,6 @@ abstract class SocketProxyProcessor extends ProxyProcessor with Logging {
     }
   }
 
-  def initializeChunkedResponse(response: HttpServletResponse) {
-    response.setStatus(HttpServletResponse.SC_OK)
-    response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
-    response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
-    response.setHeader(ResponseCompleted.name, "true")
-    // Initiate chunked encoding by flushing the headers.
-    response.getOutputStream.flush()
-  }
-
 }
 
 class SocketHttpProxyProcessor extends SocketProxyProcessor {

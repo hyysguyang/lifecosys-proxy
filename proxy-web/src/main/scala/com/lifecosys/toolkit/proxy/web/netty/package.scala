@@ -11,11 +11,5 @@ import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioWo
  */
 package object netty {
   val executor = Executors.newCachedThreadPool()
-
-  val pool: NioWorkerPool = new NioWorkerPool(executor, 100) {
-    override def newWorker(executor: Executor): NioWorker = {
-      new NioWorker(executor, null)
-    }
-  }
-  val clientSocketChannelFactory = new NioClientSocketChannelFactory(executor, 1, pool)
+  val clientSocketChannelFactory = new NioClientSocketChannelFactory(executor, executor)
 }

@@ -8,10 +8,10 @@ import org.apache.commons.lang3.StringUtils
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import com.lifecosys.toolkit.proxy._
-import com.lifecosys.toolkit.proxy.ChannelKey
 import com.lifecosys.toolkit.proxy.RequestType
 import javax.servlet.annotation.WebServlet
-import com.lifecosys.toolkit.proxy.web.netty.{ NettyHttpsRequestProcessor, NettyHttpRequestProcessor }
+import scala.util.Try
+import com.lifecosys.toolkit.proxy.web.javanet.{ SocketHttpsProxyProcessor, SocketHttpProxyProcessor }
 
 /**
  *
@@ -30,10 +30,10 @@ class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   Security.addProvider(new BouncyCastleProvider)
 
-  //  val httpProcessor = new SocketHttpRequestProcessor()
-  //  val httpsProcessor = new SocketHttpsRequestProcessor()
-  val httpProcessor = new NettyHttpRequestProcessor()
-  val httpsProcessor = new NettyHttpsRequestProcessor()
+  val httpProcessor = new SocketHttpProxyProcessor()
+  val httpsProcessor = new SocketHttpsProxyProcessor()
+  //  val httpProcessor = new NettyHttpProxyProcessor()
+  //  val httpsProcessor = new NettyHttpsProxyProcessor()
 
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
     createSessionIfNecessary(request)
@@ -41,19 +41,14 @@ class ProxyServlet extends HttpServlet with Logging {
     val proxyRequestBuffer: Array[Byte] = parseProxyRequest(request)
     logger.debug(s"[${request.getSession.getId}] - Process proxy request:\n${Utils.hexDumpToString(proxyRequestBuffer)}")
 
-    val proxyHost = Host(request.getHeader(ProxyHostHeader.name))
-    val channelKey = ChannelKey(request.getSession.getId, proxyHost)
+    proxyProcessor(request).process(proxyRequestBuffer)(request, response)
+  }
 
-    //User HTTP for unset flag just make less data bytes.
-    def requestType = try {
-      RequestType(request.getHeader(ProxyRequestType.name).toByte)
-    } catch {
-      case e: Throwable ⇒ HTTP
-    }
-
+  def proxyProcessor(request: HttpServletRequest) = {
+    val requestType = Try(RequestType(request.getHeader(ProxyRequestType.name).toByte)).getOrElse(HTTP)
     requestType match {
-      case HTTPS ⇒ httpsProcessor.process(channelKey, proxyRequestBuffer)(request, response)
-      case _     ⇒ httpProcessor.process(channelKey, proxyRequestBuffer)(request, response)
+      case HTTPS ⇒ httpsProcessor
+      case _     ⇒ httpProcessor
     }
   }
 
@@ -68,10 +63,8 @@ class ProxyServlet extends HttpServlet with Logging {
 
   def parseProxyRequest(request: HttpServletRequest): Array[Byte] = {
     val compressedData: Array[Byte] = IOUtils.toByteArray(request.getInputStream)
-    val encryptedProxyRequest = Utils.inflate(compressedData)
     try {
-      val proxyRequestBuffer: Array[Byte] = encryptor.decrypt(encryptedProxyRequest)
-      proxyRequestBuffer
+      encryptor.decrypt(Utils.inflate(compressedData))
     } catch {
       case e: Throwable ⇒
         logger.error(s"Parse proxy request from payload:\n${Utils.hexDumpToString(compressedData)}", e)

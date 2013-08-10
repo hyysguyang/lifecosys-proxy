@@ -1,6 +1,6 @@
 package com.lifecosys.toolkit.proxy
 
-import javax.servlet.http.HttpServletResponse
+import javax.servlet.http.{ HttpServletRequest, HttpServletResponse }
 
 /**
  *
@@ -9,6 +9,10 @@ import javax.servlet.http.HttpServletResponse
  * @version 1.0 8/9/13 1:50 PM
  */
 package object web {
+
+  val SESSION_KEY_ENDPOINT = "com.lifecosys.toolkit.proxy.web.endpoint"
+
+  def parseChannelKey(request: HttpServletRequest) = ChannelKey(request.getSession.getId, Host(request.getHeader(ProxyHostHeader.name)))
 
   def writeErrorResponse(response: HttpServletResponse) {
     response.setHeader(ResponseCompleted.name, "true")

@@ -35,7 +35,7 @@ import javax.net.ssl.{ X509TrustManager, SSLContext }
 import java.security.cert.X509Certificate
 import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage }
 import org.apache.commons.io.{ IOUtils, HexDump }
-import java.io.{ ByteArrayInputStream, ByteArrayOutputStream }
+import java.io.{ InputStream, ByteArrayInputStream, ByteArrayOutputStream }
 import scala.Some
 
 /**
@@ -116,6 +116,15 @@ object Utils {
       "##############################EMPTY BUFFER###############################"
     }
 
+  }
+
+  def iterateStream(input: InputStream)(f: (Array[Byte], Int) ⇒ Unit) {
+    val buffer = new Array[Byte](DEFAULT_BUFFER_SIZE)
+    var length = input.read(buffer)
+    while (length != -1) {
+      f(buffer, length)
+      length = input.read(buffer)
+    }
   }
 
   import java.io.{ ObjectInputStream, ObjectOutputStream, ByteArrayInputStream, ByteArrayOutputStream }

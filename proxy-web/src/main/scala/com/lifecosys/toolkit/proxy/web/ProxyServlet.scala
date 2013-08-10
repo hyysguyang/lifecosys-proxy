@@ -9,7 +9,7 @@ import org.apache.commons.lang3.StringUtils
 import java.net.Socket
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import com.lifecosys.toolkit.proxy.web.javanet.{ SocketHttpsRequestProcessor, HttpClientRequestProcessor }
+import com.lifecosys.toolkit.proxy.web.javanet.{SocketHttpRequestProcessor, SocketHttpsRequestProcessor, HttpClientRequestProcessor}
 import com.lifecosys.toolkit.proxy._
 import com.lifecosys.toolkit.proxy.ChannelKey
 import com.lifecosys.toolkit.proxy.RequestType
@@ -34,8 +34,8 @@ class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   Security.addProvider(new BouncyCastleProvider)
 
-  val httpProcessor = new NettyHttpRequestProcessor()
-  val httpsProcessor = new NettyHttpsRequestProcessor()
+  val httpProcessor = new SocketHttpRequestProcessor()
+  val httpsProcessor = new SocketHttpsRequestProcessor()
 
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
     createSessionIfNecessary(request)

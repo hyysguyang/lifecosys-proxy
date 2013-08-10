@@ -1,8 +1,5 @@
 package com.lifecosys.toolkit.proxy
 
-import com.lifecosys.toolkit.proxy.web.netty.ChannelManager
-import java.util.concurrent.{ Executor, Executors }
-import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioWorker, NioWorkerPool }
 import javax.servlet.http.HttpServletResponse
 
 /**

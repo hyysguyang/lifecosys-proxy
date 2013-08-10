@@ -10,7 +10,6 @@ import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioWo
  * @version 1.0 8/9/13 2:11 PM
  */
 package object netty {
-  val channelManager = new ChannelManager {}
   val executor = Executors.newCachedThreadPool()
 
   val pool: NioWorkerPool = new NioWorkerPool(executor, 100) {

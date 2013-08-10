@@ -1,21 +1,17 @@
 package com.lifecosys.toolkit.proxy.web
 
 import javax.servlet.http.{ HttpServletResponse, HttpServletRequest, HttpServlet }
-import org.jboss.netty.buffer._
 import org.apache.commons.io.IOUtils
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.lang3.StringUtils
-import java.net.Socket
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import com.lifecosys.toolkit.proxy.web.javanet.{SocketHttpRequestProcessor, SocketHttpsRequestProcessor, HttpClientRequestProcessor}
 import com.lifecosys.toolkit.proxy._
 import com.lifecosys.toolkit.proxy.ChannelKey
 import com.lifecosys.toolkit.proxy.RequestType
-import javax.servlet.{ AsyncEvent, AsyncListener, ServletConfig }
 import javax.servlet.annotation.WebServlet
-import com.lifecosys.toolkit.proxy.web.netty.{ NettyHttpRequestProcessor, NettyHttpsRequestProcessor }
+import com.lifecosys.toolkit.proxy.web.netty.{ NettyHttpsRequestProcessor, NettyHttpRequestProcessor }
 
 /**
  *
@@ -34,8 +30,10 @@ class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   Security.addProvider(new BouncyCastleProvider)
 
-  val httpProcessor = new SocketHttpRequestProcessor()
-  val httpsProcessor = new SocketHttpsRequestProcessor()
+  //  val httpProcessor = new SocketHttpRequestProcessor()
+  //  val httpsProcessor = new SocketHttpsRequestProcessor()
+  val httpProcessor = new NettyHttpRequestProcessor()
+  val httpsProcessor = new NettyHttpsRequestProcessor()
 
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
     createSessionIfNecessary(request)

@@ -5,13 +5,7 @@ import com.lifecosys.toolkit.proxy._
 import javax.servlet.http.{ HttpServletResponse, HttpServletRequest }
 import java.io.InputStream
 import java.nio.ByteBuffer
-import org.jboss.netty.channel.{ ChannelStateEvent, ChannelHandlerContext, FixedReceiveBufferSizePredictorFactory, Channel }
-import org.jboss.netty.handler.codec.http.{ HttpResponseDecoder, HttpHeaders }
 import com.lifecosys.toolkit.proxy.ChannelKey
-import scala.Some
-import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
-import java.util.concurrent.atomic.AtomicBoolean
-import com.lifecosys.toolkit.proxy.web.netty.{ HttpsOutboundHandler, HttpOutboundHandler }
 
 /**
  *

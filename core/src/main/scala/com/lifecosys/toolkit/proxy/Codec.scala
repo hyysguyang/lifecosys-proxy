@@ -22,17 +22,13 @@ package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.channel._
-import org.jboss.netty.handler.ssl.SslHandler
-import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 import org.jboss.netty.buffer.{ ChannelBufferInputStream, ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
-import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
-import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
-import java.util.zip.Deflater
+import scala.util.Try
 
 /**
  *
@@ -112,12 +108,14 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
-      logger.debug(s"Proxy request:\n ${Utils.hexDumpToString(ChannelBuffers.copiedBuffer(content).array())}")
-      val encrypt: Array[Byte] = encryptor.encrypt(content.array())
+      logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
+      //We may get CompositeChannelBuffer,such as for HttpRequest with content.
+      val data = Try(content.array()).getOrElse(content.toByteBuffer.array())
+      val encrypt: Array[Byte] = encryptor.encrypt(data)
       val compressedData = Utils.deflate(encrypt)
       val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
       wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
-      logger.debug(s"Proxy encryptedBuffer request:\n ${Utils.hexDumpToString(ChannelBuffers.copiedBuffer(encryptedBuffer).array())}")
+      logger.debug(s"Proxy encryptedBuffer request:\n ${Utils.hexDumpToString(encryptedBuffer.array())}")
       wrappedRequest.setContent(encryptedBuffer)
     }
     val toBeSentMessage = msg match {
@@ -148,8 +146,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
 
   def createWrappedRequest = {
 
-    //TODO: Please update me when commit...
-    val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy/proxy")
+    val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
     wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
     wrappedRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
     wrappedRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")

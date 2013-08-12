@@ -119,11 +119,9 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
       wrappedRequest.setContent(encryptedBuffer)
     }
     val toBeSentMessage = msg match {
-      case request: HttpRequest ⇒ { //TODO:Maybe we can remove this since we should only receive channel buffer
+      case request: HttpRequest ⇒ {
         val encodedProxyRequest = super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
-        logger.debug("Encoded proxy request:\n" + IOUtils.toString(new ChannelBufferInputStream(ChannelBuffers.copiedBuffer(encodedProxyRequest))))
         val wrappedRequest = createWrappedRequest
-        //        wrappedRequest.setHeader(ProxyRequestType.name, HTTP.value)
         setContent(wrappedRequest, encodedProxyRequest)
         wrappedRequest
       }
@@ -131,12 +129,6 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = createWrappedRequest
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
-        //        val encrypt: Array[Byte] = encryptor.encrypt(buffer.array())
-        //        val compressedData = Utils.deflate(encrypt, Deflater.BEST_COMPRESSION)
-        //        val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
-        //        wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
-        //        wrappedRequest.setContent(encryptedBuffer)
-        //        wrappedRequest
         setContent(wrappedRequest, buffer)
         wrappedRequest
       case e ⇒ e
@@ -181,7 +173,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
 
 class WebProxyResponseDecoder extends OneToOneDecoder with Logging {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
-    logger.debug(s"[${channel}] - Receive message###############\n ${Utils.formatMessage(msg)}")
+    logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
       case response: HttpResponse if response.isChunked ⇒ response.getContent
       case chunk: HttpChunk if !chunk.isLast            ⇒ chunk.getContent

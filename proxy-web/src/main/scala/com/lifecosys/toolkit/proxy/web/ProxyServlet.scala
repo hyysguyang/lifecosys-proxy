@@ -12,6 +12,7 @@ import com.lifecosys.toolkit.proxy.RequestType
 import javax.servlet.annotation.WebServlet
 import scala.util.Try
 import com.lifecosys.toolkit.proxy.web.javanet.{ SocketHttpsProxyProcessor, SocketHttpProxyProcessor }
+import com.lifecosys.toolkit.proxy.web.netty.{ NettyHttpsProxyProcessor, NettyHttpProxyProcessor }
 
 /**
  *
@@ -30,10 +31,10 @@ class ProxyServlet extends HttpServlet with Logging {
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
   Security.addProvider(new BouncyCastleProvider)
 
-  val httpProcessor = new SocketHttpProxyProcessor()
-  val httpsProcessor = new SocketHttpsProxyProcessor()
-  //  val httpProcessor = new NettyHttpProxyProcessor()
-  //  val httpsProcessor = new NettyHttpsProxyProcessor()
+  //  val httpProcessor = new SocketHttpProxyProcessor()
+  //  val httpsProcessor = new SocketHttpsProxyProcessor()
+  val httpProcessor = new NettyHttpProxyProcessor()
+  val httpsProcessor = new NettyHttpsProxyProcessor()
 
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
     createSessionIfNecessary(request)

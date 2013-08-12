@@ -90,7 +90,7 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
     pipeline.addLast("proxyServer-idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("proxyServer-idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        logger.debug("Channel idle........%s".format(e.getChannel))
+        logger.debug(s"[${e.getChannel}}] - Channel idle, closing it.")
         Utils.closeChannel(e.getChannel)
       }
     })
@@ -150,7 +150,7 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
     extends SimpleChannelUpstreamHandler with Logging {
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug(s"${e.getChannel} receive message\n${Utils.formatMessage(e.getMessage)}")
+    logger.debug(s"[${e.getChannel}] - Receive message\n${Utils.formatMessage(e.getMessage)}")
 
     require(e.getMessage.isInstanceOf[HttpRequest], "Unsupported Request..........")
     val httpRequest = e.getMessage.asInstanceOf[HttpRequest]
@@ -168,22 +168,15 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
 
   }
 
-  override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug("New channel opened: %s".format(e.getChannel))
-    //    proxyConfig.allChannels.add(e.getChannel)
-    super.channelOpen(ctx, e)
-
-  }
-
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug("Got closed event on : %s".format(e.getChannel))
+    logger.debug(s"[${e.getChannel}] - closed.")
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+    logger.warn(s"[${e.getChannel}] - Got exception.", e.getCause)
     e.getCause match {
       case closeException: ClosedChannelException ⇒ //Just ignore it
       case exception ⇒ {
-        logger.warn("Caught exception on : %s".format(e.getChannel), e.getCause)
         Utils.closeChannel(e.getChannel)
       }
     }

@@ -111,7 +111,18 @@ object Main extends Logging {
     //    Request.Put("http://localhost:8080/proxy").bodyByteArray("This is just a test".getBytes()).execute.returnContent.toString
     //    Assert.assertTrue(new GFWListJava().isBlockedByGFW("http://facebook.com"))
 
-    //            val string = IOUtils.toString(httpClient.execute(new HttpGet("http://www.baidu.com/")).getEntity.getContent)
+    //
+    //    DefaultHttpRequest(chunked: false)
+    //    POST http://evintl-ocsp.verisign.com/ HTTP/1.1
+    //    Host: evintl-ocsp.verisign.com
+    //    User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:23.0) Gecko/20100101 Firefox/23.0
+    //    Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+    //Accept-Language: zh,en-us;q=0.7,en;q=0.3
+    //Accept-Encoding: gzip, deflate
+    //Content-Length: 115
+    //Content-Type: application/ocsp-request
+    //Connection: keep-alive
+    //        val string = IOUtils.toString(httpClient.execute(new HttpGet("http://www.baidu.com/")).getEntity.getContent)
     val string = IOUtils.toString(httpClient.execute(new HttpGet("https://devimages.apple.com.edgekey.net/assets/scripts/ac_retina.js")).getEntity.getContent)
     //            val string = IOUtils.toString(httpClient.execute(new HttpGet("http://localhost:9080/test/index.html")).getEntity.getContent)
     //    val string = IOUtils.toString(httpClient.execute(new HttpGet("https://localhost:8443/test/index.html")).getEntity.getContent)

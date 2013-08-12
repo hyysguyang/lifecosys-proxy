@@ -101,7 +101,7 @@ object Utils {
   def formatMessage(message: Any): String = message match {
     case response: HttpMessage ⇒ s"$response \n length:  ${response.getContent.readableBytes()}\n ${hexDumpToString(response.getContent.array())}"
     case chunk: HttpChunk      ⇒ s"$chunk - isLast: ${chunk.isLast}} \n length:  ${chunk.getContent.readableBytes()}\n  ${hexDumpToString(chunk.getContent.array())}"
-    case buffer: ChannelBuffer ⇒ s"$buffer \n length:  ${buffer.readableBytes()}\n  ${hexDumpToString(buffer.array())}"
+    case buffer: ChannelBuffer ⇒ s"$buffer \n length:  ${buffer.readableBytes()}\n  ${hexDumpToString(ChannelBuffers.copiedBuffer(buffer).array())}"
     case unknownMessage        ⇒ "Unknown message."
   }
 

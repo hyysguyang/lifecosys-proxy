@@ -68,11 +68,10 @@ sealed trait NettyTaskSupport {
 class NettyHttpProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
-    val task = (asyncContext: AsyncContext) ⇒
-      createConnection(asyncContext) { channel ⇒
-        logger.debug(s"Writing proxy request to $channel \n ${Utils.hexDumpToString(proxyRequestBuffer)}")
-        channel.write(ChannelBuffers.wrappedBuffer(proxyRequestBuffer))
-      }
+    val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
+      logger.debug(s"[$channel] - Writing proxy request:\n ${Utils.hexDumpToString(proxyRequestBuffer)}")
+      channel.write(ChannelBuffers.wrappedBuffer(proxyRequestBuffer))
+    }
 
     starTask(request)(task)
   }
@@ -95,12 +94,11 @@ class NettyHttpsProxyProcessor extends web.ProxyProcessor with NettyTaskSupport 
       }
       case _ ⇒ {
 
-        val task = (asyncContext: AsyncContext) ⇒
-          createConnection(asyncContext) { channel ⇒
-            logger.debug(s"Writing connection established response")
-            response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
-            response.getOutputStream.flush()
-          }
+        val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
+          logger.debug(s"Writing connection established response")
+          response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
+          response.getOutputStream.flush()
+        }
 
         starTask(request)(task)
       }
@@ -131,9 +129,10 @@ sealed class ProxyResponseRelayingHandler(val asyncContext: AsyncContext) extend
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     logger.warn(s"[${e.getChannel}] - closed, complete request now.")
-    Try(asyncContext.complete())
-    request.getSession(false).invalidate()
-
+    Try {
+      request.getSession(false).invalidate()
+      asyncContext.complete()
+    }
   }
 }
 

@@ -66,15 +66,10 @@ class SocketHttpProxyProcessor extends SocketProxyProcessor {
 class SocketHttpsProxyProcessor extends SocketProxyProcessor {
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
     request.getSession(false).getAttribute(SESSION_KEY_ENDPOINT) match {
-      case socket: Socket ⇒ {
-        logger.debug(s"Process payload: ${Utils.hexDumpToString(proxyRequestBuffer)}")
-        relayProxyRequest(socket, proxyRequestBuffer)
-      }
-      case _ ⇒ {
-        createConnection { socket ⇒
-          response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
-          response.getOutputStream.flush()
-        }
+      case socket: Socket ⇒ relayProxyRequest(socket, proxyRequestBuffer)
+      case _ ⇒ createConnection { socket ⇒
+        response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
+        response.getOutputStream.flush()
       }
     }
 

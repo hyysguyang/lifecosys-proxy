@@ -22,7 +22,7 @@ package com.lifecosys.toolkit.proxy
 
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.channel._
-import org.jboss.netty.buffer.{ ChannelBufferInputStream, ChannelBuffer, ChannelBuffers }
+import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.littleshoot.proxy.ProxyUtils
@@ -144,7 +144,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
       wrappedRequest.setContent(encryptedBuffer)
     }
     val toBeSentMessage = msg match {
-      case request: HttpRequest if StringUtils.isEmpty(request.getHeader(ProxyCloseCommand.name)) ⇒ {
+      case request: HttpRequest ⇒ {
         val encodedProxyRequest = super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
         setContent(wrappedRequest, encodedProxyRequest)

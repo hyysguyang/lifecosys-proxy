@@ -24,17 +24,11 @@ import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
-import org.jboss.netty.buffer.{ ChannelBufferInputStream, ChannelBuffer, ChannelBuffers }
-import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
+import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
-import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
-import org.littleshoot.proxy.ProxyUtils
-import org.apache.commons.io.IOUtils
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
 import scala.util.Try
-import org.jboss.netty.logging.InternalLogLevel
-import org.jboss.netty.handler.logging.LoggingHandler
 
 /**
  *
@@ -158,7 +152,6 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: 
   }
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
-    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR))
     if (proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
       engine.setUseClientMode(true)

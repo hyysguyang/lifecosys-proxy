@@ -9,7 +9,6 @@ import com.lifecosys.toolkit.proxy.web._
 import javax.servlet.AsyncContext
 import scala.util.Try
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
-import org.apache.commons.lang3.StringUtils
 
 /**
  *
@@ -69,21 +68,6 @@ sealed trait NettyTaskSupport {
 class NettyHttpProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
-
-    if (StringUtils.isNotEmpty(request.getHeader(ProxyCloseCommand.name))) {
-
-      try {
-        response.setHeader(ProxyCloseCommand.name, request.getHeader(ProxyCloseCommand.name))
-        request.getSession(false).getAttribute(SESSION_KEY_ENDPOINT).asInstanceOf[Channel].close()
-      } catch {
-        case e: Throwable ⇒ {
-          logger.error(s"#################################################\n${request.getRequestedSessionId}\n############################################################################")
-          throw e
-        }
-      }
-      return
-    }
-
     val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
       logger.debug(s"[$channel] - Writing proxy request:\n ${Utils.hexDumpToString(proxyRequestBuffer)}")
       channel.write(ChannelBuffers.wrappedBuffer(proxyRequestBuffer))

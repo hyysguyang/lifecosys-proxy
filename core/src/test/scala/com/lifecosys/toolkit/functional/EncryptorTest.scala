@@ -1,10 +1,9 @@
 package com.lifecosys.toolkit.functional
 
 import org.scalatest.{ BeforeAndAfterAll, FeatureSpec }
-import java.security.{ SecureRandom, Security }
+import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import com.lifecosys.toolkit.ssl.DefaultEncryptor
-import com.lifecosys.toolkit.proxy.Utils
 
 /**
  *

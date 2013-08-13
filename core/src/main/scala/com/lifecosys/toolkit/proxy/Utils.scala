@@ -37,6 +37,8 @@ import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage }
 import org.apache.commons.io.{ IOUtils, HexDump }
 import java.io.{ InputStream, ByteArrayInputStream, ByteArrayOutputStream }
 import scala.Some
+import com.typesafe.scalalogging.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 /**
  *
@@ -45,6 +47,7 @@ import scala.Some
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
+  lazy val logger = Logger(LoggerFactory getLogger getClass.getName)
   val UTF8: Charset = Charset.forName("UTF-8")
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
@@ -98,6 +101,17 @@ object Utils {
     new String(Hex.encode(data), UTF8)
   }
 
+  def compressAndEncrypt(data: Array[Byte]) = deflate(encryptor.encrypt(data))
+  def decompressAndDecrypt(compressedData: Array[Byte]) = {
+    try {
+      encryptor.decrypt(Utils.inflate(compressedData))
+    } catch {
+      case e: Throwable ⇒
+        logger.error(s"Parse proxy request from payload:\n${Utils.hexDumpToString(compressedData)}", e)
+        throw e
+    }
+  }
+
   def formatMessage(message: Any): String = message match {
     case response: HttpMessage ⇒ s"$response \n length:  ${response.getContent.readableBytes()}\n ${hexDumpToString(response.getContent.array())}"
     case chunk: HttpChunk      ⇒ s"$chunk - isLast: ${chunk.isLast}} \n length:  ${chunk.getContent.readableBytes()}\n  ${hexDumpToString(chunk.getContent.array())}"
@@ -140,7 +154,10 @@ object Utils {
       val count = compresser.deflate(buf)
       output.write(buf, 0, count)
     }
-    output.toByteArray
+    val array: Array[Byte] = output.toByteArray
+    output.close()
+    logger.error(s"Before deflate : ${in.length} - After deflate : ${array.length}")
+    array
   }
 
   def inflate(in: Array[Byte]): Array[Byte] = {
@@ -155,7 +172,10 @@ object Utils {
       val count = decompresser.inflate(buf)
       output.write(buf, 0, count)
     }
-    output.toByteArray
+    val array: Array[Byte] = output.toByteArray
+    output.close()
+    logger.error(s"Before inflate : ${in.length} - After inflate : ${array.length}")
+    array
   }
 
   def serialize(obj: Any): Array[Byte] = {

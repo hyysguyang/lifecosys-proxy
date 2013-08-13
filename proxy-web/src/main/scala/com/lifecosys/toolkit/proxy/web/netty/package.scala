@@ -1,7 +1,7 @@
 package com.lifecosys.toolkit.proxy.web
 
-import java.util.concurrent.{ Executor, Executors }
-import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioWorker, NioWorkerPool }
+import java.util.concurrent.Executors
+import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
 
 /**
  *

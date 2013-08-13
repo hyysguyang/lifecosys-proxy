@@ -83,7 +83,7 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
       pipeline.addLast("proxyServer-encrypt", new EncryptEncoder)
     }
 
-    pipeline.addLast("proxyServer-decoder", new HttpRequestDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+    pipeline.addLast("proxyServer-decoder", new HttpRequestDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
     pipeline.addLast("proxyServer-encoder", new HttpResponseEncoder())
 

@@ -136,11 +136,8 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
       //We may get CompositeChannelBuffer,such as for HttpRequest with content.
       val data = Try(content.array()).getOrElse(content.toByteBuffer.array())
-      val encrypt: Array[Byte] = encryptor.encrypt(data)
-      val compressedData = Utils.deflate(encrypt)
-      val encryptedBuffer = ChannelBuffers.wrappedBuffer(compressedData)
+      val encryptedBuffer = ChannelBuffers.wrappedBuffer(Utils.compressAndEncrypt(data))
       wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
-      logger.debug(s"Proxy encryptedBuffer request:\n ${Utils.hexDumpToString(encryptedBuffer.array())}")
       wrappedRequest.setContent(encryptedBuffer)
     }
     val toBeSentMessage = msg match {
@@ -203,9 +200,13 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         }
         ChannelBuffers.EMPTY_BUFFER
       }
-      case chunk: HttpChunk if !chunk.isLast ⇒ chunk.getContent
-      case chunk: HttpChunk if chunk.isLast  ⇒ channel.close()
-      case unknownMessage                    ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")
+      case chunk: HttpChunk if !chunk.isLast ⇒ {
+        //We may get CompositeChannelBuffer,such as for HttpRequest with content.
+        val compressedData = Try(chunk.getContent.array()).getOrElse(chunk.getContent.toByteBuffer.array())
+        ChannelBuffers.wrappedBuffer(Utils.decompressAndDecrypt(compressedData))
+      }
+      case chunk: HttpChunk if chunk.isLast ⇒ channel.close()
+      case unknownMessage                   ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")
     }
   }
 

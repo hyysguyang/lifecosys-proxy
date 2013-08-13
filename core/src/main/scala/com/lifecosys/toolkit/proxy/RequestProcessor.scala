@@ -111,7 +111,7 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext:
       pipeline.addLast("proxyServerToRemote-objectEncoder", new ObjectEncoder)
       pipeline.addLast("proxyServerToRemote-encrypt", new EncryptEncoder)
     }
-    pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+    pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
     //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
     pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
@@ -159,7 +159,7 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: 
     }
     super.proxyToServerPipeline(pipeline)
     pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
-    pipeline.addLast("proxyServerToRemote-webProxyHttpResponseDecoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+    pipeline.addLast("proxyServerToRemote-webProxyHttpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
   }
 }
@@ -256,7 +256,7 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
     pipeline.addLast("proxyServer-connectionHandler", new NetHttpsRelayingHandler(future.getChannel))
 
     //    if (connectHost.serverType == WebProxyType) {
-    //      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-decoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+    //      future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-decoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     //    }
     //    future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", httpRequestEncoder)
 
@@ -324,7 +324,7 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
           pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
         }
 
-        pipeline.addLast("proxyServerToRemote-decoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
+        pipeline.addLast("proxyServerToRemote-decoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
         pipeline.addLast("proxyServerToRemote-encoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost))
 
         pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))

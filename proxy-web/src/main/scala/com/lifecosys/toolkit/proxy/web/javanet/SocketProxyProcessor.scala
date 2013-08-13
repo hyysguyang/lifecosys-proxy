@@ -3,9 +3,10 @@ package com.lifecosys.toolkit.proxy.web.javanet
 import com.lifecosys.toolkit.proxy.web._
 import java.net.Socket
 import javax.servlet.http.{ HttpServletRequest, HttpServletResponse }
-import org.jboss.netty.handler.codec.http.HttpHeaders
 import com.lifecosys.toolkit.proxy._
 import com.typesafe.scalalogging.slf4j.Logging
+
+//TODO response need to be compressed and encrypt.
 
 abstract class SocketProxyProcessor extends ProxyProcessor with Logging {
   def connect(channelKey: ChannelKey) = {

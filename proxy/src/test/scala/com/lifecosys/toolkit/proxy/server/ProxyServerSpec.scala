@@ -4,7 +4,6 @@ import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
 import java.security.Security
 import org.apache.commons.io.IOUtils
-import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.config.SocketConfig
 import org.apache.http.conn.ssl.SSLSocketFactory
@@ -12,7 +11,6 @@ import org.apache.http.HttpHost
 import org.apache.http.impl.client.{ HttpClientBuilder, HttpClients }
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
-import org.junit.{ BeforeClass, Assert, Test }
 import org.scalatest._
 import scala.Some
 

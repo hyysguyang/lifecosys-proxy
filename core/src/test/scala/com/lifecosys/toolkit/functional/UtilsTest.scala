@@ -20,31 +20,15 @@
 
 package com.lifecosys.toolkit.functional
 
-import org.junit.{ Assert, Test }
-import java.security._
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-import java.security.spec.{ RSAPrivateCrtKeySpec, RSAPublicKeySpec }
+import org.junit.Assert
+import java.security.spec.RSAPrivateCrtKeySpec
 import java.math.BigInteger
 import java.net.InetSocketAddress
-import com.lifecosys.toolkit.proxy.Utils
-import org.apache.http.client.fluent.{ Executor, Request }
-import org.apache.http.HttpHost
-import org.apache.http.client.HttpClient
-import org.apache.http.impl.client.{ HttpClients, DefaultHttpClient }
-import org.apache.http.client.methods.{ HttpPost, HttpGet }
-import org.apache.http.entity.{ ContentType, ByteArrayEntity }
-import java.io.File
-import org.apache.commons.io.{ IOUtils, FileUtils }
-import org.apache.http.conn.ssl.SSLSocketFactory
-import javax.net.ssl.{ X509TrustManager, SSLContext }
-import java.security.cert.X509Certificate
-import com.typesafe.config.ConfigFactory
 
 import java.security._
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import com.lifecosys.toolkit.proxy.Utils
 import org.scalatest.{ BeforeAndAfterAll, FeatureSpec }
-import java.util.zip.Deflater
 import org.apache.commons.io.IOUtils
 import java.security.spec.RSAPublicKeySpec
 

@@ -11,7 +11,6 @@ import com.lifecosys.toolkit.proxy._
 import com.lifecosys.toolkit.proxy.RequestType
 import javax.servlet.annotation.WebServlet
 import scala.util.Try
-import com.lifecosys.toolkit.proxy.web.javanet.{ SocketHttpsProxyProcessor, SocketHttpProxyProcessor }
 import com.lifecosys.toolkit.proxy.web.netty.{ NettyHttpsProxyProcessor, NettyHttpProxyProcessor }
 
 /**

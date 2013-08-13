@@ -9,6 +9,8 @@ import com.lifecosys.toolkit.proxy.web._
 import javax.servlet.AsyncContext
 import scala.util.Try
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
+import org.jboss.netty.handler.codec.http._
+import com.lifecosys.toolkit.proxy.ChannelKey
 
 /**
  *
@@ -53,32 +55,44 @@ sealed trait NettyTaskSupport {
   def connect(asyncContext: AsyncContext, channelKey: ChannelKey) = {
     val clientBootstrap = newClientBootstrap
     clientBootstrap.setFactory(clientSocketChannelFactory)
-    val pipeline = clientBootstrap.getPipeline
+    clientBootstrap setPipelineFactory pipelineFactory(asyncContext)
+    clientBootstrap.connect(channelKey.proxyHost.socketAddress).awaitUninterruptibly()
+  }
+
+  def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
     pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
         Utils.closeChannel(e.getChannel)
       }
     })
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new ProxyResponseRelayingHandler(asyncContext))
-    clientBootstrap.connect(channelKey.proxyHost.socketAddress).awaitUninterruptibly()
   }
 }
 
 class NettyHttpProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
 
+  override def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
+    super.pipelineFactory(asyncContext)(pipeline)
+    pipeline.addLast("proxyServerToRemote-proxyToServerResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new ProxyHttpResponseRelayingHandler(asyncContext))
+  }
+
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
-    val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
-      logger.debug(s"[$channel] - Writing proxy request:\n ${Utils.hexDumpToString(proxyRequestBuffer)}")
-      channel.write(ChannelBuffers.wrappedBuffer(proxyRequestBuffer))
+    val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) {
+      channel ⇒
+        logger.debug(s"[$channel] - Writing proxy request:\n ${Utils.hexDumpToString(proxyRequestBuffer)}")
+        channel.write(ChannelBuffers.wrappedBuffer(proxyRequestBuffer))
     }
 
     starTask(request)(task)
   }
-
 }
 
 class NettyHttpsProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
+  override def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
+    super.pipelineFactory(asyncContext)(pipeline)
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new ProxyHttpsResponseRelayingHandler(asyncContext))
+  }
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
     request.getSession(false).getAttribute(SESSION_KEY_ENDPOINT) match {
@@ -94,10 +108,9 @@ class NettyHttpsProxyProcessor extends web.ProxyProcessor with NettyTaskSupport 
       }
       case _ ⇒ {
 
-        val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
-          logger.debug(s"Writing connection established response")
-          response.getOutputStream.write(Utils.connectProxyResponse.getBytes("UTF-8"))
-          response.getOutputStream.flush()
+        val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) {
+          channel ⇒
+            writeResponse(response, Utils.connectProxyResponse.getBytes("UTF-8"))
         }
 
         starTask(request)(task)
@@ -107,19 +120,61 @@ class NettyHttpsProxyProcessor extends web.ProxyProcessor with NettyTaskSupport 
 
 }
 
-sealed class ProxyResponseRelayingHandler(val asyncContext: AsyncContext) extends SimpleChannelUpstreamHandler with Logging {
-  val response = asyncContext.getResponse.asInstanceOf[HttpServletResponse]
-  val request = asyncContext.getRequest.asInstanceOf[HttpServletRequest]
+sealed class ProxyHttpResponseRelayingHandler(asyncContext: AsyncContext) extends ProxyResponseRelayingHandler(asyncContext) {
+
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    val encode = classOf[HttpResponseEncoder].getSuperclass.getDeclaredMethods.filter(_.getName == "encode")(0)
+    encode.setAccessible(true)
+    val responseBuffer = encode.invoke(new HttpResponseEncoder(), null, ctx.getChannel, e.getMessage).asInstanceOf[ChannelBuffer]
+    writeResponse(responseBuffer)
+    e.getMessage match {
+      case response: HttpResponse if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
+      case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
+      case _ ⇒
+    }
+  }
+}
+
+sealed class ProxyHttpsResponseRelayingHandler(asyncContext: AsyncContext) extends ProxyResponseRelayingHandler(asyncContext) {
+
+  var buffers = ChannelBuffers.EMPTY_BUFFER
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
     logger.debug(s"[${e.getChannel}] - Receive message:\n ${Utils.formatMessage(e.getMessage)}")
     e.getMessage match {
-      case buffer: ChannelBuffer ⇒ {
-        response.getOutputStream.write(buffer.array())
-        response.getOutputStream.flush
+      case buffer: ChannelBuffer if buffer.readableBytes() > 0 ⇒ {
+        if (buffers.readableBytes() > 0) {
+          buffers = ChannelBuffers.wrappedBuffer(buffers, buffer)
+        }
+
+        if (buffers.readableBytes() == 0 && buffer.getByte(0) == 0x17) {
+          buffers = ChannelBuffers.wrappedBuffer(buffers, buffer)
+        }
+
+        def isConsistentRecord = buffers.readableBytes() > 5 && (buffers.getShort(3) + 5) == buffers.readableBytes()
+
+        if (buffers.readableBytes() == 0) {
+          writeResponse(buffer)
+        } else if (isConsistentRecord) {
+          writeResponse(buffers)
+          buffers = ChannelBuffers.EMPTY_BUFFER
+        }
+
       }
       case _ ⇒
     }
+  }
+}
+
+sealed class ProxyResponseRelayingHandler(val asyncContext: AsyncContext) extends SimpleChannelUpstreamHandler with Logging {
+  val response = asyncContext.getResponse.asInstanceOf[HttpServletResponse]
+  val request = asyncContext.getRequest.asInstanceOf[HttpServletRequest]
+
+  def writeResponse(buffer: ChannelBuffer) {
+    logger.debug(s"Write response: ${Utils.formatMessage(buffer)}")
+    val data = Try(buffer.array()).getOrElse(buffer.toByteBuffer.array())
+    response.getOutputStream.write(Utils.compressAndEncrypt(data))
+    response.getOutputStream.flush
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {

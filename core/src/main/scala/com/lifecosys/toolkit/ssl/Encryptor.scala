@@ -7,19 +7,15 @@ package com.lifecosys.toolkit.ssl
  * @version 1.0 7/25/13 12:55 PM
  */
 
-import java.security.{ Provider, MessageDigest, SecureRandom, Key }
-import javax.crypto.{ CipherOutputStream, CipherInputStream, Cipher }
+import java.security.{ MessageDigest, Key }
+import javax.crypto.{ CipherInputStream, Cipher }
 import javax.crypto.spec.{ IvParameterSpec, SecretKeySpec }
-import java.lang.String
-import scala.Predef.String
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import com.lifecosys.toolkit.proxy.Utils
-import java.io.{ FileOutputStream, OutputStream, FileInputStream, InputStream }
+import java.io._
 
 trait Encryptor {
   def encrypt(plainData: Array[Byte]): Array[Byte]
   def decrypt(encryptedData: Array[Byte]): Array[Byte]
-
 }
 
 class DefaultEncryptor extends Encryptor {
@@ -46,14 +42,8 @@ class DefaultEncryptor extends Encryptor {
   def encrypt(plainData: Array[Byte]): Array[Byte] = if (plainData.length == 0) plainData else synchronized(encryptor.doFinal(plainData))
   def decrypt(encryptedData: Array[Byte]): Array[Byte] = if (encryptedData.length == 0) encryptedData else synchronized(decryptor.doFinal(encryptedData))
 
-  def encrypt(input: InputStream): InputStream = {
-    val cipher: Cipher = buildCipher(Cipher.ENCRYPT_MODE)
-    new CipherInputStream(input, cipher)
-  }
-  def decrypt(input: InputStream): InputStream = {
-    val cipher: Cipher = buildCipher(Cipher.DECRYPT_MODE)
-    new CipherInputStream(input, cipher)
-  }
+  def encrypt(input: InputStream): InputStream = new CipherInputStream(input, encryptor)
+  def decrypt(input: InputStream): InputStream = new CipherInputStream(input, decryptor)
 
 }
 

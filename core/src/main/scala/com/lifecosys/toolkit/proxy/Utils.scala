@@ -102,7 +102,7 @@ object Utils {
     case response: HttpMessage ⇒ s"$response \n length:  ${response.getContent.readableBytes()}\n ${hexDumpToString(response.getContent.array())}"
     case chunk: HttpChunk      ⇒ s"$chunk - isLast: ${chunk.isLast}} \n length:  ${chunk.getContent.readableBytes()}\n  ${hexDumpToString(chunk.getContent.array())}"
     case buffer: ChannelBuffer ⇒ s"$buffer \n length:  ${buffer.readableBytes()}\n  ${hexDumpToString(ChannelBuffers.copiedBuffer(buffer).array())}"
-    case unknownMessage        ⇒ "Unknown message."
+    case unknownMessage        ⇒ unknownMessage.toString
   }
 
   def hexDumpToString(bytes: Array[Byte]): String = {

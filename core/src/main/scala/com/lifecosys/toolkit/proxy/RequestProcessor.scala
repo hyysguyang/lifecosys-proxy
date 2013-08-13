@@ -32,6 +32,9 @@ import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
+import scala.util.Try
+import org.jboss.netty.logging.InternalLogLevel
+import org.jboss.netty.handler.logging.LoggingHandler
 
 /**
  *
@@ -115,7 +118,7 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext:
       pipeline.addLast("proxyServerToRemote-encrypt", new EncryptEncoder)
     }
     pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
-    pipeline.addLast("proxyServerToRemote-httpResponseEncoder", httpRequestEncoder)
+    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
     //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
     pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
@@ -147,20 +150,22 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: 
     extends HttpRequestProcessor(request, browserChannelContext) {
 
   require(connectHost.needForward, "The message must be need forward to remote WebProxy.")
-  override val httpRequestEncoder = new WebProxyHttpRequestEncoder(connectHost, Host(httpRequest.getUri))
+  val proxyHost = Try(Host(httpRequest.getUri)).getOrElse(Host(httpRequest.getHeader(HttpHeaders.Names.HOST)))
+  override val httpRequestEncoder = new WebProxyHttpRequestEncoder(connectHost, proxyHost)
 
   override def connectProcess(future: ChannelFuture) {
     super.connectProcess(future)
   }
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
+    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR))
     if (proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
       engine.setUseClientMode(true)
       pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
     }
     super.proxyToServerPipeline(pipeline)
-    pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder)
+    pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
     pipeline.addLast("proxyServerToRemote-webProxyHttpResponseDecoder", new HttpResponseDecoder(8192 * 2, 8192 * 4, 8192 * 4))
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
   }
@@ -337,6 +342,7 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
           }
         })
 
+        pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannelContext.getChannel))
         pipeline.addLast("proxyServerToRemote-connectionHandler", new WebProxyHttpsRelayingHandler(browserChannelContext.getChannel))
     }
     proxyToServerBootstrap

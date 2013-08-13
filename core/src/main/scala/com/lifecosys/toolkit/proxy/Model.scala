@@ -76,6 +76,7 @@ case class Header(name: String)
 object ResponseCompleted extends Header("X-PRC")
 object ProxyHostHeader extends Header("X-PH")
 object ProxyRequestType extends Header("X-PRT")
+object ProxyCloseCommand extends Header("X-C")
 
 case class RequestType(value: Byte)
 object HTTP extends RequestType(0)

@@ -24,8 +24,8 @@ import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
-import org.apache.commons.io.IOUtils
 import org.apache.commons.lang3.StringUtils
+import org.jboss.netty.buffer.ChannelBuffer
 
 /**
  *
@@ -56,7 +56,7 @@ abstract class BaseRelayingHandler(relayingChannel: Channel)(implicit proxyConfi
 class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends BaseRelayingHandler(browserChannel) with Logging {
 
-  private def responsePreProcess(message: Any) = message match {
+  protected def responsePreProcess(message: Any) = message match {
     case response: HttpResponse if HttpHeaders.Values.CHUNKED == response.getHeader(HttpHeaders.Names.TRANSFER_ENCODING) ⇒ {
       //Fixing HTTP version.
       val copy = new DefaultHttpResponse(HttpVersion.HTTP_1_1, response.getStatus)
@@ -132,8 +132,42 @@ case class State(jsessionid: Option[Cookie] = None, phase: HttpsPhase = Init)
 trait WebProxyRelayingHandler {
 
 }
-class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-  extends NetHttpResponseRelayingHandler(browserChannel)
+class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+    extends NetHttpResponseRelayingHandler(browserChannel) {
+  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
+
+    val message = responsePreProcess(e.getMessage)
+    def writeListener = (future: ChannelFuture) ⇒ {
+      message match {
+        case chunk: HttpChunk if chunk.isLast ⇒ {
+
+          //          val closeRequest = WebProxy.createWrappedRequest(connectHost,proxyHost,WebProxy.jsessionidCookie(browserChannel))
+          //          closeRequest.setHeader(ProxyCloseCommand.name,"1")
+          Channels.fireMessageReceived(browserChannel, ProxyCloseCommand)
+        }
+        case response: HttpResponse if !response.isChunked && StringUtils.isEmpty(response.getHeader(ProxyCloseCommand.name)) ⇒ {
+          logger.debug("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+
+          val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
+          wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
+          wrappedRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
+          WebProxy.jsessionidCookie(browserChannel).foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
+          wrappedRequest.setHeader(ProxyCloseCommand.name, "1")
+
+          Channels.fireMessageReceived(browserChannel, wrappedRequest)
+        }
+        case _ ⇒
+      }
+    }
+
+    writeResponse(message, writeListener)
+    if (!browserChannel.isConnected) {
+      Utils.closeChannel(e.getChannel)
+    }
+
+  }
+
+}
 
 class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends BaseRelayingHandler(browserChannel) with Logging {
@@ -144,26 +178,31 @@ class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig
     }
 
     e.getMessage match {
-      case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
-        logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), Utils.UTF8.name())}}")
-        throw new RuntimeException("WebProx Error:")
-      }
-      case response: HttpResponse if !response.isChunked ⇒ {
-        logger.debug("Proxy request relay to remote server by WebProxy successful.")
-        e.getChannel.close()
-      }
-      case response: HttpResponse if response.isChunked ⇒ {
-        import scala.collection.JavaConverters._
-        val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
-        if (StringUtils.isNotEmpty(setCookie) && browserChannel.getAttachment == null) {
-          val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
-          browserChannel.setAttachment(jsessionid)
-        }
-      }
-      case response: HttpChunk if !response.isLast ⇒ writeResponse(response.getContent)
-      case response: HttpChunk if response.isLast  ⇒ e.getChannel.close()
-      case unknownMessage                          ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")
+      case responseBuffer: ChannelBuffer ⇒ writeResponse(responseBuffer)
+      case _                             ⇒
     }
+
+    //    e.getMessage match {
+    //      case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
+    //        logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), Utils.UTF8.name())}}")
+    //        throw new RuntimeException("WebProx Error:")
+    //      }
+    //      case response: HttpResponse if !response.isChunked ⇒ {
+    //        logger.debug("Proxy request relay to remote server by WebProxy successful.")
+    //        e.getChannel.close()
+    //      }
+    //      case response: HttpResponse if response.isChunked ⇒ {
+    //        import scala.collection.JavaConverters._
+    //        val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
+    //        if (StringUtils.isNotEmpty(setCookie) && browserChannel.getAttachment == null) {
+    //          val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
+    //          browserChannel.setAttachment(jsessionid)
+    //        }
+    //      }
+    //      case chunk: HttpChunk if !chunk.isLast ⇒ writeResponse(chunk.getContent)
+    //      case response: HttpChunk if response.isLast  ⇒ e.getChannel.close()
+    //      case unknownMessage                          ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")
+    //    }
 
   }
 

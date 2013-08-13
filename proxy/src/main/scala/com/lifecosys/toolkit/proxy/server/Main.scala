@@ -122,8 +122,8 @@ object Main extends Logging {
     //Content-Length: 115
     //Content-Type: application/ocsp-request
     //Connection: keep-alive
-    //        val string = IOUtils.toString(httpClient.execute(new HttpGet("http://www.baidu.com/")).getEntity.getContent)
-    val string = IOUtils.toString(httpClient.execute(new HttpGet("https://devimages.apple.com.edgekey.net/assets/scripts/ac_retina.js")).getEntity.getContent)
+    val string = IOUtils.toString(httpClient.execute(new HttpGet("http://www.baidu.com/")).getEntity.getContent)
+    //    val string = IOUtils.toString(httpClient.execute(new HttpGet("https://devimages.apple.com.edgekey.net/assets/scripts/ac_retina.js")).getEntity.getContent)
     //            val string = IOUtils.toString(httpClient.execute(new HttpGet("http://localhost:9080/test/index.html")).getEntity.getContent)
     //    val string = IOUtils.toString(httpClient.execute(new HttpGet("https://localhost:8443/test/index.html")).getEntity.getContent)
     //        val string = IOUtils.toString(httpClient.execute(new HttpGet("http://localhost:8080/index.html")).getEntity.getContent)

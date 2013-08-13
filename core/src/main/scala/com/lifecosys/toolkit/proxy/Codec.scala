@@ -29,6 +29,7 @@ import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
 import scala.util.Try
+import org.apache.commons.lang3.StringUtils
 
 /**
  *
@@ -102,9 +103,33 @@ class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
   }
 }
 
+object WebProxy {
+  def jsessionidCookie(channel: Channel) = channel.getAttachment match {
+    case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
+      val encoder = new CookieEncoder(false)
+      encoder.addCookie(jsessionid.asInstanceOf[Cookie])
+      Some(encoder.encode())
+    }
+    case _ ⇒ None
+  }
+
+  def createWrappedRequest(connectHost: ConnectHost, proxyHost: Host, jsessionidCookie: Option[String]) = {
+    val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
+    wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
+    wrappedRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
+    wrappedRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
+    wrappedRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
+    wrappedRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
+    wrappedRequest.setHeader(ProxyHostHeader.name, proxyHost.toString)
+    jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
+    wrappedRequest
+  }
+}
+
 class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(implicit browserChannelContext: ChannelHandlerContext)
     extends HttpRequestEncoder with Logging {
   val browserChannel = browserChannelContext.getChannel
+  val jsessionidCookie = WebProxy.jsessionidCookie(browserChannel)
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
@@ -119,15 +144,15 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
       wrappedRequest.setContent(encryptedBuffer)
     }
     val toBeSentMessage = msg match {
-      case request: HttpRequest ⇒ {
+      case request: HttpRequest if StringUtils.isEmpty(request.getHeader(ProxyCloseCommand.name)) ⇒ {
         val encodedProxyRequest = super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
-        val wrappedRequest = createWrappedRequest
+        val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
         setContent(wrappedRequest, encodedProxyRequest)
         wrappedRequest
       }
       case buffer: ChannelBuffer if buffer.readableBytes() == 0 ⇒ buffer //Process for close flush buffer.
       case buffer: ChannelBuffer ⇒
-        val wrappedRequest = createWrappedRequest
+        val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
         setContent(wrappedRequest, buffer)
         wrappedRequest
@@ -136,49 +161,51 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     super.encode(ctx, channel, toBeSentMessage)
   }
 
-  def createWrappedRequest = {
-
-    val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
-    wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
-    wrappedRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
-    wrappedRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
-    wrappedRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
-    wrappedRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
-    //        wrappedRequest.setHeader(HttpHeaders.Names.TE, "trailers")
-    //    browserChannel.getAttachment match {
-    //      case state: HttpsState ⇒ state.sessionId match {
-    //        case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
-    //          val encoder = new CookieEncoder(false)
-    //          encoder.addCookie(jsessionid.asInstanceOf[Cookie])
-    //          wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, encoder.encode())
-    //        }
-    //        case _ ⇒
-    //      }
-    //      case _ ⇒
-    //    }
-    //
-
-    browserChannel.getAttachment match {
-      case Some(jsessionid) ⇒ {
-        val encoder = new CookieEncoder(false)
-        encoder.addCookie(jsessionid.asInstanceOf[Cookie])
-        wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, encoder.encode())
-      }
-      case _ ⇒
-    }
-    wrappedRequest.setHeader(ProxyHostHeader.name, proxyHost.toString)
-    wrappedRequest
-  }
 }
 
-class WebProxyResponseDecoder extends OneToOneDecoder with Logging {
+/**
+ * HTTP process flow:
+ * 1. Send proxy request to WebProxyServer
+ * 2. WebProxyServer initialize a chunked response and return response by continue chunk
+ * 3. Request process completed when reach last chunk and close the channel
+ * 4. Process completed.
+ *
+ * HTTPs process flow:
+ * 1. Send proxy connect request to WebProxyServer
+ * 2. WebProxyServer initialize a chunked response for this connect request, then keep this channel open
+ * and return response data by continue chunk with this channel for other every request.
+ * 3. Create new channel to relay the browser request data to WebProxyServer for continue request, WebProxyServer
+ * return with unchunked response without content for this channel, we close it when get return.
+ * 4. Close connect request's channel after WebProxyServer completed the connect request(with last chunk response)
+ * 5. Process completed.
+ *
+ *
+ * @param browserChannel
+ */
+class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder with Logging {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
-      case response: HttpResponse if response.isChunked ⇒ response.getContent
-      case chunk: HttpChunk if !chunk.isLast            ⇒ chunk.getContent
-      case chunk: HttpChunk if chunk.isLast             ⇒ channel.close()
-      case unknownMessage                               ⇒ throw new RuntimeException("Unknown message.")
+      case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
+        logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), Utils.UTF8.name())}}")
+        throw new RuntimeException("WebProx Error:")
+      }
+      case response: HttpResponse if !response.isChunked ⇒ { //For https data relay
+        logger.debug("Proxy request relay to remote server by WebProxy successful.")
+        channel.close()
+      }
+      case response: HttpResponse if response.isChunked ⇒ {
+        import scala.collection.JavaConverters._
+        val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
+        if (StringUtils.isNotEmpty(setCookie) && browserChannel.getAttachment == null) {
+          val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
+          browserChannel.setAttachment(jsessionid)
+        }
+        ChannelBuffers.EMPTY_BUFFER
+      }
+      case chunk: HttpChunk if !chunk.isLast ⇒ chunk.getContent
+      case chunk: HttpChunk if chunk.isLast  ⇒ channel.close()
+      case unknownMessage                    ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")
     }
   }
 

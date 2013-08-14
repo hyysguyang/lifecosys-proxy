@@ -64,7 +64,7 @@ class ProxyServlet extends HttpServlet with Logging {
   def parseProxyRequest(request: HttpServletRequest): Array[Byte] = {
     val compressedData: Array[Byte] = IOUtils.toByteArray(request.getInputStream)
     try {
-      encryptor.decrypt(Utils.inflate(compressedData))
+      encryptor.decrypt(compressedData)
     } catch {
       case e: Throwable ⇒
         logger.error(s"Parse proxy request from payload:\n${Utils.hexDumpToString(compressedData)}", e)

@@ -25,6 +25,7 @@ import org.jboss.netty.util.HashedWheelTimer
 import collection.mutable
 import org.jboss.netty.bootstrap.ClientBootstrap
 import com.lifecosys.toolkit.ssl.DefaultEncryptor
+import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
 
 /**
  *
@@ -51,6 +52,13 @@ package object proxy {
   implicit def channelFutureListener(f: ChannelFuture ⇒ Unit): ChannelFutureListener = new ChannelFutureListener {
     def operationComplete(future: ChannelFuture) = f(future)
   }
+
+  implicit def bufferToArray(buffer: ChannelBuffer) = {
+    val data = new Array[Byte](buffer.readableBytes())
+    buffer.readBytes(data)
+    data
+  }
+  implicit def arrayToBuffer(data: Array[Byte]) = ChannelBuffers.wrappedBuffer(data)
 
   def newClientBootstrap = {
     val proxyToServerBootstrap = new ClientBootstrap()

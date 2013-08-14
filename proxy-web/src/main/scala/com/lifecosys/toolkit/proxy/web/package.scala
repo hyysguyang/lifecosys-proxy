@@ -4,6 +4,7 @@ import javax.servlet.http.{ HttpServletRequest, HttpServletResponse }
 import org.jboss.netty.handler.codec.http.HttpHeaders
 import com.typesafe.scalalogging.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.nio.ByteBuffer
 
 /**
  *
@@ -19,8 +20,11 @@ package object web {
   def parseChannelKey(request: HttpServletRequest) = ChannelKey(request.getSession.getId, Host(request.getHeader(ProxyHostHeader.name)))
 
   def writeResponse(response: HttpServletResponse, data: Array[Byte]) {
-    logger.debug(s"Write response: ${Utils.hexDumpToString(data)}")
-    response.getOutputStream.write(Utils.compressAndEncrypt(data))
+    val encrypt: Array[Byte] = encryptor.encrypt(data)
+    logger.debug(s"Write response: ${Utils.hexDumpToString(encryptor.decrypt(encrypt))}")
+    //Write the length header of this data packet, include response data length and the length header length
+    response.getOutputStream.write(ByteBuffer.allocate(2).putShort((encrypt.length + 2).toShort).array())
+    response.getOutputStream.write(encrypt)
     response.getOutputStream.flush
   }
 
@@ -29,7 +33,7 @@ package object web {
     response.setContentType("application/octet-stream")
     val error = "HTTP/1.1 400 Can't establish connection\r\n\r\n".getBytes("UTF-8")
     response.setContentLength(error.length)
-    response.getOutputStream.write(Utils.compressAndEncrypt(error))
+    response.getOutputStream.write(error)
     response.getOutputStream.flush()
   }
 

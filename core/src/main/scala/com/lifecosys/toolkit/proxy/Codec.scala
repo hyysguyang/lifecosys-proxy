@@ -28,7 +28,6 @@ import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
-import scala.util.Try
 import org.apache.commons.lang3.StringUtils
 
 /**
@@ -135,10 +134,10 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
       //We may get CompositeChannelBuffer,such as for HttpRequest with content.
-      val data = Try(content.array()).getOrElse(content.toByteBuffer.array())
-      val encryptedBuffer = ChannelBuffers.wrappedBuffer(Utils.compressAndEncrypt(data))
-      wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedBuffer.readableBytes().toString)
-      wrappedRequest.setContent(encryptedBuffer)
+      val encryptedData = encryptor.encrypt(content)
+      wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedData.length.toString)
+      logger.debug(s"Proxy encryptedBuffer request:\n ${Utils.hexDumpToString(encryptedData)}")
+      wrappedRequest.setContent(encryptedData)
     }
     val toBeSentMessage = msg match {
       case request: HttpRequest ⇒ {
@@ -176,10 +175,14 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
  * 4. Close connect request's channel after WebProxyServer completed the connect request(with last chunk response)
  * 5. Process completed.
  *
+ * Response data format: Data-packet-length(2 bytes) + Encrypt-Data
+ *
  *
  * @param browserChannel
  */
 class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder with Logging {
+  //TODO:Do we need synchronize it?
+  var buffers = ChannelBuffers.EMPTY_BUFFER
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
@@ -201,9 +204,17 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         ChannelBuffers.EMPTY_BUFFER
       }
       case chunk: HttpChunk if !chunk.isLast ⇒ {
-        //We may get CompositeChannelBuffer,such as for HttpRequest with content.
-        val compressedData = Try(chunk.getContent.array()).getOrElse(chunk.getContent.toByteBuffer.array())
-        ChannelBuffers.wrappedBuffer(Utils.decompressAndDecrypt(compressedData))
+
+        def isConsistentPacket(buffer: ChannelBuffer) = buffer.readableBytes() >= 2 && buffer.getShort(0) == buffer.readableBytes()
+
+        buffers = ChannelBuffers.wrappedBuffer(buffers, chunk.getContent)
+        if (isConsistentPacket(buffers)) {
+          buffers.readShort()
+          val data = new Array[Byte](buffers.readableBytes())
+          buffers.readBytes(data)
+          buffers = ChannelBuffers.EMPTY_BUFFER
+          ChannelBuffers.wrappedBuffer(encryptor.decrypt(data))
+        } else ChannelBuffers.EMPTY_BUFFER
       }
       case chunk: HttpChunk if chunk.isLast ⇒ channel.close()
       case unknownMessage                   ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")

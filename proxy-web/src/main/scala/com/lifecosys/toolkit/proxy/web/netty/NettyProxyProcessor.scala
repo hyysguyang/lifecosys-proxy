@@ -91,7 +91,7 @@ class NettyHttpProxyProcessor extends web.ProxyProcessor with NettyTaskSupport w
 class NettyHttpsProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
   override def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
     super.pipelineFactory(asyncContext)(pipeline)
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new ProxyHttpsResponseRelayingHandler(asyncContext))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new ProxyResponseRelayingHandler(asyncContext))
   }
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
@@ -126,41 +126,10 @@ sealed class ProxyHttpResponseRelayingHandler(asyncContext: AsyncContext) extend
     val encode = classOf[HttpResponseEncoder].getSuperclass.getDeclaredMethods.filter(_.getName == "encode")(0)
     encode.setAccessible(true)
     val responseBuffer = encode.invoke(new HttpResponseEncoder(), null, ctx.getChannel, e.getMessage).asInstanceOf[ChannelBuffer]
-    writeResponse(responseBuffer)
+    writeResponse(response, responseBuffer)
     e.getMessage match {
       case response: HttpResponse if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
       case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
-      case _ ⇒
-    }
-  }
-}
-
-sealed class ProxyHttpsResponseRelayingHandler(asyncContext: AsyncContext) extends ProxyResponseRelayingHandler(asyncContext) {
-
-  var buffers = ChannelBuffers.EMPTY_BUFFER
-
-  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug(s"[${e.getChannel}] - Receive message:\n ${Utils.formatMessage(e.getMessage)}")
-    e.getMessage match {
-      case buffer: ChannelBuffer if buffer.readableBytes() > 0 ⇒ {
-        if (buffers.readableBytes() > 0) {
-          buffers = ChannelBuffers.wrappedBuffer(buffers, buffer)
-        }
-
-        if (buffers.readableBytes() == 0 && buffer.getByte(0) == 0x17) {
-          buffers = ChannelBuffers.wrappedBuffer(buffers, buffer)
-        }
-
-        def isConsistentRecord = buffers.readableBytes() > 5 && (buffers.getShort(3) + 5) == buffers.readableBytes()
-
-        if (buffers.readableBytes() == 0) {
-          writeResponse(buffer)
-        } else if (isConsistentRecord) {
-          writeResponse(buffers)
-          buffers = ChannelBuffers.EMPTY_BUFFER
-        }
-
-      }
       case _ ⇒
     }
   }
@@ -170,11 +139,12 @@ sealed class ProxyResponseRelayingHandler(val asyncContext: AsyncContext) extend
   val response = asyncContext.getResponse.asInstanceOf[HttpServletResponse]
   val request = asyncContext.getRequest.asInstanceOf[HttpServletRequest]
 
-  def writeResponse(buffer: ChannelBuffer) {
-    logger.debug(s"Write response: ${Utils.formatMessage(buffer)}")
-    val data = Try(buffer.array()).getOrElse(buffer.toByteBuffer.array())
-    response.getOutputStream.write(Utils.compressAndEncrypt(data))
-    response.getOutputStream.flush
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    logger.debug(s"[${e.getChannel}] - Receive message:\n ${Utils.formatMessage(e.getMessage)}")
+    e.getMessage match {
+      case buffer: ChannelBuffer if buffer.readableBytes() > 0 ⇒ writeResponse(response, buffer)
+      case _ ⇒
+    }
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {

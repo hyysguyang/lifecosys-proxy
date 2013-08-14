@@ -143,8 +143,8 @@ class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig
     }
 
     e.getMessage match {
-      case responseBuffer: ChannelBuffer ⇒ writeResponse(responseBuffer)
-      case _                             ⇒
+      case responseBuffer: ChannelBuffer if responseBuffer.readableBytes() > 0 ⇒ writeResponse(responseBuffer)
+      case _ ⇒
     }
   }
 

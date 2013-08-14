@@ -11,11 +11,12 @@ import java.security.{ MessageDigest, Key }
 import javax.crypto.{ CipherInputStream, Cipher }
 import javax.crypto.spec.{ IvParameterSpec, SecretKeySpec }
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import java.io._
+import java.io.InputStream
 
 trait Encryptor {
   def encrypt(plainData: Array[Byte]): Array[Byte]
   def decrypt(encryptedData: Array[Byte]): Array[Byte]
+
 }
 
 class DefaultEncryptor extends Encryptor {

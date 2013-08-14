@@ -26,6 +26,8 @@ import collection.mutable
 import org.jboss.netty.bootstrap.ClientBootstrap
 import com.lifecosys.toolkit.ssl.DefaultEncryptor
 import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
+import java.nio.charset.Charset
+import org.parboiled.common.Base64
 
 /**
  *
@@ -36,6 +38,8 @@ import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
  */
 package object proxy {
   val DEFAULT_BUFFER_SIZE = 1024 * 8
+  val UTF8: Charset = Charset.forName("UTF-8")
+  val base64 = Base64.custom()
   val timer = new HashedWheelTimer
   val hostToChannelFuture = mutable.Map[Host, Channel]()
 

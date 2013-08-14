@@ -116,10 +116,9 @@ object WebProxy {
     val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
     wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
     wrappedRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
-    wrappedRequest.addHeader(HttpHeaders.Names.ACCEPT, "application/octet-stream")
-    wrappedRequest.addHeader(HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream")
-    wrappedRequest.setHeader(HttpHeaders.Names.USER_AGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:22.0) Gecko/20100101 Firefox/22.0")
-    wrappedRequest.setHeader(ProxyHostHeader.name, proxyHost.toString)
+    wrappedRequest.setHeader(HttpHeaders.Names.USER_AGENT, "LTPC")
+    val encodedProxyHost = base64.encodeToString(encryptor.encrypt(proxyHost.toString.getBytes(UTF8)), false)
+    wrappedRequest.setHeader(ProxyHostHeader.name, encodedProxyHost)
     jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
     wrappedRequest
   }
@@ -187,7 +186,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
     logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
       case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
-        logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), Utils.UTF8.name())}}")
+        logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), UTF8.name())}}")
         throw new RuntimeException("WebProx Error:")
       }
       case response: HttpResponse if !response.isChunked ⇒ { //For https data relay

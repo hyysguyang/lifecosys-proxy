@@ -73,7 +73,6 @@ case class DataHolder(length: Int, var buffer: ChannelBuffer) {
 }
 
 case class Header(name: String)
-object ResponseCompleted extends Header("X-PRC")
 object ProxyHostHeader extends Header("X-PH")
 object ProxyRequestType extends Header("X-PRT")
 

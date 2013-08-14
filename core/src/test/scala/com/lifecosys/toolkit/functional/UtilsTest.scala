@@ -31,6 +31,7 @@ import com.lifecosys.toolkit.proxy.Utils
 import org.scalatest.{ BeforeAndAfterAll, FeatureSpec }
 import org.apache.commons.io.IOUtils
 import java.security.spec.RSAPublicKeySpec
+import com.lifecosys.toolkit.proxy
 
 /**
  *
@@ -61,7 +62,7 @@ class UtilsTest extends FeatureSpec with BeforeAndAfterAll {
 
     scenario(" should compress/decompress data") {
       val data = IOUtils.toString(getClass.getResourceAsStream("/com/lifecosys/toolkit/functional/test_deflate_data.html"))
-      val compressData = Utils.deflate(data.getBytes(Utils.UTF8))
+      val compressData = Utils.deflate(data.getBytes(proxy.UTF8))
       val decompressData = Utils.inflate(compressData)
       assert(data.getBytes().length > compressData.length)
       assert(data === new String(decompressData))

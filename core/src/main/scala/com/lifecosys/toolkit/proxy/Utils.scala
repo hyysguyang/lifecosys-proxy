@@ -45,7 +45,6 @@ import scala.Some
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
-  val UTF8: Charset = Charset.forName("UTF-8")
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"

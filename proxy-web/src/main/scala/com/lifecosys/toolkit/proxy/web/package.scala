@@ -17,7 +17,11 @@ package object web {
 
   val SESSION_KEY_ENDPOINT = "com.lifecosys.toolkit.proxy.web.endpoint"
 
-  def parseChannelKey(request: HttpServletRequest) = ChannelKey(request.getSession.getId, Host(request.getHeader(ProxyHostHeader.name)))
+  def parseChannelKey(request: HttpServletRequest) = {
+    val encodedProxyHost = request.getHeader(ProxyHostHeader.name)
+    val proxyHost = Host(new String(encryptor.decrypt(base64.decode(encodedProxyHost)), UTF8))
+    ChannelKey(request.getSession.getId, proxyHost)
+  }
 
   def writeResponse(response: HttpServletResponse, data: Array[Byte]) {
     val encrypt: Array[Byte] = encryptor.encrypt(data)

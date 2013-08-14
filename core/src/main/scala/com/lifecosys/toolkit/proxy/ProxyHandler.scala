@@ -126,11 +126,7 @@ class NetHttpsRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: Pr
     }
   }
 }
-case class State(jsessionid: Option[Cookie] = None, phase: HttpsPhase = Init)
 
-trait WebProxyRelayingHandler {
-
-}
 class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
   extends NetHttpResponseRelayingHandler(browserChannel)
 

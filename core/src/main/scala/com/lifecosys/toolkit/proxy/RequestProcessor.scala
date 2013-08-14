@@ -341,12 +341,6 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
     proxyToServerBootstrap
   }
 
-  val channels = scala.collection.mutable.MutableList[Channel]()
-  private[this] var channel: Option[Channel] = None
-  var data: Option[DataHolder] = None
-
-  var buffers = scala.collection.mutable.ArrayBuffer[ChannelBuffer]()
-  var phase: HttpsPhase = Init
   override def messageReceived(browserChannelContext: ChannelHandlerContext, e: MessageEvent) {
     logger.debug(s"${browserChannelContext.getChannel} Receive message:\n ${Utils.formatMessage(e.getMessage)}")
     val requestMessage = e.getMessage.asInstanceOf[ChannelBuffer]
@@ -364,13 +358,8 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
         return
       }
 
-      channel = Some(future.getChannel)
-      future.getChannel.write(requestMessage).addListener {
-        writeFuture: ChannelFuture ⇒
-          {
-            logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.formatMessage(requestMessage)}")
-            buffers.clear()
-          }
+      future.getChannel.write(requestMessage).addListener { writeFuture: ChannelFuture ⇒
+        logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.formatMessage(requestMessage)}")
       }
     }
   }

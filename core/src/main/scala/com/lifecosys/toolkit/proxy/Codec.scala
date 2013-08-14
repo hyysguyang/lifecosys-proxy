@@ -25,7 +25,6 @@ import org.jboss.netty.channel._
 import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
-import org.littleshoot.proxy.ProxyUtils
 import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.lang3.StringUtils
@@ -140,7 +139,8 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
     }
     val toBeSentMessage = msg match {
       case request: HttpRequest ⇒ {
-        val encodedProxyRequest = super.encode(ctx, channel, ProxyUtils.copyHttpRequest(request, false)).asInstanceOf[ChannelBuffer]
+        request.setUri(Utils.stripHost(request.getUri))
+        val encodedProxyRequest = super.encode(ctx, channel, request).asInstanceOf[ChannelBuffer]
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
         setContent(wrappedRequest, encodedProxyRequest)
         wrappedRequest

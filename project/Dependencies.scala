@@ -25,18 +25,20 @@ object Dependencies {
   val bouncycastle = "org.bouncycastle" % "bcprov-jdk16" % "1.46"
   val jasypt = "org.jasypt" % "jasypt" % "1.9.0"
   val commonsIO = "commons-io" % "commons-io" % "2.4"
- val scalalogging = "com.typesafe" %% "scalalogging-slf4j" % "1.1.0-SNAPSHOT"
+  val scalalogging = "com.typesafe" %% "scalalogging-slf4j" % "1.1.0-SNAPSHOT"
   val slf4jLog4j12 = "org.slf4j" % "slf4j-log4j12" % "1.7.2"
   val fluentHC = "org.apache.httpcomponents" % "fluent-hc" % "4.3-beta2"
+  val dnssec4j = "org.littleshoot" % "dnssec4j" % "0.1.6"
+
   val junit = "junit" % "junit" % "4.8.2"
 
-  val sprayVersion="1.1-SNAPSHOT"
+  val sprayVersion = "1.1-SNAPSHOT"
   val sprayRouting = "io.spray" % "spray-routing" % sprayVersion
   val sprayCan = "io.spray" % "spray-can" % sprayVersion
   val sprayCaching = "io.spray" % "spray-caching" % sprayVersion
   val sprayServlet = "io.spray" % "spray-servlet" % sprayVersion
   val sprayTestkit = "io.spray" % "spray-testkit" % sprayVersion
-  val spray=Seq(sprayCan,sprayRouting,sprayCaching,sprayServlet)
+  val spray = Seq(sprayCan, sprayRouting, sprayCaching, sprayServlet)
 
 
   val scalaReflect = "org.scala-lang" % "scala-reflect" % "2.10.1"

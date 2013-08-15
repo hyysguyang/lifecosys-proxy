@@ -90,7 +90,7 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
     pipeline.addLast("proxyServer-idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("proxyServer-idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        logger.debug(s"[${e.getChannel}}] - Channel idle, closing it.")
+        logger.info(s"[${e.getChannel}}] - Channel idle, closing it.")
         Utils.closeChannel(e.getChannel)
       }
     })
@@ -169,14 +169,14 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
   }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug(s"[${e.getChannel}] - closed.")
+    logger.info(s"[${e.getChannel}] - closed.")
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn(s"[${e.getChannel}] - Got exception.", e.getCause)
     e.getCause match {
       case closeException: ClosedChannelException ⇒ //Just ignore it
       case exception ⇒ {
+        logger.warn(s"[${e.getChannel}] - Got exception.", e.getCause)
         Utils.closeChannel(e.getChannel)
       }
     }

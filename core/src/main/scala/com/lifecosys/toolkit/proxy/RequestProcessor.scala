@@ -28,7 +28,9 @@ import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
-import scala.util.Try
+import scala.util.{ Failure, Success, Try }
+import java.net.SocketAddress
+import scala.collection.immutable.Queue
 
 /**
  *
@@ -57,10 +59,10 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext:
   if (!connectHost.needForward) httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
 
   def process {
-    logger.debug(s"Process request with $connectHost")
+    logger.info(s"Process request with $connectHost")
     hostToChannelFuture.remove(connectHost.host) match {
       case Some(channel) if channel.isConnected ⇒ {
-        logger.debug(s"Use existed Proxy to server conntection: $channel, cached channels size: ${hostToChannelFuture.size}")
+        logger.info(s"Use existed Proxy to server conntection: $channel, cached channels size: ${hostToChannelFuture.size}")
         channel.write(httpRequest)
       }
       case _ ⇒ {
@@ -79,10 +81,10 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext:
     if (future.isSuccess) {
       //                  hostToChannelFuture.put(connectHost.host, future.getChannel)
       future.getChannel().write(httpRequest).addListener {
-        future: ChannelFuture ⇒ logger.debug(s"[${future.getChannel}] - Write request to remote server completed.")
+        future: ChannelFuture ⇒ logger.info(s"[${future.getChannel}] - Write request to remote server completed.")
       }
     } else {
-      logger.debug(s"Close browser connection: $browserChannel")
+      logger.info(s"Close browser connection: $browserChannel")
       browserChannel.close()
       //      Utils.closeChannel(browserToProxyChannel)
 
@@ -117,7 +119,7 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext:
     pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        logger.debug(s"[${e.getChannel}}] - Channel idle, closing it.")
+        logger.info(s"[${e.getChannel}}] - Channel idle, closing it.")
         Utils.closeChannel(e.getChannel)
       }
     })
@@ -158,7 +160,7 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: 
       pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
     }
     super.proxyToServerPipeline(pipeline)
-    pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
+    pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder()(browserToProxyContext))
     pipeline.addLast("proxyServerToRemote-webProxyHttpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
   }
@@ -177,7 +179,7 @@ abstract class HttpsRequestProcessor(request: HttpRequest, browserChannelContext
   val browserChannel = browserToProxyContext.getChannel
 
   def process {
-    logger.debug(s"Process request with $connectHost")
+    logger.info(s"Process request with $connectHost")
     hostToChannelFuture.get(connectHost.host) match {
       case Some(channel) if channel.isConnected ⇒ browserChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8")))
       case None                                 ⇒ connect
@@ -194,7 +196,7 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
   val httpRequestEncoder = new HttpRequestEncoder()
 
   protected def connect {
-    logger.debug("Starting new connection to: %s".format(connectHost.host))
+    logger.info("Starting new connection to: %s".format(connectHost.host))
     browserChannel.setReadable(false)
     createProxyToServerBootstrap.connect(connectHost.host.socketAddress).addListener(connectComplete _)
   }
@@ -229,7 +231,7 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
     pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
     pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        logger.debug(s"[${e.getChannel}}] - Channel idle, closing it.")
+        logger.info(s"[${e.getChannel}}] - Channel idle, closing it.")
         Utils.closeChannel(e.getChannel)
       }
     })
@@ -238,11 +240,10 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
   }
 
   def connectComplete(future: ChannelFuture): Unit = {
-    logger.debug("Connection successful: %s".format(future.getChannel))
-    logger.debug(s"[${future.getChannel}] - Connect successful")
+    logger.info(s"[${future.getChannel}] - Connect successful")
 
     if (!future.isSuccess) {
-      logger.debug(s"Close browser connection: $browserChannel")
+      logger.info(s"Close browser connection: $browserChannel")
       Utils.closeChannel(browserChannel)
       return
     }
@@ -279,7 +280,7 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
       sendRequestToChainedProxy
     else browserChannel.write(ChannelBuffers.copiedBuffer(Utils.connectProxyResponse.getBytes("UTF-8"))).addListener {
       future: ChannelFuture ⇒
-        logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.connectProxyResponse}")
+        logger.info(s"[${future.getChannel}] - Finished write request: ${Utils.connectProxyResponse}")
     }
 
     browserChannel.setReadable(true)
@@ -289,7 +290,7 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
 class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
     extends HttpsRequestProcessor(request, browserChannelContext) {
 
-  val httpRequestEncoder = new WebProxyHttpRequestEncoder(connectHost, Host(request.getUri))
+  lazy val httpRequestEncoder = ???
 
   protected def connect {
     val pipeline = browserToProxyContext.getChannel.getPipeline
@@ -301,11 +302,32 @@ class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannelContext:
   }
 }
 
-object ChannelHolder {
-  val channels = scala.collection.mutable.Map[ChannelKey, Array[Channel]]()
-  val pendingChannels = scala.collection.mutable.Map[ChannelKey, Array[Channel]]()
+//TODO: Need to remove channel when channel closed.
+trait ChannelManager extends Logging {
+  protected val cachedChannelFutures = scala.collection.mutable.Map[SocketAddress, Queue[ChannelFuture]]()
 
+  def get(host: SocketAddress) = {
+    Try(getChannels(host).dequeue) match {
+      case Success((future, tails)) ⇒ {
+        synchronized(cachedChannelFutures += host -> tails)
+        Some(future)
+      }
+      case Failure(e) ⇒ None
+    }
+  }
+  def getChannels(host: SocketAddress) = cachedChannelFutures.get(host).getOrElse(Queue[ChannelFuture]())
+
+  def add(host: SocketAddress, channelFuture: ChannelFuture) =
+    synchronized(cachedChannelFutures += host -> getChannels(host).enqueue(channelFuture))
+
+  override def toString: String = {
+    s"ChannelManager: ${cachedChannelFutures.size}\n" + cachedChannelFutures.map {
+      case (host, channelFutures) ⇒ s"$host =>\n\t${channelFutures.map(_.getChannel).mkString("\n\t")}"
+    }.mkString("\n")
+  }
 }
+
+object DefaultChannelManager extends ChannelManager
 
 class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(implicit proxyConfig: ProxyConfig)
     extends SimpleChannelUpstreamHandler with Logging {
@@ -330,30 +352,51 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
         pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
         pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
           override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-            logger.debug(s"[${e.getChannel}}] - Channel idle, closing it.")
+            logger.info(s"[${e.getChannel}}] - Channel idle, closing it.")
             Utils.closeChannel(e.getChannel)
           }
         })
 
-        pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannelContext.getChannel))
-        pipeline.addLast("proxyServerToRemote-connectionHandler", new WebProxyHttpsRelayingHandler(browserChannelContext.getChannel))
+        pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder)
+        pipeline.addLast("proxyServerToRemote-connectionHandler", new WebProxyHttpsRelayingHandler)
     }
     proxyToServerBootstrap
   }
 
-  override def messageReceived(browserChannelContext: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug(s"${browserChannelContext.getChannel} Receive message:\n ${Utils.formatMessage(e.getMessage)}")
+  override def messageReceived(channelContext: ChannelHandlerContext, e: MessageEvent) {
+    implicit val browserChannelContext = channelContext
+    val browserChannel = browserChannelContext.getChannel
+    logger.debug(s"$browserChannel Receive message:\n ${Utils.formatMessage(e.getMessage)}")
+
     val requestMessage = e.getMessage.asInstanceOf[ChannelBuffer]
 
-    val browserChannel = browserChannelContext.getChannel
-    browserChannel.setReadable(false)
-    createProxyToServerBootstrap(browserChannelContext).connect(connectHost.host.socketAddress).addListener(connectComplete _)
+    DefaultChannelManager.get(connectHost.host.socketAddress) match {
+      case Some(channelFuture) if channelFuture.getChannel.isConnected ⇒ {
+        val channel = channelFuture.getChannel
+        logger.debug(s"##################################\n${DefaultChannelManager}\n##################################")
+        logger.info(s"Use existed channel ${channel}")
+        channel.getPipeline.replace(classOf[WebProxyHttpRequestEncoder], "proxyServerToRemote-encoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost))
+        channel.getPipeline.replace(classOf[WebProxyResponseDecoder], "proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder)
+        channel.getPipeline.replace(classOf[WebProxyHttpsRelayingHandler], "proxyServerToRemote-connectionHandler", new WebProxyHttpsRelayingHandler)
+        if (!channel.isConnected) createConnectionAndWriteRequest else {
+          channel.write(requestMessage).addListener { writeFuture: ChannelFuture ⇒
+            logger.debug(s"[${channel}] - Finished write request: ${Utils.formatMessage(requestMessage)}")
+          }
+        }
+      }
+      case _ ⇒ createConnectionAndWriteRequest
+    }
+
+    def createConnectionAndWriteRequest = {
+      browserChannel.setReadable(false)
+      createProxyToServerBootstrap.connect(connectHost.host.socketAddress).addListener(connectComplete _)
+    }
 
     def connectComplete(future: ChannelFuture): Unit = {
-      logger.debug(s"[${future.getChannel}] - Connect successful.")
+      logger.info(s"[${future.getChannel}] - Connect successful.")
       browserChannel.setReadable(true)
       if (!future.isSuccess) {
-        logger.debug(s"Close browser connection: $browserChannel")
+        logger.info(s"Close browser connection: $browserChannel")
         Utils.closeChannel(browserChannel)
         return
       }
@@ -365,14 +408,16 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
   }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.debug(s"[${e.getChannel}] - closed.")
+    logger.info(s"[${e.getChannel}] - closed.")
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn(s"[${e.getChannel}] - Got exception.", e.getCause)
     e.getCause match {
       case closeException: ClosedChannelException ⇒ //Just ignore it
-      case exception                              ⇒ Utils.closeChannel(e.getChannel)
+      case exception ⇒ {
+        logger.warn(s"[${e.getChannel}] - Got exception.", e.getCause)
+        Utils.closeChannel(e.getChannel)
+      }
     }
   }
 }

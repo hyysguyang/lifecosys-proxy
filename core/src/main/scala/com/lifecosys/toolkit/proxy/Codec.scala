@@ -102,6 +102,9 @@ class IgnoreEmptyBufferZlibDecoder extends ZlibDecoder {
 }
 
 object WebProxy {
+
+  case object Close
+
   def jsessionidCookie(channel: Channel) = channel.getAttachment match {
     case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
       val encoder = new CookieEncoder(false)
@@ -126,15 +129,17 @@ object WebProxy {
 class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(implicit browserChannelContext: ChannelHandlerContext)
     extends HttpRequestEncoder with Logging {
   val browserChannel = browserChannelContext.getChannel
-  val jsessionidCookie = WebProxy.jsessionidCookie(browserChannel)
+  def jsessionidCookie = WebProxy.jsessionidCookie(browserChannel)
+
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
+
+    logger.info(s"Prepare request to WebProxy for $jsessionidCookie")
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
       //We may get CompositeChannelBuffer,such as for HttpRequest with content.
       val encryptedData = encryptor.encrypt(content)
       wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedData.length.toString)
-      logger.debug(s"Proxy encryptedBuffer request:\n ${Utils.hexDumpToString(encryptedData)}")
       wrappedRequest.setContent(encryptedData)
     }
     val toBeSentMessage = msg match {
@@ -177,11 +182,12 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
  * Response data format: Data-packet-length(2 bytes) + Encrypt-Data
  *
  *
- * @param browserChannel
+ * @param browserChannelContext
  */
-class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder with Logging {
+class WebProxyResponseDecoder(implicit browserChannelContext: ChannelHandlerContext) extends OneToOneDecoder with Logging {
   //TODO:Do we need synchronize it?
   var buffers = ChannelBuffers.EMPTY_BUFFER
+  val browserChannel = browserChannelContext.getChannel
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
@@ -190,8 +196,8 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         throw new RuntimeException("WebProx Error:")
       }
       case response: HttpResponse if !response.isChunked ⇒ { //For https data relay
-        logger.debug("Proxy request relay to remote server by WebProxy successful.")
-        channel.close()
+        logger.info("Proxy request relay to remote server by WebProxy successful.")
+        WebProxy.Close
       }
       case response: HttpResponse if response.isChunked ⇒ {
         import scala.collection.JavaConverters._
@@ -199,6 +205,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         if (StringUtils.isNotEmpty(setCookie) && browserChannel.getAttachment == null) {
           val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
           browserChannel.setAttachment(jsessionid)
+          logger.info(s"Create session for request: $jsessionid")
         }
         ChannelBuffers.EMPTY_BUFFER
       }
@@ -215,7 +222,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
           ChannelBuffers.wrappedBuffer(encryptor.decrypt(data))
         } else ChannelBuffers.EMPTY_BUFFER
       }
-      case chunk: HttpChunk if chunk.isLast ⇒ channel.close()
+      case chunk: HttpChunk if chunk.isLast ⇒ WebProxy.Close
       case unknownMessage                   ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")
     }
   }

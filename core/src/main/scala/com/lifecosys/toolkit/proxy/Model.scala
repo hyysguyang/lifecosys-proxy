@@ -1,6 +1,7 @@
 package com.lifecosys.toolkit.proxy
 
 import org.littleshoot.dnssec4j.VerifiedAddressFactory
+import java.net.InetSocketAddress
 
 /**
  *
@@ -13,12 +14,14 @@ object Host {
     val hostAndPort = Utils.extractHostAndPort(uri)
     Host(hostAndPort._1, hostAndPort._2)
   }
+
+  def apply(socketAddress: InetSocketAddress): Host = Host(socketAddress.getHostString, socketAddress.getPort)
 }
 
 case class Host(host: String, port: Int) {
   require(!host.isEmpty)
   require(port > 0 && port < 65535)
-  val socketAddress = VerifiedAddressFactory.newInetSocketAddress(host, port, true)
+  lazy val socketAddress = VerifiedAddressFactory.newInetSocketAddress(host, port)
   override def toString: String = s"$host:$port"
 }
 object ProxyType {

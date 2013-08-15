@@ -55,7 +55,7 @@ class ProxyServlet extends HttpServlet with Logging {
   def createSessionIfNecessary(request: HttpServletRequest) {
     if (StringUtils.isEmpty(request.getRequestedSessionId) && request.getSession(false) == null) {
       request.getSession(true)
-      logger.debug(s"Created session: ${request.getSession.getId} for request: ${request}")
+      logger.info(s"Created session: ${request.getSession.getId} for request: ${request}")
     }
 
     require(StringUtils.isNotEmpty(request.getSession.getId), "Session have not been created, server error.")

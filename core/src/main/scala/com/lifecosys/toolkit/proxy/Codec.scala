@@ -126,9 +126,8 @@ object WebProxy {
   }
 }
 
-class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(implicit browserChannelContext: ChannelHandlerContext)
+class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, browserChannel: Channel)
     extends HttpRequestEncoder with Logging {
-  val browserChannel = browserChannelContext.getChannel
   def jsessionidCookie = WebProxy.jsessionidCookie(browserChannel)
 
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
@@ -182,12 +181,11 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host)(impl
  * Response data format: Data-packet-length(2 bytes) + Encrypt-Data
  *
  *
- * @param browserChannelContext
+ * @param browserChannel
  */
-class WebProxyResponseDecoder(implicit browserChannelContext: ChannelHandlerContext) extends OneToOneDecoder with Logging {
+class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder with Logging {
   //TODO:Do we need synchronize it?
   var buffers = ChannelBuffers.EMPTY_BUFFER
-  val browserChannel = browserChannelContext.getChannel
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {

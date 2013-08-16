@@ -150,9 +150,10 @@ class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig:
 
     message match {
       case WebProxy.Close ⇒ {
-        DefaultChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-        logger.debug(s"##################################\n${DefaultChannelManager}\n##################################")
-        logger.info("Success to reuse channel.")
+        Utils.closeChannel(e.getChannel)
+        //          HttpsChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
+        //          logger.debug(s"##################################\n${HttpsChannelManager}\n##################################")
+        //          logger.info("Success to reuse channel.")
       }
       case _ ⇒ writeResponse(message, writeListener)
     }
@@ -161,10 +162,9 @@ class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig:
 
 }
 
-class WebProxyHttpsRelayingHandler(implicit browserChannelContext: ChannelHandlerContext, proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannelContext.getChannel) with Logging {
+class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends BaseRelayingHandler(browserChannel) with Logging {
 
-  val browserChannel = browserChannelContext.getChannel
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
     //    if (browserChannel.getPipeline.get(classOf[HttpResponseEncoder]) != null) {
     //      logger.error("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
@@ -174,8 +174,8 @@ class WebProxyHttpsRelayingHandler(implicit browserChannelContext: ChannelHandle
     e.getMessage match {
       case responseBuffer: ChannelBuffer if responseBuffer.readableBytes() > 0 ⇒ writeResponse(responseBuffer)
       case WebProxy.Close ⇒ {
-        DefaultChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-        logger.debug(s"##################################\n${DefaultChannelManager}\n##################################")
+        HttpsChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
+        logger.debug(s"##################################\n${HttpsChannelManager}\n##################################")
         logger.info(s"[${e.getChannel}] - Success to reuse channel.")
       }
       case _ ⇒

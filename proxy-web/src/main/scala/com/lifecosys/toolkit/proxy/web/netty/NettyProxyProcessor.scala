@@ -7,10 +7,11 @@ import javax.servlet.http.{ HttpServletRequest, HttpServletResponse }
 import com.typesafe.scalalogging.slf4j.Logging
 import com.lifecosys.toolkit.proxy.web._
 import javax.servlet.AsyncContext
-import scala.util.Try
+import scala.util.{ Failure, Success, Try }
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 import org.jboss.netty.handler.codec.http._
 import com.lifecosys.toolkit.proxy.ChannelKey
+import java.nio.channels.ClosedChannelException
 
 /**
  *
@@ -36,18 +37,17 @@ sealed trait NettyTaskSupport {
   def createConnection(asyncContext: AsyncContext)(connectedCallback: (Channel) ⇒ Unit) = {
     val request = asyncContext.getRequest.asInstanceOf[HttpServletRequest]
     val response = asyncContext.getResponse.asInstanceOf[HttpServletResponse]
-    val channelFuture = connect(asyncContext, parseChannelKey(request))
-    val channel: Channel = channelFuture.getChannel
-    channel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(DEFAULT_BUFFER_SIZE))
-    if (channelFuture.isSuccess() && channel.isConnected) {
-      request.getSession(false).setAttribute(SESSION_KEY_ENDPOINT, channel)
-      initializeChunkedResponse(response)
-      connectedCallback(channel)
-    } else {
-      //todo: error process
-      channelFuture.getChannel.close()
-      writeErrorResponse(response)
-      asyncContext.complete()
+    Try(connect(asyncContext, parseChannelKey(request))) match {
+      case Success(channel) ⇒ {
+        request.getSession(false).setAttribute(SESSION_KEY_ENDPOINT, channel)
+        initializeChunkedResponse(response)
+        connectedCallback(channel)
+      }
+      case Failure(e) ⇒ {
+        logger.warn("Can't create connection", e)
+        writeErrorResponse(response)
+        asyncContext.complete()
+      }
     }
 
   }
@@ -56,7 +56,14 @@ sealed trait NettyTaskSupport {
     val clientBootstrap = newClientBootstrap
     clientBootstrap.setFactory(clientSocketChannelFactory)
     clientBootstrap setPipelineFactory pipelineFactory(asyncContext)
-    clientBootstrap.connect(channelKey.proxyHost.socketAddress).awaitUninterruptibly()
+    val channelFuture = clientBootstrap.connect(channelKey.proxyHost.socketAddress).awaitUninterruptibly()
+    if (channelFuture.isSuccess && channelFuture.getChannel.isConnected) {
+      channelFuture.getChannel.getConfig.setOption("receiveBufferSizePredictorFactory", new FixedReceiveBufferSizePredictorFactory(DEFAULT_BUFFER_SIZE))
+      channelFuture.getChannel
+    } else {
+      channelFuture.getChannel.close()
+      throw new RuntimeException(s"Failure to create connection to ${channelFuture.getChannel}")
+    }
   }
 
   def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
@@ -69,12 +76,24 @@ sealed trait NettyTaskSupport {
   }
 }
 
-class NettyHttpProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
+class HttpNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
+
+  override def connect(asyncContext: AsyncContext, channelKey: ChannelKey) =
+    HttpChannelManager.get(channelKey.proxyHost.socketAddress) match {
+      case Some(channelFuture) if channelFuture.getChannel.isConnected ⇒ {
+        val channel = channelFuture.getChannel
+        logger.debug(s"##################################\n${HttpChannelManager}\n##################################")
+        logger.info(s"Use existed channel ${channel}")
+        channel.getPipeline.replace(classOf[HttpProxyResponseRelayingHandler], "proxyServerToRemote-proxyToServerHandler", new HttpProxyResponseRelayingHandler(asyncContext))
+        channel
+      }
+      case _ ⇒ super.connect(asyncContext, channelKey)
+    }
 
   override def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
     super.pipelineFactory(asyncContext)(pipeline)
     pipeline.addLast("proxyServerToRemote-proxyToServerResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new ProxyHttpResponseRelayingHandler(asyncContext))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new HttpProxyResponseRelayingHandler(asyncContext))
   }
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
@@ -88,7 +107,7 @@ class NettyHttpProxyProcessor extends web.ProxyProcessor with NettyTaskSupport w
   }
 }
 
-class NettyHttpsProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
+class HttpsNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
   override def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
     super.pipelineFactory(asyncContext)(pipeline)
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new ProxyResponseRelayingHandler(asyncContext))
@@ -108,31 +127,14 @@ class NettyHttpsProxyProcessor extends web.ProxyProcessor with NettyTaskSupport 
       }
       case _ ⇒ {
 
-        val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) {
-          channel ⇒
-            writeResponse(response, Utils.connectProxyResponse.getBytes("UTF-8"))
+        val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
+          writeResponse(response, Utils.connectProxyResponse.getBytes("UTF-8"))
         }
-
         starTask(request)(task)
       }
     }
   }
 
-}
-
-sealed class ProxyHttpResponseRelayingHandler(asyncContext: AsyncContext) extends ProxyResponseRelayingHandler(asyncContext) {
-
-  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    val encode = classOf[HttpResponseEncoder].getSuperclass.getDeclaredMethods.filter(_.getName == "encode")(0)
-    encode.setAccessible(true)
-    val responseBuffer = encode.invoke(new HttpResponseEncoder(), null, ctx.getChannel, e.getMessage).asInstanceOf[ChannelBuffer]
-    writeResponse(response, responseBuffer)
-    e.getMessage match {
-      case response: HttpResponse if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
-      case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
-      case _ ⇒
-    }
-  }
 }
 
 sealed class ProxyResponseRelayingHandler(val asyncContext: AsyncContext) extends SimpleChannelUpstreamHandler with Logging {
@@ -147,17 +149,56 @@ sealed class ProxyResponseRelayingHandler(val asyncContext: AsyncContext) extend
     }
   }
 
-  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-    logger.warn(s"[${e.getChannel}] - Got exception", e.getCause)
-    e.getChannel.close()
-  }
-
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    logger.warn(s"[${e.getChannel}] - closed, complete request now.")
+    logger.info(s"[${e.getChannel}] - closed, complete request now.")
     Try {
       request.getSession(false).invalidate()
       asyncContext.complete()
     }
+  }
+
+  override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+    e.getCause match {
+      case closeException: ClosedChannelException ⇒ //Just ignore it
+      case exception ⇒ {
+        logger.warn(s"[${e.getChannel}] - Got exception.", e.getCause)
+        Utils.closeChannel(e.getChannel)
+      }
+    }
+  }
+
+}
+
+sealed class HttpProxyResponseRelayingHandler(asyncContext: AsyncContext) extends ProxyResponseRelayingHandler(asyncContext) {
+
+  override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+    val encode = classOf[HttpResponseEncoder].getSuperclass.getDeclaredMethods.filter(_.getName == "encode")(0)
+    encode.setAccessible(true)
+    val responseBuffer = encode.invoke(new HttpResponseEncoder(), null, ctx.getChannel, e.getMessage).asInstanceOf[ChannelBuffer]
+    writeResponse(response, responseBuffer)
+    e.getMessage match {
+      case response: HttpResponse if !response.isChunked ⇒ {
+        if (!HttpHeaders.isKeepAlive(response))
+          Utils.closeChannel(e.getChannel)
+        else {
+          Try {
+            request.getSession(false).invalidate()
+            asyncContext.complete()
+          }
+
+          HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
+          logger.debug(s"##################################\n$HttpChannelManager\n##################################")
+          logger.info(s"[${e.getChannel}] - Success to reuse channel.")
+        }
+      }
+      case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
+      case _                                ⇒
+    }
+  }
+
+  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    super.channelClosed(ctx, e)
+    HttpChannelManager.removeClosedChannel(e.getChannel.getRemoteAddress)
   }
 }
 

@@ -28,7 +28,6 @@ import org.jboss.netty.bootstrap.ServerBootstrap
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
-import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
 import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.ClosedChannelException
@@ -151,10 +150,10 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
     implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
 
     val requestProcessor = connectHost.serverType match {
-      case WebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new WebProxyHttpsRequestProcessor(httpRequest, ctx)
-      case WebProxyType ⇒ new WebProxyHttpRequestProcessor(httpRequest, ctx)
-      case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx)
-      case other ⇒ new DefaultHttpRequestProcessor(httpRequest, ctx)
+      case WebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new WebProxyHttpsRequestProcessor(httpRequest, ctx.getChannel)
+      case WebProxyType ⇒ new WebProxyHttpRequestProcessor(httpRequest, ctx.getChannel)
+      case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx.getChannel)
+      case other ⇒ new DefaultHttpRequestProcessor(httpRequest, ctx.getChannel)
     }
 
     requestProcessor process

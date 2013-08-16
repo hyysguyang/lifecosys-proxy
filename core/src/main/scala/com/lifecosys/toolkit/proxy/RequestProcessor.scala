@@ -23,14 +23,11 @@ package com.lifecosys.toolkit.proxy
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.ssl.SslHandler
-import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
-import scala.util.{ Failure, Success, Try }
-import java.net.SocketAddress
-import scala.collection.immutable.Queue
+import scala.util.Try
 
 /**
  *
@@ -44,15 +41,11 @@ trait RequestProcessor extends Logging {
   def process
   def httpRequestEncoder: HttpMessageEncoder
   def httpRequest: HttpRequest
-  def browserToProxyContext: ChannelHandlerContext
 }
 
-abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost) extends RequestProcessor {
+abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost) extends RequestProcessor {
 
   override val httpRequest: HttpRequest = request
-  implicit override val browserToProxyContext = browserChannelContext
-
-  val browserChannel = browserToProxyContext.getChannel
 
   //Can't play online video since we send the full url for http request,
   // Exactly, we need use the relative url to access the remote server.
@@ -117,8 +110,8 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannelContext:
 
 }
 
-class DefaultHttpRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
-    extends HttpRequestProcessor(request, browserChannelContext) {
+class DefaultHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+    extends HttpRequestProcessor(request, browserChannel) {
 
   override val httpRequestEncoder = new HttpRequestEncoder()
 
@@ -143,8 +136,8 @@ class DefaultHttpRequestProcessor(request: HttpRequest, browserChannelContext: C
   }
 }
 
-class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
-    extends HttpRequestProcessor(request, browserChannelContext) {
+class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+    extends HttpRequestProcessor(request, browserChannel) {
 
   require(connectHost.needForward, "The message must be need forward to remote WebProxy.")
   val proxyHost = Try(Host(httpRequest.getUri)).getOrElse(Host(httpRequest.getHeader(HttpHeaders.Names.HOST)))
@@ -164,16 +157,14 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannelContext: 
   }
 }
 
-abstract class HttpsRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+abstract class HttpsRequestProcessor(request: HttpRequest)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
     extends RequestProcessor {
   require(request.getMethod == HttpMethod.CONNECT)
   override val httpRequest = request
-  implicit val browserToProxyContext = browserChannelContext
-  val browserChannel = browserToProxyContext.getChannel
 }
 
-class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
-    extends HttpsRequestProcessor(request, browserChannelContext) {
+class NetHttpsRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+    extends HttpsRequestProcessor(request) {
 
   val httpRequestEncoder = new HttpRequestEncoder()
 
@@ -250,14 +241,14 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannelContext: Chan
   }
 
 }
-class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannelContext: ChannelHandlerContext)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
-    extends HttpsRequestProcessor(request, browserChannelContext) {
+class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+    extends HttpsRequestProcessor(request) {
 
   lazy val httpRequestEncoder = ???
 
   override def process {
     logger.info(s"Process request with $connectHost")
-    val pipeline = browserToProxyContext.getChannel.getPipeline
+    val pipeline = browserChannel.getPipeline
     //Remove codec related handle for connect request, it's necessary for HTTPS.
     List("proxyServer-encoder", "proxyServer-decoder", "proxyServer-proxyHandler").foreach(pipeline remove _)
     pipeline.addLast("proxyServer-connectionHandler", new WebProxyHttpsRequestHandler(connectHost, Host(request.getUri)))

@@ -28,6 +28,7 @@ import com.lifecosys.toolkit.ssl.DefaultEncryptor
 import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
 import java.nio.charset.Charset
 import org.parboiled.common.Base64
+import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
 
 /**
  *
@@ -69,6 +70,13 @@ package object proxy {
     proxyToServerBootstrap.setOption("keepAlive", true)
     proxyToServerBootstrap.setOption("connectTimeoutMillis", 60 * 1000)
     proxyToServerBootstrap
+  }
+
+  def addIdleChannelHandler(pipeline: ChannelPipeline) = {
+    pipeline.addLast("idleHandler", new IdleStateHandler(timer, 0, 0, 120))
+    pipeline.addLast("idleStateAwareHandler", new IdleStateAwareChannelHandler {
+      override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) = Utils.closeChannel(e.getChannel)
+    })
   }
 
 }

@@ -84,7 +84,7 @@ trait HttpResponseRelayingHandler {
 }
 
 class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler with Logging {
+    extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
 
@@ -98,7 +98,7 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
             Utils.closeChannel(e.getChannel)
           else {
             HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-            logger.debug(s"##################################\n$HttpChannelManager\n##################################")
+            logger.debug(s"$HttpChannelManager")
             logger.info(s"[${e.getChannel}] - Success to reuse channel.")
           }
         }
@@ -116,7 +116,7 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
 }
 
 class NetHttpsRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(relayingChannel) with Logging {
+    extends BaseRelayingHandler(relayingChannel) {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
     writeResponse(e.getMessage)
@@ -133,7 +133,7 @@ class NetHttpsRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: Pr
 }
 
 class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler with Logging {
+    extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
 
@@ -141,7 +141,7 @@ class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig:
     message match {
       case WebProxy.Close ⇒ {
         HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-        logger.debug(s"##################################\n${HttpChannelManager}\n##################################")
+        logger.debug(s"$HttpChannelManager")
         logger.info(s"[${e.getChannel}] - Success to reuse channel.")
       }
       case _ ⇒ writeResponse(message)
@@ -156,7 +156,7 @@ class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig:
 }
 
 class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) with Logging {
+    extends BaseRelayingHandler(browserChannel) {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
     //    if (browserChannel.getPipeline.get(classOf[HttpResponseEncoder]) != null) {
@@ -168,7 +168,7 @@ class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig
       case responseBuffer: ChannelBuffer if responseBuffer.readableBytes() > 0 ⇒ writeResponse(responseBuffer)
       case WebProxy.Close ⇒ {
         HttpsChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-        logger.debug(s"##################################\n${HttpsChannelManager}\n##################################")
+        logger.debug(s"$HttpsChannelManager")
         logger.info(s"[${e.getChannel}] - Success to reuse channel.")
       }
       case _ ⇒

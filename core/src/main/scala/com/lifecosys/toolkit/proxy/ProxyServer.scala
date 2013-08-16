@@ -86,14 +86,7 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
     pipeline.addLast("proxyServer-decoder", new HttpRequestDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
     pipeline.addLast("proxyServer-encoder", new HttpResponseEncoder())
-
-    pipeline.addLast("proxyServer-idle", new IdleStateHandler(timer, 0, 0, 120))
-    pipeline.addLast("proxyServer-idleAware", new IdleStateAwareChannelHandler {
-      override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        logger.info(s"[${e.getChannel}}] - Channel idle, closing it.")
-        Utils.closeChannel(e.getChannel)
-      }
-    })
+    addIdleChannelHandler(pipeline)
     pipeline.addLast("proxyServer-proxyHandler", new ProxyRequestHandler)
   }
 

@@ -66,14 +66,7 @@ sealed trait NettyTaskSupport {
     }
   }
 
-  def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
-    pipeline.addLast("proxyServerToRemote-idle", new IdleStateHandler(timer, 0, 0, 120))
-    pipeline.addLast("proxyServerToRemote-idleAware", new IdleStateAwareChannelHandler {
-      override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) {
-        Utils.closeChannel(e.getChannel)
-      }
-    })
-  }
+  def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ addIdleChannelHandler(pipeline)
 }
 
 class HttpNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
@@ -82,7 +75,7 @@ class HttpNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport w
     HttpChannelManager.get(channelKey.proxyHost.socketAddress) match {
       case Some(channelFuture) if channelFuture.getChannel.isConnected ⇒ {
         val channel = channelFuture.getChannel
-        logger.debug(s"##################################\n${HttpChannelManager}\n##################################")
+        logger.debug(s"$HttpChannelManager")
         logger.info(s"Use existed channel ${channel}")
         channel.getPipeline.replace(classOf[HttpProxyResponseRelayingHandler], "proxyServerToRemote-proxyToServerHandler", new HttpProxyResponseRelayingHandler(asyncContext))
         channel
@@ -187,7 +180,7 @@ sealed class HttpProxyResponseRelayingHandler(asyncContext: AsyncContext) extend
           }
 
           HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-          logger.debug(s"##################################\n$HttpChannelManager\n##################################")
+          logger.debug(s"$HttpChannelManager")
           logger.info(s"[${e.getChannel}] - Success to reuse channel.")
         }
       }

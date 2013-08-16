@@ -306,19 +306,28 @@ class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannelContext:
 trait ChannelManager extends Logging {
   protected val cachedChannelFutures = scala.collection.mutable.Map[SocketAddress, Queue[ChannelFuture]]()
 
-  def get(host: SocketAddress) = {
-    Try(getChannels(host).dequeue) match {
+  def get(host: SocketAddress) = synchronized {
+    Try(getChannelFutures(host).dequeue) match {
       case Success((future, tails)) ⇒ {
-        synchronized(cachedChannelFutures += host -> tails)
+        cachedChannelFutures += host -> tails
         Some(future)
       }
       case Failure(e) ⇒ None
     }
   }
-  def getChannels(host: SocketAddress) = cachedChannelFutures.get(host).getOrElse(Queue[ChannelFuture]())
+  def getChannelFutures(host: SocketAddress) = cachedChannelFutures.get(host).getOrElse(Queue[ChannelFuture]())
 
-  def add(host: SocketAddress, channelFuture: ChannelFuture) =
-    synchronized(cachedChannelFutures += host -> getChannels(host).enqueue(channelFuture))
+  def add(host: SocketAddress, channelFuture: ChannelFuture) = synchronized {
+    cachedChannelFutures += host -> getChannelFutures(host).enqueue(channelFuture)
+  }
+
+  def removeClosedChannel(host: SocketAddress) = synchronized {
+    val futures = getChannelFutures(host).filter(_.getChannel.isConnected)
+    if (futures.isEmpty)
+      cachedChannelFutures.remove(host)
+    else
+      cachedChannelFutures += host -> futures
+  }
 
   override def toString: String = {
     s"ChannelManager: ${cachedChannelFutures.size}\n" + cachedChannelFutures.map {

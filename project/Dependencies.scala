@@ -20,7 +20,6 @@ object Dependencies {
   def container(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "container")
 
   val netty = "io.netty" % "netty" % "3.6.5.Final"
-  val littleproxy = "org.littleshoot" % "littleproxy" % "0.6.0-SNAPSHOT"
   val config = "com.typesafe" % "config" % "1.0.0"
   val bouncycastle = "org.bouncycastle" % "bcprov-jdk16" % "1.46"
   val jasypt = "org.jasypt" % "jasypt" % "1.9.0"

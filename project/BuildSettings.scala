@@ -12,7 +12,7 @@ object BuildSettings {
   val VERSION = "1.0-alpha3"
 
   val basicSettings = Defaults.defaultSettings ++ seq(
-    version := NightlyBuildSupport.buildVersion(VERSION),
+    version := VERSION,
     homepage := Some(new URL("https://lifecosys.com/developer/lifecosys-toolkit")),
     organization := "com.lifecosys",
     organizationHomepage := Some(new URL("https://lifecosys.com")),
@@ -33,10 +33,9 @@ object BuildSettings {
     )
   )
 
+  import net.virtualvoid.sbt.graph.Plugin._
   lazy val moduleSettings =
-    basicSettings ++ formatSettings ++
-      NightlyBuildSupport.settings ++
-      net.virtualvoid.sbt.graph.Plugin.graphSettings ++
+    basicSettings ++ formatSettings ++ graphSettings ++
       seq(
         // scaladoc settings
         (scalacOptions in doc) <++= (name, version).map {
@@ -60,6 +59,26 @@ object BuildSettings {
     keyalias in Android := "TODO:change-me"
   )
 
+
+  import com.twitter.sbt._
+  import PackageDist._
+  def standardProject={
+    val includes=Seq(
+      PackageDist.newSettings ,
+      ArtifactoryPublisher.newSettings ,
+      GitProject.gitSettings ,
+      BuildProperties.newSettings ,
+      PublishSourcesAndJavadocs.newSettings ,
+      VersionManagement.newSettings ,
+      ReleaseManagement.newSettings)
+
+    includes.foldLeft(Seq[Setting[_]]()) { (s, a)  => s ++ a} ++ Seq(
+      exportJars := true
+    )
+  }
+  val distSettings = standardProject ++ Seq(
+    packageDistScriptsOutputPath <<= (packageDistDir) { d => Some(d / "bin") }
+  )
 
   lazy val noPublishing = seq(
     publish :=(),

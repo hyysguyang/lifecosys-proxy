@@ -7,19 +7,12 @@ object LifecosysToolkitBuild extends Build {
   import BuildSettings._
   import Dependencies._
 
-  // configure prompt to show current project
-  override lazy val settings = super.settings :+ {
-    shellPrompt := {
-      s => Project.extract(s).currentProject.id + " > "
-    }
-  }
-
   // -------------------------------------------------------------------------------------------------------------------
   // Root Project
   // -------------------------------------------------------------------------------------------------------------------
 
   lazy val root = Project("lifecosys-toolkit", file("."))
-    .aggregate(core, proxy,proxyHeroku,proxyWeb,android)
+    .aggregate(core, proxy,proxyWeb,android)
     .settings(basicSettings: _*)
     .settings(noPublishing: _*)
 
@@ -29,10 +22,8 @@ object LifecosysToolkitBuild extends Build {
     .settings(libraryDependencies ++=
     compile(netty, config, bouncycastle, jasypt, commonsIO,akkaActor,scalalogging,dnssec4j) ++
       compile(spray: _*) ++
-      compile(littleproxy) ++
-      compile(fluentHC) ++
       runtime(slf4jLog4j12) ++
-      test(junit, scalatest)
+      test(junit, scalatest,fluentHC)
   )
 
  // import akka.sbt.AkkaKernelPlugin
@@ -40,18 +31,9 @@ object LifecosysToolkitBuild extends Build {
   lazy val proxy = Project("Proxy", file("proxy"))
     .dependsOn(core)
     .settings(moduleSettings: _*)
+    .settings(distSettings: _*)
     //.settings((AkkaKernelPlugin.distSettings ++ Seq(distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher" )):_*)
-    .settings(libraryDependencies ++=test(junit, scalatest))
-
-
-  import com.typesafe.startscript.StartScriptPlugin
-  lazy val proxyHeroku = Project("ProxyHeroku", file("proxy-heroku"))
-    .dependsOn(core)
-    .settings(moduleSettings: _*)
-    .settings(StartScriptPlugin.startScriptForClassesSettings: _*)
-    .settings(libraryDependencies ++=test(junit, scalatest))
-    .settings( mainClass in Compile := Some("com.lifecosys.toolkit.proxy.ProxyServerLauncher"))
-
+    .settings(libraryDependencies ++=test(junit, scalatest,fluentHC))
 
   lazy val proxyWeb = Project("ProxyWeb", file("proxy-web"))
     .dependsOn(core)

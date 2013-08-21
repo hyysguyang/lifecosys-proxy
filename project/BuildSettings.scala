@@ -60,24 +60,13 @@ object BuildSettings {
   )
 
 
-  import com.twitter.sbt._
-  import PackageDist._
-  def standardProject={
-    val includes=Seq(
-      PackageDist.newSettings ,
-      ArtifactoryPublisher.newSettings ,
-      GitProject.gitSettings ,
-      BuildProperties.newSettings ,
-      PublishSourcesAndJavadocs.newSettings ,
-      VersionManagement.newSettings ,
-      ReleaseManagement.newSettings)
 
-    includes.foldLeft(Seq[Setting[_]]()) { (s, a)  => s ++ a} ++ Seq(
-      exportJars := true
-    )
-  }
-  val distSettings = standardProject ++ Seq(
-    packageDistScriptsOutputPath <<= (packageDistDir) { d => Some(d / "bin") }
+
+  import com.lifecosys.sbt.DistPlugin
+  import com.lifecosys.sbt.DistPlugin._
+  val distSettings = DistPlugin.distSettings ++ Seq(
+    distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher",
+    distJvmOptions in Dist := "-Xms256M -Xmx512M"
   )
 
   lazy val noPublishing = seq(

@@ -1,1 +1,0 @@
-worker: proxy-heroku/target/start

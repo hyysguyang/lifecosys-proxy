@@ -1,2 +1,2 @@
 1. Unify the chainProxy to format host:port.        -       Done
-2. Performance enhancement.
+2. Performance enhancement.                         -       Done

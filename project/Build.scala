@@ -22,8 +22,8 @@ object LifecosysToolkitBuild extends Build {
   lazy val core = Project("Core", file("core"))
     .settings(moduleSettings: _*)
     .settings(libraryDependencies ++=
-    compile(netty, config, bouncycastle, jasypt, commonsLang, commonsIO, akkaActor, scalalogging, dnsjava intransitive()) ++
-      compile(spray: _*) ++
+    compile(netty, config, bouncycastle, jasypt, commonsLang, commonsIO,parboiled, akkaActor, scalalogging, dnsjava intransitive()) ++
+//      compile(spray: _*) ++
       compile(slf4jLog4j12,log4j) ++
       test(junit, scalatest, fluentHC)
   )
@@ -43,7 +43,7 @@ object LifecosysToolkitBuild extends Build {
     .settings(moduleSettings: _*)
     .settings(jettySettings: _*)
     .settings(libraryDependencies ++=
-    test(sprayTestkit) ++
+//    test(sprayTestkit) ++
       compile(servlet30) ++
       container(jettyWebApp)
   )

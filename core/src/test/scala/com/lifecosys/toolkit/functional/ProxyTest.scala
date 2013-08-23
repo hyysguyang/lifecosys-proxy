@@ -348,7 +348,7 @@ class ChainedProxyManagerTest extends BaseFunSuite with BeforeAndAfter {
       """.stripMargin
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
-    val host = new GFWListChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    val host = new GFWListChainProxyManager().getConnectHost(request.getUri)(new DefaultStaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
     assert(host === None)
   }
 
@@ -365,7 +365,7 @@ class ChainedProxyManagerTest extends BaseFunSuite with BeforeAndAfter {
       """.stripMargin
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com/")
-    val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config))))).get
+    val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new DefaultStaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config))))).get
     Assert.assertFalse(host.host.socketAddress == new InetSocketAddress("localhost", 8081))
   }
 

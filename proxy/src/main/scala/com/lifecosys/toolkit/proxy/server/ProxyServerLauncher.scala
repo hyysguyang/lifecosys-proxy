@@ -24,8 +24,8 @@ import com.typesafe.config.ConfigFactory
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
+import com.lifecosys.toolkit.proxy._
 import scala.Some
-import com.lifecosys.toolkit.proxy.{ DefaultStaticCertificationProxyConfig, ProxyServer, ProgrammaticCertificationProxyConfig, GFWProgrammaticCertificationProxyConfig }
 
 /**
  *
@@ -43,12 +43,10 @@ object ProxyServerLauncher {
 
     val config = ConfigFactory.load()
     val proxyConfig = if (config.getBoolean("local"))
-      new GFWProgrammaticCertificationProxyConfig(Some(config))
+      new GFWStaticCertificationProxyConfig(Some(config))
     else
-      new ProgrammaticCertificationProxyConfig(Some(config))
-    //        ProxyServer(proxyConfig).start
-    //    ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))).start
-    ProxyServer(new DefaultStaticCertificationProxyConfig(Some(config))).start
+      new DefaultStaticCertificationProxyConfig(Some(config))
+    ProxyServer(proxyConfig).start
   }
 
 }

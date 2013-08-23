@@ -73,7 +73,7 @@ class SimpleNetProxySpec extends BaseSpec with BeforeAndAfterAll {
   def httpClientProxyPort: Int = 19070
   override def proxyServer = {
     val netConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/NetProxyServer-application.conf").withFallback(ConfigFactory.load())
-    Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(netConfig))))
+    Some(ProxyServer(new DefaultStaticCertificationProxyConfig(Some(netConfig))))
   }
 
   feature("Net Proxy Server without chained proxy") {
@@ -85,12 +85,12 @@ class SimpleChainedNetProxySpec extends BaseSpec with BeforeAndAfterAll {
   def httpClientProxyPort: Int = 19071
   override val chainedProxyServer = {
     val chainConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/ChainedProxyServer-application.conf").withFallback(ConfigFactory.load())
-    Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(chainConfig))))
+    Some(ProxyServer(new DefaultStaticCertificationProxyConfig(Some(chainConfig))))
   }
 
   override def proxyServer = {
     val netConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/NetProxyServerWithChainedProxy-application.conf").withFallback(ConfigFactory.load())
-    Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(netConfig))))
+    Some(ProxyServer(new DefaultStaticCertificationProxyConfig(Some(netConfig))))
   }
 
   feature("Net Proxy Server without chained proxy") {
@@ -104,7 +104,7 @@ class SimpleWebProxySpec extends BaseSpec with BeforeAndAfterAll {
   def httpClientProxyPort: Int = 19073
   override def proxyServer = {
     val config = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/WebProxy-application.conf").withFallback(ConfigFactory.load())
-    Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))))
+    Some(ProxyServer(new DefaultStaticCertificationProxyConfig(Some(config))))
   }
   feature("Proxy Server with chained web proxy") {
     scenarios

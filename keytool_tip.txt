@@ -22,32 +22,35 @@ keytool -genkey -alias lifecosys-proxy-server -keysize 4096 -validity 3650 -keya
 
 
 ///For production
+server password: w^g-+lk&,Veb*x
+client password: _*-T=],k:M'b*x|
 
-keytool -genkey -alias lifecosys-proxy-server -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass killccp-server -storepass killccp-server -keystore lifecosys-proxy-server-keystore.jks
-keytool -exportcert -alias lifecosys-proxy-server -keystore lifecosys-proxy-server-keystore.jks -storepass killccp-server -file lifecosys-proxy-server-keystore.cert
-keytool -keystore proxy-server-for-client-trust-keystore.jks -import -alias lifecosys-proxy-serve -file  lifecosys-proxy-server-keystore.cert  -keypass killccp-client -storepass killccp-client
-keytool -keystore proxy_server_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-client-keystore.cert  -keypass killccp-server -storepass killccp-server -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
+keytool -genkey -alias lifecosys-proxy-server -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass "w^g-+lk&,Veb*x" -storepass "w^g-+lk&,Veb*x" -keystore lifecosys-proxy-server-keystore.jks
+keytool -exportcert -alias lifecosys-proxy-server -keystore lifecosys-proxy-server-keystore.jks -storepass "w^g-+lk&,Veb*x" -file lifecosys-proxy-server-keystore.cert
+keytool -keystore lifecosys-proxy-server-for-client-trust-keystore.jks -import -alias lifecosys-proxy-serve -file  lifecosys-proxy-server-keystore.cert  -keypass "_*-T=],k:M'b*x|" -storepass "_*-T=],k:M'b*x|"
+
+keytool -keystore proxy_server_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-client-keystore.cert  -keypass "w^g-+lk&,Veb*x" -storepass "w^g-+lk&,Veb*x" -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
 
 
-keytool -genkey -alias lifecosys-proxy-client -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass killccp-client -storepass killccp-client -keystore lifecosys-proxy-client-keystore.jks
-keytool -exportcert -alias lifecosys-proxy-client -keystore lifecosys-proxy-client-keystore.jks -storepass killccp-client -file lifecosys-proxy-client-keystore.cert
-keytool -keystore lifecosys-proxy-client-for-server-trust-keystore.jks -import -alias lifecosys-proxy-client -file  lifecosys-proxy-client-keystore.cert -keypass killccp-server -storepass killccp-server
+keytool -genkey -alias lifecosys-proxy-client -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass "_*-T=],k:M'b*x|" -storepass "_*-T=],k:M'b*x|" -keystore lifecosys-proxy-client-keystore.jks
+keytool -exportcert -alias lifecosys-proxy-client -keystore lifecosys-proxy-client-keystore.jks -storepass "_*-T=],k:M'b*x|" -file lifecosys-proxy-client-keystore.cert
+keytool -keystore lifecosys-proxy-client-for-server-trust-keystore.jks -import -alias lifecosys-proxy-client -file  lifecosys-proxy-client-keystore.cert -keypass "w^g-+lk&,Veb*x" -storepass "w^g-+lk&,Veb*x"
 
 //For Android
-#keytool -genkey -alias lifecosys-proxy-client -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass killccp-client -storepass killccp-client -keystore proxy_android_keystore.bks -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
-#keytool -exportcert -alias lifecosys-proxy-client -keystore proxy_android_keystore.bks -storepass killccp-client -file proxy_android_keystore.cert
-#keytool -keystore proxy_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-client-keystore.cert  -keypass killccp-server -storepass killccp-server -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
+#keytool -genkey -alias lifecosys-proxy-client -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass "_*-T=],k:M'b*x|" -storepass "_*-T=],k:M'b*x|" -keystore proxy_android_keystore.bks -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
+#keytool -exportcert -alias lifecosys-proxy-client -keystore proxy_android_keystore.bks -storepass "_*-T=],k:M'b*x|" -file proxy_android_keystore.cert
+#keytool -keystore proxy_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-client-keystore.cert  -keypass "w^g-+lk&,Veb*x" -storepass "w^g-+lk&,Veb*x" -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
 
 
 //For Android certification
 //Download bcprov-ext-jdk16-1.45.jar
 // aria2c http://repo2.maven.org/maven2/org/bouncycastle/bcprov-ext-jdk16/1.45/bcprov-ext-jdk16-1.45.jar
-#keytool -keystore proxy_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-client-keystore.cert  -keypass killccp-server -storepass killccp-server -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
+#keytool -keystore proxy_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-client-keystore.cert  -keypass "w^g-+lk&,Veb*x" -storepass "w^g-+lk&,Veb*x" -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
 
 
 //Full command
 
-keytool -genkey -alias lifecosys-proxy-server -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass killccp-server -storepass killccp-server -keystore lifecosys-proxy-server-keystore.jks && keytool -exportcert -alias lifecosys-proxy-server -keystore lifecosys-proxy-server-keystore.jks -storepass killccp-server -file lifecosys-proxy-server-keystore.cert && keytool -keystore proxy-server-for-client-trust-keystore.jks -import -alias lifecosys-proxy-serve -file  lifecosys-proxy-server-keystore.cert  -keypass killccp-client -storepass killccp-client && keytool -keystore proxy_server_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-server-keystore.cert  -keypass killccp-server -storepass killccp-server -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
+keytool -genkey -alias lifecosys-proxy-server -keysize 4096 -validity 3650 -keyalg RSA -dname "cn=proxy, ou=Toolkit, o=Lifecosys, c=US" -keypass "w^g-+lk&,Veb*x" -storepass "w^g-+lk&,Veb*x" -keystore lifecosys-proxy-server-keystore.jks && keytool -exportcert -alias lifecosys-proxy-server -keystore lifecosys-proxy-server-keystore.jks -storepass "w^g-+lk&,Veb*x" -file lifecosys-proxy-server-keystore.cert && keytool -keystore proxy-server-for-client-trust-keystore.jks -import -alias lifecosys-proxy-serve -file  lifecosys-proxy-server-keystore.cert  -keypass "_*-T=],k:M'b*x|" -storepass "_*-T=],k:M'b*x|" && keytool -keystore proxy_server_android_trust_keystore.bks -import -alias lifecosys-proxy-client -file lifecosys-proxy-server-keystore.cert  -keypass "w^g-+lk&,Veb*x" -storepass "w^g-+lk&,Veb*x" -provider org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "bcprov-ext-jdk16-1.45.jar" -storetype BKS
 
 
 

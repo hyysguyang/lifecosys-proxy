@@ -125,9 +125,14 @@ class DefaultStaticCertificationProxyConfig(config: Option[Config] = None) exten
   }
 }
 
+class GFWStaticCertificationProxyConfig(config: Option[Config] = None) extends DefaultStaticCertificationProxyConfig(config) {
+  override val getChainProxyManager: ChainProxyManager = new GFWChainProxyManager()
+}
+
 class ProgrammaticCertificationProxyConfig(config: Option[Config] = None) extends DefaultProxyConfig(config) {
   override def sslManger = new ProgrammaticCertificationSSLManager
 }
+
 class GFWProgrammaticCertificationProxyConfig(config: Option[Config] = None) extends ProgrammaticCertificationProxyConfig(config) {
   override val getChainProxyManager: ChainProxyManager = new GFWChainProxyManager()
 }

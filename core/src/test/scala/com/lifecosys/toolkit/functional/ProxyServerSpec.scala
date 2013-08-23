@@ -1,14 +1,10 @@
-package com.lifecosys.toolkit.proxy.server
+package com.lifecosys.toolkit.functional
 
 import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
 import java.security.Security
 import org.apache.commons.io.IOUtils
 import org.apache.http.client.methods.HttpGet
-import org.apache.http.config.SocketConfig
-import org.apache.http.conn.ssl.SSLSocketFactory
-import org.apache.http.HttpHost
-import org.apache.http.impl.client.{ HttpClientBuilder, HttpClients }
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import org.scalatest._
@@ -50,16 +46,13 @@ trait BaseSpec extends FeatureSpec with BeforeAndAfterAll {
   }
 
   def testSimpleHttp {
-    val httpClient = createHttpClient.build()
+    val httpClient = createHttpClient
     val response: String = IOUtils.toString(httpClient.execute(new HttpGet("http://www.baidu.com/")).getEntity.getContent)
     Assertions.assert(response.length > 10000)
     httpClient.close()
   }
 
-  def createHttpClient: HttpClientBuilder = {
-    HttpClients.custom().setDefaultSocketConfig(SocketConfig.custom().setSoTimeout(60 * 1000).build())
-      .setProxy(new HttpHost("localhost", httpClientProxyPort))
-  }
+  def createHttpClient = ProxyTestUtils.createHttpClient(httpClientProxyPort)
 
   /**
    * Need use different proxy port for each spec since SBT will failed to bind it.
@@ -69,8 +62,6 @@ trait BaseSpec extends FeatureSpec with BeforeAndAfterAll {
 
   def testSimpleHttps {
     val httpClient = createHttpClient
-      .setSSLSocketFactory(new SSLSocketFactory(Utils.trustAllSSLContext, SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER))
-      .build()
     val response: String = IOUtils.toString(httpClient.execute(new HttpGet("https://developer.apple.com/")).getEntity.getContent)
     Assertions.assert(response.length > 10000)
     httpClient.close()
@@ -81,7 +72,7 @@ trait BaseSpec extends FeatureSpec with BeforeAndAfterAll {
 class SimpleNetProxySpec extends BaseSpec with BeforeAndAfterAll {
   def httpClientProxyPort: Int = 19070
   override def proxyServer = {
-    val netConfig = ConfigFactory.parseResources("NetProxyServer-application.conf").withFallback(ConfigFactory.load())
+    val netConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/NetProxyServer-application.conf").withFallback(ConfigFactory.load())
     Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(netConfig))))
   }
 
@@ -91,14 +82,14 @@ class SimpleNetProxySpec extends BaseSpec with BeforeAndAfterAll {
 }
 
 class SimpleChainedNetProxySpec extends BaseSpec with BeforeAndAfterAll {
-  def httpClientProxyPort: Int = 19080
+  def httpClientProxyPort: Int = 19071
   override val chainedProxyServer = {
-    val chainConfig = ConfigFactory.parseResources("ChainedProxyServer-application.conf").withFallback(ConfigFactory.load())
+    val chainConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/ChainedProxyServer-application.conf").withFallback(ConfigFactory.load())
     Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(chainConfig))))
   }
 
   override def proxyServer = {
-    val netConfig = ConfigFactory.parseResources("NetProxyServerWithChainedProxy-application.conf").withFallback(ConfigFactory.load())
+    val netConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/NetProxyServerWithChainedProxy-application.conf").withFallback(ConfigFactory.load())
     Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(netConfig))))
   }
 
@@ -110,9 +101,9 @@ class SimpleChainedNetProxySpec extends BaseSpec with BeforeAndAfterAll {
 class SimpleWebProxySpec extends BaseSpec with BeforeAndAfterAll {
   //    System.setProperty("javax.net.debug", "all")
 
-  def httpClientProxyPort: Int = 19060
+  def httpClientProxyPort: Int = 19073
   override def proxyServer = {
-    val config = ConfigFactory.parseResources("WebProxy-application.conf").withFallback(ConfigFactory.load())
+    val config = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/WebProxy-application.conf").withFallback(ConfigFactory.load())
     Some(ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))))
   }
   feature("Proxy Server with chained web proxy") {
@@ -125,7 +116,7 @@ class SimpleWebProxySpec extends BaseSpec with BeforeAndAfterAll {
 //  //  System.setProperty("javax.net.debug", "all")
 //  def httpClientProxyPort: Int = 19061
 //  override def proxyServer = {
-//    val config = ConfigFactory.parseResources("HTTPSWebProxy-application.conf").withFallback(ConfigFactory.load())
+//    val config = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/com.lifecosys.toolkit.proxy.server.server/HTTPSWebProxy-application.conf").withFallback(ConfigFactory.load())
 //    val proxyConfig = new ProgrammaticCertificationProxyConfig(Some(config)) {
 //      lazy override val clientSSLContext = Utils.trustAllSSLContext
 //    }

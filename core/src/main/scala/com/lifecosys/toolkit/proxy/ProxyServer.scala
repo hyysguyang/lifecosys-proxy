@@ -64,7 +64,7 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
   val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
 
   def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
-    //      pipeline.addLast("logger", new LoggingHandler(proxyConfig.loggerLevel,false))
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, false))
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)

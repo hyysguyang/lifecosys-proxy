@@ -34,9 +34,9 @@ trait DefaultStaticCertificationSSLManager extends SSLManager {
   def proxyToServerSSLKeystorePath: String
   def proxyToServerSSLTrustKeystorePath: String
 
-  def getServerSSLContext: SSLContext = getSSLContext(serverSSLKeystorePassword, ClassLoader.getSystemResourceAsStream(serverSSLKeystorePath), ClassLoader.getSystemResourceAsStream(serverSSLTrustKeystorePath))
+  def getServerSSLContext: SSLContext = getSSLContext(serverSSLKeystorePassword, getClass.getResourceAsStream(serverSSLKeystorePath), getClass.getResourceAsStream(serverSSLTrustKeystorePath))
 
-  def getProxyToServerSSLContext: SSLContext = getSSLContext(proxyToServerSSLKeystorePassword, ClassLoader.getSystemResourceAsStream(proxyToServerSSLKeystorePath), ClassLoader.getSystemResourceAsStream(proxyToServerSSLTrustKeystorePath))
+  def getProxyToServerSSLContext: SSLContext = getSSLContext(proxyToServerSSLKeystorePassword, getClass.getResourceAsStream(proxyToServerSSLKeystorePath), getClass.getResourceAsStream(proxyToServerSSLTrustKeystorePath))
 
   def getSSLContext(keyStorePassword: String, keyManagerKeyStoreInputStream: InputStream, trustManagerKeyStoreInputStream: InputStream): SSLContext = {
 

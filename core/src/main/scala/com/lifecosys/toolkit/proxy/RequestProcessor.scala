@@ -121,7 +121,7 @@ class DefaultHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
 
-    if (connectHost.serverType != WebProxyType && connectHost.needForward) {
+    if (connectHost.needForward) {
       pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
       pipeline.addLast("proxyServerToRemote-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
       pipeline.addLast("proxyServerToRemote-decrypt", new DecryptDecoder)
@@ -191,7 +191,7 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannel: Channel)(im
       pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
     }
 
-    if (connectHost.serverType != WebProxyType && connectHost.needForward) {
+    if (connectHost.needForward) {
       pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
       pipeline.addLast("proxyServerToRemote-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
       pipeline.addLast("proxyServerToRemote-decrypt", new DecryptDecoder)

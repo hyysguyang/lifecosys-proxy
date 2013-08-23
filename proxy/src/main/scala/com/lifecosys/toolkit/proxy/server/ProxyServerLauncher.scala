@@ -18,13 +18,14 @@
  *  ===End Copyright Notice===
  */
 
-package com.lifecosys.toolkit.proxy
+package com.lifecosys.toolkit.proxy.server
 
 import com.typesafe.config.ConfigFactory
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import scala.Some
+import com.lifecosys.toolkit.proxy.{ DefaultStaticCertificationProxyConfig, ProxyServer, ProgrammaticCertificationProxyConfig, GFWProgrammaticCertificationProxyConfig }
 
 /**
  *
@@ -45,8 +46,9 @@ object ProxyServerLauncher {
       new GFWProgrammaticCertificationProxyConfig(Some(config))
     else
       new ProgrammaticCertificationProxyConfig(Some(config))
-    //    ProxyServer(proxyConfig).start
-    ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))).start
+    //        ProxyServer(proxyConfig).start
+    //    ProxyServer(new ProgrammaticCertificationProxyConfig(Some(config))).start
+    ProxyServer(new DefaultStaticCertificationProxyConfig(Some(config))).start
   }
 
 }

@@ -22,9 +22,9 @@ object LifecosysToolkitBuild extends Build {
   lazy val core = Project("Core", file("core"))
     .settings(moduleSettings: _*)
     .settings(libraryDependencies ++=
-    compile(netty, config, bouncycastle, jasypt, commonsLang, commonsIO, akkaActor, scalalogging, dnsjava) ++
+    compile(netty, config, bouncycastle, jasypt, commonsLang, commonsIO, akkaActor, scalalogging, dnsjava intransitive()) ++
       compile(spray: _*) ++
-      runtime(slf4jLog4j12) ++
+      compile(slf4jLog4j12,log4j) ++
       test(junit, scalatest, fluentHC)
   )
 
@@ -36,7 +36,7 @@ object LifecosysToolkitBuild extends Build {
     .settings(moduleSettings: _*)
     .settings(distSettings ++ Seq(additionalFiles in com.lifecosys.sbt.DistPlugin.Dist <<= includeFiles): _*)
     //.settings((AkkaKernelPlugin.distSettings ++ Seq(distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher" )):_*)
-    .settings(libraryDependencies ++= test(junit, scalatest, fluentHC))
+    .settings(libraryDependencies ++= runtime() ++ test(junit, scalatest, fluentHC))
 
   lazy val proxyWeb = Project("ProxyWeb", file("proxy-web"))
     .dependsOn(core)

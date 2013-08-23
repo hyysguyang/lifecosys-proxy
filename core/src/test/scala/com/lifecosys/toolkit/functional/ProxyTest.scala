@@ -21,15 +21,13 @@
 package com.lifecosys.toolkit.functional
 
 import org.apache.http.client.fluent.{ Executor, Request }
-import org.apache.http.HttpHost
+import org.apache.http.{ NoHttpResponseException, HttpHost }
 import java.net.InetSocketAddress
 import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
-import org.junit.{ Assert, Test, After, Before }
+import org.junit.{ Assert, Test }
 import org.jboss.netty.channel.ChannelException
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
-import javax.net.ssl.{ X509TrustManager, SSLContext }
-import java.security.cert.X509Certificate
 import ProxyTestUtils._
 import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
@@ -37,6 +35,11 @@ import org.jboss.netty.handler.codec.http.{ HttpMethod, HttpVersion, DefaultHttp
 import scala.Some
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import scala.util.Try
+import org.scalatest.{ BeforeAndAfter, FunSuite }
+import org.apache.http.impl.client.{ CloseableHttpClient, DefaultHttpRequestRetryHandler, HttpClients }
+import org.apache.http.config.SocketConfig
+import org.apache.http.client.methods.{ CloseableHttpResponse, HttpGet }
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -46,7 +49,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 object ProxyTestUtils {
 
-  Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(createStubSSLClientContext)))
+  Executor.registerScheme(new Scheme("https", 443, new SSLSocketFactory(Utils.trustAllSSLContext)))
 
   Security.addProvider(new BouncyCastleProvider)
   InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
@@ -59,24 +62,12 @@ object ProxyTestUtils {
     proxyContent.toString.filter(_.isWhitespace).replace("\n", "").replace("\r", "")
   }
 
-  def createStubSSLClientContext = {
-    val clientContext = SSLContext.getInstance("TLS")
-    clientContext.init(null, Array(new X509TrustManager {
-      def getAcceptedIssuers: Array[X509Certificate] = {
-        return new Array[X509Certificate](0)
-      }
-
-      def checkClientTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all client" + chain(0).getSubjectDN)
-      }
-
-      def checkServerTrusted(chain: Array[X509Certificate], authType: String) {
-        System.err.println("Trust all server" + chain(0).getSubjectDN)
-      }
-    }), null)
-
-    clientContext
-  }
+  def createHttpClient(proxyPort: Int) = HttpClients.custom()
+    .setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
+    .setDefaultSocketConfig(SocketConfig.custom().setSoTimeout(60 * 1000).build())
+    .setSSLSocketFactory(new SSLSocketFactory(Utils.trustAllSSLContext, SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER))
+    .setProxy(new HttpHost("localhost", proxyPort))
+    .build()
 
   def createProxyConfig(bindPort: Int = 8080,
                         chainedPort: Option[Int] = None,
@@ -86,16 +77,16 @@ object ProxyTestUtils {
                         chainProxyManager: ChainProxyManager = new DefaultChainProxyManager) = {
 
     val chainProxy = chainedPort match {
-      case Some(port) ⇒ s"""host = "localhost:$port" """
+      case Some(port) ⇒ """{host = "localhost:%s type ="net"}""".format(port + "\"\n")
       case None       ⇒ ""
     }
 
     val configString = s"""
       |port = $bindPort
       |local=$isLocalProxy
-      |chain-proxy{
+      |chain-proxy = [
       |  $chainProxy
-      |}
+      |]
       |proxy-server{
       |    thread {
       |        corePoolSize = 10
@@ -131,83 +122,96 @@ object ProxyTestUtils {
 
   }
 
-  def main(args: Array[String]) {
-
-    //      println(Request.Get("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString)
-    println(Request.Get("https://freezegfw-one.appspot.com/2").execute.returnContent.toString)
-
-    //      val config= createProxyConfig(bindPort = 8081, isLocalProxy = false)
-    //      println(config.isLocal)
-
-    //      val proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    //      val chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
-    //
-    //      chainProxy start
-    //
-    //      proxy start
-  }
-
 }
 
-class SimpleProxyTest {
-  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
-  var proxy: ProxyServer = null
+trait BaseFunSuite extends FunSuite {
+  def doAssert(response: CloseableHttpResponse) {
+    assert(response.getStatusLine.getStatusCode === 200)
+  }
+}
 
-  @Before
-  def before() {
-    proxy = ProxyServer(createProxyConfig())
+class SimpleProxyTest extends BaseFunSuite with BeforeAndAfter {
+
+  var proxy: ProxyServer = null
+  var httpClient: Option[CloseableHttpClient] = None
+
+  before {
+    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+    Security.addProvider(new BouncyCastleProvider)
   }
 
-  @After
-  def after() {
+  after {
     proxy shutdown
 
     proxy = null
 
+    httpClient.foreach(_.close())
   }
 
-  @Test(expected = classOf[ChannelException])
-  def testShutdown {
-    proxy.start
-    proxy.shutdown
+  test("Shutdown when can't bind port.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19080))
+    val result = Try {
+      proxy start
 
-    proxy = ProxyServer(createProxyConfig())
-    proxy.start
+      proxy shutdown
 
-    ProxyServer(createProxyConfig()).start
+      proxy = ProxyServer(createProxyConfig(bindPort = 19080))
+      proxy start
 
+      ProxyServer(createProxyConfig(bindPort = 19080)) start
+    }
+    assert(result.failed.get.isInstanceOf[ChannelException] === true)
   }
 
-  @Test
-  def testSimplePage {
+  test("Access simple page") {
+
+    proxy = ProxyServer(createProxyConfig(bindPort = 19081))
+
     proxy start
 
-    Assert.assertTrue(request("http://www.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    httpClient = Some(createHttpClient(19081))
+
+    doAssert(httpClient.get.execute(new HttpGet("http://www.apple.com/")))
   }
 
-  @Test
-  def testAnotherSimplePage {
+  test("Access another simple page") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19082))
+
     proxy start
 
-    Assert.assertTrue(request("http://baidu.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    httpClient = Some(createHttpClient(19082))
+
+    doAssert(httpClient.get.execute(new HttpGet("http://www.apple.com/")))
+
   }
 
-  @Test
-  def testAccessHttps {
+  test("Access https page") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19083))
+
     proxy start
 
-    Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    httpClient = Some(createHttpClient(19083))
+
+    doAssert(httpClient.get.execute(new HttpGet("https://developer.apple.com/")))
+
   }
 
 }
 
-class ChainedProxyTest {
-  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+class ChainedProxyTest extends BaseFunSuite with BeforeAndAfter {
+  object gfwChainProxyManager extends GFWChainProxyManager
   var proxy: ProxyServer = null
   var chainProxy: ProxyServer = null
 
-  @After
-  def after() {
+  var httpClient: Option[CloseableHttpClient] = None
+
+  before {
+    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+    Security.addProvider(new BouncyCastleProvider)
+  }
+
+  after {
+
     proxy shutdown
 
     if (chainProxy != null) chainProxy shutdown
@@ -215,179 +219,152 @@ class ChainedProxyTest {
     proxy = null
     chainProxy = null
 
+    httpClient.foreach(_.close())
+
   }
 
-  @Test
-  def testAccessViaChainedProxy {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
+  test("Access http web page via chained proxy") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19090, chainedPort = Some(19091)))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 19091, isLocalProxy = false))
 
     chainProxy start
 
     proxy start
 
-    val proxyContent = request("http://www.baidu.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
+    httpClient = Some(createHttpClient(19090))
+
+    doAssert(httpClient.get.execute(new HttpGet("http://www.baidu.com/")))
 
   }
 
-  def gfwChainProxyManager = new GFWChainProxyManager {
-
-  }
-
-  @Test
-  def testAccessViaChainedProxy_bypassChainedProxy {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
+  test("Access http web page via chained proxy when bypass chained proxy.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19092, chainProxyManager = gfwChainProxyManager))
     proxy start
-    val proxyContent = request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
+
+    httpClient = Some(createHttpClient(19092))
+
+    doAssert(httpClient.get.execute(new HttpGet("http://www.yahoo.com/")))
   }
 
-  @Test
-  def testAccessViaChainedProxy_forHttps_bypassChainedProxy {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), chainProxyManager = gfwChainProxyManager))
+  test("Access https web page via chained proxy when bypass chained proxy.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19093, chainedPort = Some(19094), chainProxyManager = gfwChainProxyManager))
     proxy start
-    val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
+
+    httpClient = Some(createHttpClient(19093))
+
+    doAssert(httpClient.get.execute(new HttpGet("https://developer.apple.com/")))
+
   }
 
-  @Test
-  def testAccessViaChainedProxy_bypassChainedProxy_withSSLSupport {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
+  test("Access http web page via chained proxy when bypass chained proxy with SSL support.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19095, chainedPort = Some(19096), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
     proxy start
-    val proxyContent = request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
+
+    httpClient = Some(createHttpClient(19095))
+
+    doAssert(httpClient.get.execute(new HttpGet("http://www.yahoo.com/")))
+
   }
 
-  @Test
-  def testAccessViaChainedProxy_forHttps_bypassChainedProxy_withSSLSupport {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
+  test("Access https web page via chained proxy when bypass chained proxy with SSL support.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19096, chainedPort = Some(19097), isClientSSLEnable = true, chainProxyManager = gfwChainProxyManager))
     proxy start
-    val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
+
+    httpClient = Some(createHttpClient(19096))
+
+    doAssert(httpClient.get.execute(new HttpGet("https://developer.apple.com/")))
+
   }
 
-  @Test
-  def testAccessViaUnavailableChainedProxy {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = ProxyServer(createProxyConfig(bindPort = 8082))
+  test("Access web page via unavailable chained proxy") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19098, chainedPort = Some(10)))
 
-    chainProxy.start
     proxy.start
-    try {
-      request("http://www.yahoo.com/").socketTimeout(5 * 1000).viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    } catch {
-      case _: Throwable ⇒ Assert.assertTrue(true)
-    }
+
+    httpClient = Some(createHttpClient(19098))
+
+    val result = Try((httpClient.get.execute(new HttpGet("http://www.yahoo.com/"))))
+
+    assert(result.isFailure === true)
+    assert(result.failed.get.isInstanceOf[NoHttpResponseException] === true)
 
   }
 
-  @Test
-  def testAccessViaChainedProxyForHttps {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081)))
-    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false))
-
-    chainProxy start
-
-    proxy start
-    val proxyContent = request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent
-    Assert.assertTrue(proxyContent.toString.length > 0)
-
-  }
-
-  @Test
-  def testAccessViaChainedProxy_withSSLSupport {
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
+  test("Access https web page via chained proxy.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19099, chainedPort = Some(19100)))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 19100, isLocalProxy = false))
 
     chainProxy start
 
     proxy start
 
-    Assert.assertTrue(request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    httpClient = Some(createHttpClient(19099))
+
+    doAssert(httpClient.get.execute(new HttpGet("https://developer.apple.com/")))
+
   }
 
-  @Test
-  def testAccessViaChainedProxyForHttps_withSSLSupport {
-
-    proxy = ProxyServer(createProxyConfig(chainedPort = Some(8081), isClientSSLEnable = true))
-    chainProxy = ProxyServer(createProxyConfig(bindPort = 8081, isLocalProxy = false, isServerSSLEnable = true))
+  test("Access http web page via chained proxy with SSL support.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19101, chainedPort = Some(19102), isClientSSLEnable = true))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 19102, isLocalProxy = false, isServerSSLEnable = true))
 
     chainProxy start
 
     proxy start
 
-    Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    httpClient = Some(createHttpClient(19101))
+
+    doAssert(httpClient.get.execute(new HttpGet("http://www.yahoo.com/")))
 
   }
 
-  @Test
-  def testAccessViaChainedProxy_withSSLSupport_forProgrammaticCertification {
-
-    val config =
-      """
-        |port = 8080
-        |chain-proxy{
-        |    host ="localhost:8081"
-        |}
-        |proxy-server{
-        |    ssl {
-        |            enabled = false
-        |    }
-        |}
-        |proxy-server-to-remote{
-        |    ssl {
-        |            enabled = true
-        |    }
-        |}
-      """.stripMargin
-
-    val chainedConfig =
-      """
-        |port = 8081
-        |local=false
-        |chain-proxy{
-        |    host =""
-        |}
-        |proxy-server{
-        |    ssl {
-        |            enabled = true
-        |    }
-        |}
-        |proxy-server-to-remote{
-        |    ssl {
-        |            enabled = false
-        |    }
-        |}
-      """.stripMargin
-
-    proxy = ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
-    chainProxy = ProxyServer(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(chainedConfig)))))
+  test("Access https web page via chained proxy with SSL support.") {
+    proxy = ProxyServer(createProxyConfig(bindPort = 19103, chainedPort = Some(19104), isClientSSLEnable = true))
+    chainProxy = ProxyServer(createProxyConfig(bindPort = 19104, isLocalProxy = false, isServerSSLEnable = true))
 
     chainProxy start
 
     proxy start
 
-    Assert.assertTrue(request("http://www.yahoo.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    httpClient = Some(createHttpClient(19103))
 
-    Assert.assertTrue(request("https://developer.apple.com/").viaProxy(new HttpHost("localhost", 8080)).execute.returnContent.toString.length > 0)
+    doAssert(httpClient.get.execute(new HttpGet("https://developer.apple.com/")))
+
   }
 
 }
 
-class ChainedProxyManagerTest {
-  Security.addProvider(new BouncyCastleProvider)
+class ChainedProxyManagerTest extends BaseFunSuite with BeforeAndAfter {
+
+  test("Chained proxy manager") {
+    val config =
+      """
+        |chain-proxy = [
+        |      {
+        |            host ="localhost:8081"
+        |            type ="net"
+        |       }
+        |]
+      """.stripMargin
+
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
+    val host = new GFWListChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config)))))
+    assert(host === None)
+  }
 
   @Test
   def testChainedProxyManager {
     val config =
       """
-        |chain-proxy{
-        |    host ="localhost:8081"
-        |}
+        |chain-proxy = [
+        |      {
+        |            host ="localhost:8081"
+        |            type ="net"
+        |       }
+        |]
       """.stripMargin
 
-    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com")
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com/")
     val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new ProgrammaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config))))).get
     Assert.assertFalse(host.host.socketAddress == new InetSocketAddress("localhost", 8081))
   }

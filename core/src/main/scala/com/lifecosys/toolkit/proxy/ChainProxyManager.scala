@@ -129,15 +129,18 @@ sealed class SmartHostsChainProxyManager extends ChainProxyManager {
 
   override val failedHostProcess = SmartHostFailedHostProcess
 
+  //http://smarthosts.googlecode.com/svn/trunk/hosts
   val smartHostsResource = getClass.getResourceAsStream("/hosts.txt")
 
   /**
    * Domain -> IP
    */
   val smartHosts = {
-    Source.fromInputStream(smartHostsResource).getLines().filter(line ⇒ line.trim.length > 0 && !line.startsWith("#")).map {
-      line ⇒ val hd = line.split('\t'); hd(1) -> hd(0)
-    }.toMap
+    Source.fromInputStream(smartHostsResource).getLines()
+      .filter(line ⇒ line.trim.length > 0 && !line.startsWith("#"))
+      .map {
+        line ⇒ val hd = line.split('\t'); hd(1) -> hd(0)
+      }.toMap
   }
 
   def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = {
@@ -159,7 +162,7 @@ class GFWListChainProxyManager extends ChainProxyManager {
     scala.collection.mutable.Set(Source.fromInputStream(highHitsBlockedHostsResource).getLines().filterNot(_.startsWith("#")).toSeq: _*)
   }
 
-  def gfwHostList = Source.fromInputStream(getClass.getResourceAsStream("/gfw-host-list.txt")).getLines().toSet.par.filterNot(_.startsWith("#"))
+  val gfwHostList = Source.fromInputStream(getClass.getResourceAsStream("/gfw-host-list.txt")).getLines().toSet.par.filterNot(_.startsWith("#"))
 
   /**
    * Don't need forward to upstream proxy if not blocked, just return the request host.
@@ -168,7 +171,8 @@ class GFWListChainProxyManager extends ChainProxyManager {
    * @param proxyConfig
    * @return
    */
-  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) = if (isBlocked(Utils.extractHostAndPort(uri)._1)) None else Some(ConnectHost(Host(uri), false))
+  def fetchConnectHost(uri: String)(implicit proxyConfig: ProxyConfig) =
+    if (isBlocked(Utils.extractHostAndPort(uri)._1)) None else Some(ConnectHost(Host(uri), false))
 
   def isBlocked(host: String): Boolean = {
     def matchHost(gfwHost: String) = {

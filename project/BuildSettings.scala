@@ -65,7 +65,7 @@ object BuildSettings {
   import com.lifecosys.sbt.DistPlugin
   import com.lifecosys.sbt.DistPlugin._
   val distSettings = DistPlugin.distSettings ++ Seq(
-    distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher",
+    distMainClass in Dist := "com.lifecosys.toolkit.proxy.server.ProxyServerLauncher",
     distJvmOptions in Dist := "-Xms256M -Xmx512M"
   )
 

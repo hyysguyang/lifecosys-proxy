@@ -18,10 +18,13 @@ object Host {
   def apply(socketAddress: InetSocketAddress): Host = Host(socketAddress.getHostString, socketAddress.getPort)
 }
 
-case class Host(host: String, port: Int) {
+case class Host(host: String, port: Int, ip: Option[String] = None) {
   require(!host.isEmpty)
   require(port > 0 && port < 65535)
-  lazy val socketAddress = DnsSec.newInetSocketAddress(host, port, true)
+  lazy val socketAddress = ip match {
+    case Some(ip) ⇒ new InetSocketAddress(ip, port)
+    case None     ⇒ DnsSec.newInetSocketAddress(host, port, true)
+  }
   override def toString: String = s"$host:$port"
 }
 object ProxyType {

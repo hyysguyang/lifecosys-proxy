@@ -29,6 +29,8 @@ import org.jboss.netty.channel.socket.nio.{ NioClientSocketChannelFactory, NioSe
 import java.util.concurrent.{ SynchronousQueue, TimeUnit, ThreadPoolExecutor }
 import com.lifecosys.toolkit.ssl.{ DefaultStaticCertificationSSLManager, ProgrammaticCertificationSSLManager, SSLManager }
 import com.typesafe.config.{ ConfigList, ConfigValue, ConfigFactory, Config }
+import org.apache.commons.lang3.StringUtils
+import scala.util.Try
 
 /**
  *
@@ -94,7 +96,12 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   override val chainProxies = {
     def createProxyHost(hostConfig: ConfigValue) = {
       val server = hostConfig.atKey("server")
-      ProxyHost(Host(server.getString("server.host")), ProxyType(server.getString("server.type")))
+      val ip = Try(server.getString("server.ip")).getOrElse("")
+      val host = if (StringUtils.isNotBlank(ip))
+        Host(server.getString("server.host")).copy(ip = Some(ip))
+      else
+        Host(server.getString("server.host"))
+      ProxyHost(host, ProxyType(server.getString("server.type")))
     }
 
     val chainProxy: ConfigValue = thisConfig.getValue("chain-proxy")

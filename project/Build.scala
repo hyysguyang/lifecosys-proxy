@@ -17,6 +17,7 @@ object LifecosysToolkitBuild extends Build {
     .aggregate(core, proxy, proxyWeb, android)
     .settings(basicSettings: _*)
     .settings(noPublishing: _*)
+    .settings(org.sbtidea.SbtIdeaPlugin.ideaExcludeFolders := ".idea" :: ".idea_modules" :: Nil)
 
 
   lazy val core = Project("Core", file("core"))

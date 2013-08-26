@@ -38,7 +38,7 @@ abstract class BaseRelayingHandler(relayingChannel: Channel)(implicit proxyConfi
     extends SimpleChannelUpstreamHandler with Logging {
 
   val defaultWriteListener = (future: ChannelFuture) ⇒ {
-    logger.info(s"[${future.getChannel}] - Write data to channel $relayingChannel completed.")
+    logger.debug(s"[${future.getChannel}] - Write data to channel $relayingChannel completed.")
   }
 
   def writeResponse(msg: Any, writeListener: ChannelFutureListener = defaultWriteListener) =

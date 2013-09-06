@@ -72,7 +72,7 @@ sealed trait NettyTaskSupport {
           //        request.getSession(false).setAttribute(SESSION_KEY_ENDPOINT, channel)
           connectedCallback(channel)
         }
-        case None ⇒ logger.error(s">>>>>>>>>>>>>>>>>[${request.getHeader(ProxyRequestID.name)}] Can't create connection")
+        case None ⇒ logger.warn(s"[${request.getHeader(ProxyRequestID.name)}] Can't create connection")
       }
 
     } catch {

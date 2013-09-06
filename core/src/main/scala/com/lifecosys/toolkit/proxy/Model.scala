@@ -23,7 +23,7 @@ case class Host(host: String, port: Int, ip: Option[String] = None) {
   require(port > 0 && port < 65535)
   lazy val socketAddress = ip match {
     case Some(ip) ⇒ new InetSocketAddress(ip, port)
-    case None     ⇒ DnsSec.newInetSocketAddress(host, port, true)
+    case None     ⇒ new InetSocketAddress(host, port) //DnsSec.newInetSocketAddress(host, port, true)
   }
   override def toString: String = s"$host:$port"
 }
@@ -47,6 +47,7 @@ case class ChannelKey(sessionId: String, proxyHost: Host)
 case class Header(name: String)
 object ProxyHostHeader extends Header("X-PH")
 object ProxyRequestType extends Header("X-PRT")
+object ProxyRequestID extends Header("X-PRI")
 
 case class RequestType(value: Byte)
 object HTTP extends RequestType(0)

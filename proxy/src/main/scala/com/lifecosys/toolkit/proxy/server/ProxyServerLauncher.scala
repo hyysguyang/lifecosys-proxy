@@ -46,7 +46,7 @@ object ProxyServerLauncher {
       new GFWStaticCertificationProxyConfig(Some(config))
     else
       new DefaultStaticCertificationProxyConfig(Some(config))
-    ProxyServer(proxyConfig).start
+    ProxyServer(new DefaultStaticCertificationProxyConfig(Some(config))).start
   }
 
 }

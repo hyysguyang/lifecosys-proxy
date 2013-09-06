@@ -2,6 +2,7 @@ package com.lifecosys.toolkit.proxy.web
 
 import java.util.concurrent.Executors
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
+import org.jboss.netty.channel.Channel
 
 /**
  *
@@ -12,4 +13,5 @@ import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
 package object netty {
   val executor = Executors.newCachedThreadPool()
   val clientSocketChannelFactory = new NioClientSocketChannelFactory(executor, executor)
+  val channels = scala.collection.mutable.Map[String, Channel]()
 }

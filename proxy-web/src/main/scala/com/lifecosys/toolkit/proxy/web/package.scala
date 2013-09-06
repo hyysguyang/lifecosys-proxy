@@ -19,13 +19,14 @@ package object web {
 
   def parseChannelKey(request: HttpServletRequest) = {
     val encodedProxyHost = request.getHeader(ProxyHostHeader.name)
+    //    val proxyHost = Host(new String(encryptor.decrypt(base64.decode(encodedProxyHost)), UTF8))
     val proxyHost = Host(new String(encryptor.decrypt(base64.decode(encodedProxyHost)), UTF8))
-    ChannelKey(request.getSession.getId, proxyHost)
+    ChannelKey(request.getHeader(ProxyRequestID.name), proxyHost)
   }
 
-  def writeResponse(response: HttpServletResponse, data: Array[Byte]) {
+  def writeResponse(request: HttpServletRequest, response: HttpServletResponse, data: Array[Byte]) {
     val encrypt: Array[Byte] = encryptor.encrypt(data)
-    logger.debug(s"Write encrypt response: ${Utils.hexDumpToString(encrypt)}")
+    //    logger.debug(s"Write encrypt response: ${Utils.hexDumpToString(encrypt)}")
     //Write the length header of this data packet, include response data length and the length header length
     response.getOutputStream.write(ByteBuffer.allocate(2).putShort((encrypt.length + 2).toShort).array())
     response.getOutputStream.write(encrypt)

@@ -25,12 +25,13 @@ import org.jboss.netty.channel._
 import group.ChannelGroupFuture
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.bootstrap.ServerBootstrap
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.{ AtomicInteger, AtomicBoolean }
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
 import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.ClosedChannelException
+import java.util.UUID
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -146,6 +147,24 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
 
     require(e.getMessage.isInstanceOf[HttpRequest], "Unsupported Request..........")
     val httpRequest = e.getMessage.asInstanceOf[HttpRequest]
+    //
+    //    synchronized {
+    //      val index = Option(ctx.getChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger]
+    //      index.incrementAndGet()
+    //      ctx.getChannel.setAttachment(index)
+    //    }
+    //    logger.error(s">>>>>>>>>>>>>>>>>setAttachment completed ${ctx.getChannel.getAttachment}  on setAttachment${ctx.getChannel}")
+
+    //    try {
+    //      require(!requestsssss.contains(ctx.getChannel.toString))
+    //    } catch {
+    //      case t ⇒ logger.error(s">>>>>>>>>>>>>>>>>${ctx.getChannel.toString}Duplicated request. ")
+    //    }
+    //    synchronized(requestsssss += ctx.getChannel.toString)
+    //    if (httpRequest.getUri.contains("safebrowsing") || httpRequest.getUri.contains(".mozilla.com")) {
+    //      ctx.getChannel.close()
+    //      return
+    //    }
 
     implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
 

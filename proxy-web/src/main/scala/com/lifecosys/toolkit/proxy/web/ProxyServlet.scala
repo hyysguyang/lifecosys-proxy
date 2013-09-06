@@ -11,7 +11,8 @@ import com.lifecosys.toolkit.proxy._
 import com.lifecosys.toolkit.proxy.RequestType
 import javax.servlet.annotation.WebServlet
 import scala.util.Try
-import com.lifecosys.toolkit.proxy.web.netty.{ HttpsNettyProxyProcessor, HttpNettyProxyProcessor }
+import com.lifecosys.toolkit.proxy.web.netty.{ NettyTaskSupport, HttpsNettyProxyProcessor, HttpNettyProxyProcessor }
+import java.util.concurrent.Executors
 
 /**
  *
@@ -35,10 +36,11 @@ class ProxyServlet extends HttpServlet with Logging {
   val httpsProcessor = new HttpsNettyProxyProcessor()
 
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
-    createSessionIfNecessary(request)
+    //    createSessionIfNecessary(request)
 
+    require(StringUtils.isNotBlank(request.getHeader(ProxyRequestID.name)), "Proxy request ID must not be empty.")
     val proxyRequestBuffer: Array[Byte] = parseProxyRequest(request)
-    logger.debug(s"[${request.getSession.getId}] - Process proxy request:\n${Utils.hexDumpToString(proxyRequestBuffer)}")
+    logger.debug(s"[${request.getHeader(ProxyRequestID.name)}] - Process proxy request:\n${Utils.hexDumpToString(proxyRequestBuffer)}")
 
     proxyProcessor(request).process(proxyRequestBuffer)(request, response)
   }
@@ -47,7 +49,7 @@ class ProxyServlet extends HttpServlet with Logging {
     val requestType = Try(RequestType(request.getHeader(ProxyRequestType.name).toByte)).getOrElse(HTTP)
     requestType match {
       case HTTPS ⇒ httpsProcessor
-      case _     ⇒ httpProcessor
+      case _     ⇒ new HttpNettyProxyProcessor()
     }
   }
 

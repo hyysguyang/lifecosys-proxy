@@ -46,6 +46,9 @@ package object proxy {
 
   val encryptor = new DefaultEncryptor
 
+  //  val requests = scala.collection.mutable.ArrayBuffer[Tuple2[String, String]]()
+  //  val requestsssss = scala.collection.mutable.ArrayBuffer[String]()
+
   implicit def channelPipelineInitializer(f: ChannelPipeline ⇒ Unit): ChannelPipelineFactory = new ChannelPipelineFactory {
     def getPipeline: ChannelPipeline = {
       val pipeline: ChannelPipeline = Channels.pipeline()

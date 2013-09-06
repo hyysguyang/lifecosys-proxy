@@ -1,0 +1,5 @@
+#Default host
+twitter.com
+facebook.com
+google.com
+google.com.hk

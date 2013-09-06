@@ -2,8 +2,9 @@ package com.lifecosys.toolkit.proxy
 
 import java.net.SocketAddress
 import scala.collection.immutable.Queue
-import org.jboss.netty.channel.ChannelFuture
+import org.jboss.netty.channel.{ Channel, ChannelFuture }
 import scala.util.{ Failure, Success, Try }
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  *
@@ -47,3 +48,22 @@ trait ChannelManager {
 //We need provide each ChannelManager for HTTP and HTTPS to void the complexity of maintain channel handle between HTTP/HTTPS
 object HttpChannelManager extends ChannelManager
 object HttpsChannelManager extends ChannelManager
+
+//case class Request(requestID: String, browserChannel: Channel, channel: Channel)
+//trait RequestManager {
+//  protected val requests = scala.collection.mutable.ArrayBuffer[Request]()
+//
+//  def add(request: Request) = synchronized {
+//    requests += request
+//  }
+//
+//  def remove(requestID: String) = synchronized {
+//    requests --= requests.filter(_.requestID == requestID)
+//  }
+//
+//  override def toString: String = {
+//    s"RequestManager: ${requests.size} pending\n" + requests.mkString("\n")
+//  }
+//}
+//
+//object DefaultRequestManager extends RequestManager

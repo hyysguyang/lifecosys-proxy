@@ -35,7 +35,10 @@ import java.security.cert.X509Certificate
 import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage }
 import org.apache.commons.io.{ IOUtils, HexDump }
 import java.io.{ InputStream, ByteArrayInputStream, ByteArrayOutputStream }
+import java.util.concurrent.Executors
 import scala.Some
+import com.typesafe.scalalogging.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 /**
  *
@@ -44,6 +47,24 @@ import scala.Some
  * @version 1.0 12/19/12 4:57 PM
  */
 object Utils {
+  //  protected lazy val logger: Logger =
+  //    Logger(LoggerFactory getLogger getClass.getName)
+  //  def run = Executors.newCachedThreadPool().submit(new Runnable {
+  //    def run() {
+  //      while (true) {
+  //
+  //        logger.error(s"#############DefaultRequestManager##################\n $DefaultRequestManager")
+  //
+  //        if (requests.size > 0)
+  //          logger.error(s"##############requests#################\n ${requests.mkString("\n")}")
+  //        else
+  //          logger.error(s"###########No pending request.####################")
+  //
+  //        Thread.sleep(3 * 60000);
+  //      }
+  //    }
+  //  })
+
   val httpPattern = Pattern.compile("^https?://.*", Pattern.CASE_INSENSITIVE)
   val hostPortPattern = """([^:]*)(:?)(\d{0,5})""".r
   val connectProxyResponse: String = "HTTP/1.1 200 Connection established\r\n\r\n"

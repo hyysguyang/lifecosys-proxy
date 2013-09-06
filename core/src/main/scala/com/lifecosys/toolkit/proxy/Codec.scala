@@ -132,7 +132,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
 
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
-    logger.info(s"Prepare request to WebProxy for $jsessionidCookie")
+    logger.info(s"Prepare request to WebProxy for ${channel.getAttachment}")
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
@@ -143,9 +143,13 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
     }
     val toBeSentMessage = msg match {
       case request: HttpRequest ⇒ {
+
+        //        logger.error(s">>>>>>>>>>>>>>>>>>>>>>>>> Send request: ${channel.getAttachment} --- ${request.getUri}")
         request.setUri(Utils.stripHost(request.getUri))
         val encodedProxyRequest = super.encode(ctx, channel, request).asInstanceOf[ChannelBuffer]
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
+        wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment)
+        //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${encodedProxyRequest.readableBytes()}##########################")
         setContent(wrappedRequest, encodedProxyRequest)
         wrappedRequest
       }
@@ -153,6 +157,9 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
+        wrappedRequest.setHeader(ProxyRequestID.name, browserChannel.getAttachment)
+        //        wrappedRequest.setHeader("x-seq", channel.getAttachment)
+        //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${buffer.readableBytes()}##########################")
         setContent(wrappedRequest, buffer)
         wrappedRequest
       case e ⇒ e
@@ -198,13 +205,13 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         WebProxy.Close
       }
       case response: HttpResponse if response.isChunked ⇒ {
-        import scala.collection.JavaConverters._
-        val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
-        if (StringUtils.isNotEmpty(setCookie) && browserChannel.getAttachment == null) {
-          val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
-          browserChannel.setAttachment(jsessionid)
-          logger.info(s"Create session for request: $jsessionid")
-        }
+        //        import scala.collection.JavaConverters._
+        //        val setCookie = response.getHeader(HttpHeaders.Names.SET_COOKIE)
+        //        if (StringUtils.isNotEmpty(setCookie) && browserChannel.getAttachment == null) {
+        //          val jsessionid = new CookieDecoder().decode(setCookie).asScala.filter(_.getName == "JSESSIONID").headOption
+        //          browserChannel.setAttachment(jsessionid)
+        //          logger.info(s"Create session for request: $jsessionid")
+        //        }
         ChannelBuffers.EMPTY_BUFFER
       }
       case chunk: HttpChunk if !chunk.isLast ⇒ {

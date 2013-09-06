@@ -28,6 +28,8 @@ import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecod
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
 import scala.util.Try
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  *
@@ -47,6 +49,20 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channe
 
   override val httpRequest: HttpRequest = request
 
+  Option(browserChannel.getAttachment) match {
+    case Some(requestCounter) ⇒ {
+      require(requestCounter.isInstanceOf[AtomicInteger], "Request counter must be integer")
+      requestCounter.asInstanceOf[AtomicInteger].incrementAndGet()
+    }
+    case None ⇒ browserChannel.setAttachment(new AtomicInteger(1))
+  }
+  //
+  //  synchronized {
+  //    val index = Option(browserChannel.getAttachment).getOrElse().asInstanceOf[AtomicInteger]
+  //    Option(ctx.getChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger].incrementAndGet()
+  //    ctx.getChannel.setAttachment(index)
+  //  }
+
   //Can't play online video since we send the full url for http request,
   // Exactly, we need use the relative url to access the remote server.
   if (!connectHost.needForward) httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
@@ -59,6 +75,10 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channe
         val channel = channelFuture.getChannel
         logger.debug(s"$HttpChannelManager")
         logger.info(s"Use existed channel ${channel}")
+
+        channel.setAttachment(UUID.randomUUID())
+        //        DefaultRequestManager.add(Request(channel.getAttachment.toString, browserChannel, channel))
+
         adjustPipelineForReused(channel)
         channel.write(httpRequest).addListener {
           writeFuture: ChannelFuture ⇒ logger.debug(s"[${channel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
@@ -88,6 +108,10 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channe
       Utils.closeChannel(browserChannel)
       return
     }
+
+    future.getChannel.setAttachment(UUID.randomUUID())
+    //    DefaultRequestManager.add(Request(future.getChannel.getAttachment.toString, browserChannel, future.getChannel))
+    //    logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] --[${future.getChannel.getAttachment}]--  [${future.getChannel}] - Connect successful.")
 
     future.getChannel().write(httpRequest).addListener { writeFuture: ChannelFuture ⇒
       logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
@@ -157,14 +181,15 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel
   }
 }
 
-abstract class HttpsRequestProcessor(request: HttpRequest)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+abstract class HttpsRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
     extends RequestProcessor {
   require(request.getMethod == HttpMethod.CONNECT)
+  browserChannel.setAttachment(UUID.randomUUID())
   override val httpRequest = request
 }
 
 class NetHttpsRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
-    extends HttpsRequestProcessor(request) {
+    extends HttpsRequestProcessor(request, browserChannel) {
 
   val httpRequestEncoder = new HttpRequestEncoder()
 
@@ -242,7 +267,7 @@ class NetHttpsRequestProcessor(request: HttpRequest, browserChannel: Channel)(im
 
 }
 class WebProxyHttpsRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
-    extends HttpsRequestProcessor(request) {
+    extends HttpsRequestProcessor(request, browserChannel) {
 
   lazy val httpRequestEncoder = ???
 
@@ -292,6 +317,11 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
         val channel = channelFuture.getChannel
         logger.debug(s"$HttpsChannelManager")
         logger.info(s"Use existed channel ${channel}")
+
+        //            channel.setAttachment(UUID.randomUUID())
+        //            DefaultRequestManager.add(Request(channel.getAttachment.toString, browserChannel, channel))
+        //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] --[${channel.getAttachment}]--  [${channel}] - Connect successful.")
+
         channel.getPipeline.replace(classOf[WebProxyHttpRequestEncoder], "proxyServerToRemote-encoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
         channel.getPipeline.replace(classOf[WebProxyResponseDecoder], "proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
         channel.getPipeline.replace(classOf[WebProxyHttpsRelayingHandler], "proxyServerToRemote-connectionHandler", new WebProxyHttpsRelayingHandler(browserChannel))
@@ -315,6 +345,10 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
         Utils.closeChannel(browserChannel)
         return
       }
+
+      //      future.getChannel.setAttachment(UUID.randomUUID())
+      //      DefaultRequestManager.add(Request(future.getChannel.getAttachment.toString, browserChannel, future.getChannel))
+      //      logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] --[${browserChannel.getAttachment}]--  [${future.getChannel}] - Connect successful.")
 
       future.getChannel.write(requestMessage).addListener { writeFuture: ChannelFuture ⇒
         logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.formatMessage(requestMessage)}")

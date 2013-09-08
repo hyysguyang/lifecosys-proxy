@@ -9,7 +9,7 @@ import scala.Some
 
 
 object BuildSettings {
-  val VERSION = "1.0-alpha3"
+  val VERSION = "1.0-alpha4-SNAPSHOT"
 
   val basicSettings = Defaults.defaultSettings ++ seq(
     version := VERSION,

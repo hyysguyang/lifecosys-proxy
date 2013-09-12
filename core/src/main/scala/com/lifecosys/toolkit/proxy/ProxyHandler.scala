@@ -210,6 +210,32 @@ class NetHttpsRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: Pr
   }
 }
 
+class NettyWebProxyServerHttpsRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends BaseRelayingHandler(relayingChannel) {
+
+  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
+    e.getMessage match {
+      case buffer: ChannelBuffer ⇒ {
+        val encrypt: ChannelBuffer = encryptor.encrypt(buffer)
+        val lengthBuffer = ChannelBuffers.directBuffer(2)
+        lengthBuffer.writeShort(encrypt.readableBytes() + 2)
+        logger.error(s"####Write data: ${encrypt.readableBytes() + 2}")
+        writeResponse(new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(lengthBuffer, encrypt)))
+      }
+      case _ ⇒
+    }
+
+    if (!relayingChannel.isConnected) {
+      Utils.closeChannel(e.getChannel)
+    }
+  }
+
+  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    super.channelClosed(ctx, e)
+    Utils.closeChannel(relayingChannel)
+  }
+}
+
 class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
 

@@ -55,7 +55,7 @@ object ProxyServer {
 class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyConfig) {
   override def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
 
-    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)
@@ -65,6 +65,7 @@ class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyCon
 
     pipeline.addLast("proxyServer-decoder", new HttpRequestDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServer-WebProxyHttpRequestBufferDecoder", new WebProxyHttpRequestDecoder)
+    pipeline.addLast("proxyServer-WebProxyHttpRequestDecoder", new HttpRequestDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
     pipeline.addLast("proxyServer-encoder", new HttpResponseEncoder())
     addIdleChannelHandler(pipeline)
@@ -165,11 +166,10 @@ class ProxyServer(proxyConfig: ProxyConfig) extends Logging {
 class NettyWebProxyRequestHandler(implicit proxyConfig: ProxyConfig) extends ProxyRequestHandler {
   override def requestProcessor(httpRequest: HttpRequest, ctx: ChannelHandlerContext): RequestProcessor = {
     implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
-    val requestProcessor = connectHost.serverType match {
-      case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx.getChannel)
-      case other ⇒ new NettyWebProxyHttpRequestProcessor(httpRequest, ctx.getChannel)
-    }
-    requestProcessor
+    if (HttpMethod.CONNECT == httpRequest.getMethod)
+      new NettyWebProxyHttpsRequestProcessor(httpRequest, ctx.getChannel)
+    else
+      new NettyWebProxyHttpRequestProcessor(httpRequest, ctx.getChannel)
   }
 }
 class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
@@ -208,6 +208,7 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
     val requestProcessor = connectHost.serverType match {
       case WebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new WebProxyHttpsRequestProcessor(httpRequest, ctx.getChannel)
       case WebProxyType ⇒ new WebProxyHttpRequestProcessor(httpRequest, ctx.getChannel)
+      case NettyWebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NettyWebProxyClientHttpsRequestProcessor(httpRequest, ctx.getChannel)
       case NettyWebProxyType ⇒ new NettyWebProxyClientHttpRequestProcessor(httpRequest, ctx.getChannel)
       case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx.getChannel)
       case other ⇒ new DefaultHttpRequestProcessor(httpRequest, ctx.getChannel)

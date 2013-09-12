@@ -112,6 +112,23 @@ class SimpleWebProxySpec extends BaseSpec with BeforeAndAfterAll {
 
 }
 
+class SimpleNettyWebProxyServerSpec extends BaseSpec with BeforeAndAfterAll {
+  //    System.setProperty("javax.net.debug", "all")
+  def httpClientProxyPort: Int = 19074
+  override val chainedProxyServer = {
+    val chainConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/NettyWebProxyServerapplication.conf").withFallback(ConfigFactory.load())
+    Some(new NettyWebProxyServer(new DefaultStaticCertificationProxyConfig(Some(chainConfig))))
+  }
+
+  override def proxyServer = {
+    val netConfig = ConfigFactory.parseResources("com/lifecosys/toolkit/proxy/server/server/NettyWebProxyClient-application.conf").withFallback(ConfigFactory.load())
+    Some(ProxyServer(new DefaultStaticCertificationProxyConfig(Some(netConfig))))
+  }
+  feature("Proxy Server with chained web proxy") {
+    scenarios
+  }
+
+}
 //class SimpleHttpsWebProxySpec extends BaseSpec with BeforeAndAfterAll {
 //  //  System.setProperty("javax.net.debug", "all")
 //  def httpClientProxyPort: Int = 19061

@@ -32,6 +32,9 @@ import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncod
 import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.ClosedChannelException
 import java.util.UUID
+import org.jboss.netty.handler.stream.ChunkedWriteHandler
+import org.jboss.netty.handler.logging.LoggingHandler
+import org.jboss.netty.logging.InternalLogLevel
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -49,13 +52,33 @@ object ProxyServer {
 
 }
 
+class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyConfig) {
+  override def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
+
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    if (proxyConfig.serverSSLEnable) {
+      val engine = proxyConfig.serverSSLContext.createSSLEngine()
+      engine.setUseClientMode(false)
+      engine.setNeedClientAuth(true)
+      pipeline.addLast("proxyServer-ssl", new SslHandler(engine))
+    }
+
+    pipeline.addLast("proxyServer-decoder", new HttpRequestDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    pipeline.addLast("proxyServer-WebProxyHttpRequestBufferDecoder", new WebProxyHttpRequestDecoder)
+    //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
+    pipeline.addLast("proxyServer-encoder", new HttpResponseEncoder())
+    addIdleChannelHandler(pipeline)
+    pipeline.addLast("proxyServer-proxyHandler", new NettyWebProxyRequestHandler)
+  }
+}
+
 /**
  * Don't user this construct to create a proxy server, you should use the companion object <code>ProxyServer</code>
  * Since some environment need to be initialize, such as security provider.
  *
  * @param proxyConfig
  */
-class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
+class ProxyServer(proxyConfig: ProxyConfig) extends Logging {
   require(proxyConfig != null)
 
   implicit val currentProxyConfig = proxyConfig
@@ -65,7 +88,7 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
   val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
 
   def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
-    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, false))
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)
@@ -139,11 +162,21 @@ class ProxyServer(val proxyConfig: ProxyConfig) extends Logging {
   }
 }
 
+class NettyWebProxyRequestHandler(implicit proxyConfig: ProxyConfig) extends ProxyRequestHandler {
+  override def requestProcessor(httpRequest: HttpRequest, ctx: ChannelHandlerContext): RequestProcessor = {
+    implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
+    val requestProcessor = connectHost.serverType match {
+      case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx.getChannel)
+      case other ⇒ new NettyWebProxyHttpRequestProcessor(httpRequest, ctx.getChannel)
+    }
+    requestProcessor
+  }
+}
 class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
     extends SimpleChannelUpstreamHandler with Logging {
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.debug(s"[${e.getChannel}] - Receive message\n${Utils.formatMessage(e.getMessage)}")
+    logger.error(s"[${e.getChannel}] - Receive message\n${Utils.formatMessage(e.getMessage)}")
 
     require(e.getMessage.isInstanceOf[HttpRequest], "Unsupported Request..........")
     val httpRequest = e.getMessage.asInstanceOf[HttpRequest]
@@ -166,17 +199,20 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
     //      return
     //    }
 
-    implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
+    requestProcessor(httpRequest, ctx) process
 
+  }
+
+  def requestProcessor(httpRequest: HttpRequest, ctx: ChannelHandlerContext): RequestProcessor = {
+    implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
     val requestProcessor = connectHost.serverType match {
       case WebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new WebProxyHttpsRequestProcessor(httpRequest, ctx.getChannel)
       case WebProxyType ⇒ new WebProxyHttpRequestProcessor(httpRequest, ctx.getChannel)
+      case NettyWebProxyType ⇒ new NettyWebProxyClientHttpRequestProcessor(httpRequest, ctx.getChannel)
       case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx.getChannel)
       case other ⇒ new DefaultHttpRequestProcessor(httpRequest, ctx.getChannel)
     }
-
-    requestProcessor process
-
+    requestProcessor
   }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

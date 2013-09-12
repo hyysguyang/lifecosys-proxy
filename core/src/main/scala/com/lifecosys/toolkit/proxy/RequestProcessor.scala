@@ -30,6 +30,8 @@ import com.typesafe.scalalogging.slf4j.Logging
 import scala.util.Try
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+import org.jboss.netty.handler.logging.LoggingHandler
+import org.jboss.netty.logging.InternalLogLevel
 
 /**
  *
@@ -69,23 +71,23 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channe
 
   def process = {
     logger.info(s"Process request with $connectHost")
-
-    HttpChannelManager.get(connectHost.host.socketAddress) match {
-      case Some(channelFuture) if channelFuture.getChannel.isConnected ⇒ {
-        val channel = channelFuture.getChannel
-        logger.debug(s"$HttpChannelManager")
-        logger.info(s"Use existed channel ${channel}")
-
-        channel.setAttachment(UUID.randomUUID())
-        //        DefaultRequestManager.add(Request(channel.getAttachment.toString, browserChannel, channel))
-
-        adjustPipelineForReused(channel)
-        channel.write(httpRequest).addListener {
-          writeFuture: ChannelFuture ⇒ logger.debug(s"[${channel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
-        }
-      }
-      case _ ⇒ createConnectionAndWriteRequest
-    }
+    createConnectionAndWriteRequest
+    //    HttpChannelManager.get(connectHost.host.socketAddress) match {
+    //      case Some(channelFuture) if channelFuture.getChannel.isConnected ⇒ {
+    //        val channel = channelFuture.getChannel
+    //        logger.debug(s"$HttpChannelManager")
+    //        logger.info(s"Use existed channel ${channel}")
+    //
+    //        channel.setAttachment(UUID.randomUUID())
+    //        //        DefaultRequestManager.add(Request(channel.getAttachment.toString, browserChannel, channel))
+    //
+    //        adjustPipelineForReused(channel)
+    //        channel.write(httpRequest).addListener {
+    //          writeFuture: ChannelFuture ⇒ logger.debug(s"[${channel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
+    //        }
+    //      }
+    //      case _ ⇒ createConnectionAndWriteRequest
+    //    }
   }
 
   def createConnectionAndWriteRequest {
@@ -99,8 +101,6 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channe
   def adjustPipelineForReused(channel: Channel)
 
   def connectProcess(future: ChannelFuture) {
-    logger.info(s"[${future.getChannel}] - Connect successful.")
-
     browserChannel.setReadable(true)
 
     if (!future.isSuccess) {
@@ -113,27 +113,127 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channe
     //    DefaultRequestManager.add(Request(future.getChannel.getAttachment.toString, browserChannel, future.getChannel))
     //    logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] --[${future.getChannel.getAttachment}]--  [${future.getChannel}] - Connect successful.")
 
-    future.getChannel().write(httpRequest).addListener { writeFuture: ChannelFuture ⇒
-      logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
+    connectSuccessProcess(future)
+  }
+
+  def connectSuccessProcess(future: ChannelFuture) {
+
+    logger.info(s"[${future.getChannel}] - Connect successful.")
+    writeRequest(future)
+  }
+
+  def writeRequest(future: ChannelFuture) {
+    future.getChannel().write(httpRequest).addListener {
+      writeFuture: ChannelFuture ⇒
+        logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
     }
   }
 
   def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    //    if (connectHost.needForward && proxyConfig.proxyToServerSSLEnable) {
+    //      val engine = proxyConfig.clientSSLContext.createSSLEngine
+    //      engine.setUseClientMode(true)
+    //      pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(engine))
+    //    }
 
+    //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
+
+  }
+
+}
+
+class NettyWebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+    extends HttpRequestProcessor(request, browserChannel) {
+
+  override val httpRequestEncoder = new HttpRequestEncoder()
+
+  override def adjustPipelineForReused(channel: Channel) {
+    channel.getPipeline.replace(classOf[NetHttpResponseRelayingHandler], "proxyServerToRemote-proxyToServerHandler", new NetHttpResponseRelayingHandler(browserChannel))
+  }
+
+  override def writeRequest(future: ChannelFuture) {
+
+    val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+    response.setChunked(true)
+    browserChannel.write(response)
+
+    httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
+
+    future.getChannel().write(httpRequest).addListener {
+      writeFuture: ChannelFuture ⇒
+        logger.debug(s"[${future.getChannel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
+    }
+  }
+
+  override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
+
+    //    if (connectHost.needForward) {
+    //      pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
+    //      pipeline.addLast("proxyServerToRemote-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
+    //      pipeline.addLast("proxyServerToRemote-decrypt", new DecryptDecoder)
+    //
+    //      pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
+    //      pipeline.addLast("proxyServerToRemote-objectEncoder", new ObjectEncoder)
+    //      pipeline.addLast("proxyServerToRemote-encrypt", new EncryptEncoder)
+    //    }
+
+    super.proxyToServerPipeline(pipeline)
+
+    //    if (proxyConfig.isLocal) {
+    //      val proxyHost = Try(Host(httpRequest.getUri)).getOrElse(Host(httpRequest.getHeader(HttpHeaders.Names.HOST)))
+    //      pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    //      pipeline.addLast("proxyServerToRemote-webProxyResponseBufferDecoder", new WebProxyResponseDecoder(browserChannel))
+    //      pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    //      pipeline.addLast("proxyServerToRemote-httpRequestEncoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
+    //    } else {
+    //      //      pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    //      pipeline.addLast("proxyServerToRemote-httpRequestEncoder", new HttpRequestEncoder())
+    //
+    //    }
+
+    addIdleChannelHandler(pipeline)
+    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", new HttpRequestEncoder())
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new NettyWebProxyServerHttpResponseRelayingHandler(browserChannel))
+
+  }
+}
+
+class NettyWebProxyClientHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
+    extends HttpRequestProcessor(request, browserChannel) {
+
+  override val httpRequestEncoder = new HttpRequestEncoder()
+
+  override def adjustPipelineForReused(channel: Channel) {
+    channel.getPipeline.replace(classOf[NetHttpResponseRelayingHandler], "proxyServerToRemote-proxyToServerHandler", new NetHttpResponseRelayingHandler(browserChannel))
+  }
+
+  override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
+    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
     if (connectHost.needForward && proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
       engine.setUseClientMode(true)
       pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(engine))
     }
 
+    //    if (connectHost.needForward) {
+    //      pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
+    //      pipeline.addLast("proxyServerToRemote-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
+    //      pipeline.addLast("proxyServerToRemote-decrypt", new DecryptDecoder)
+    //
+    //      pipeline.addLast("proxyServerToRemote-deflater", new IgnoreEmptyBufferZlibEncoder)
+    //      pipeline.addLast("proxyServerToRemote-objectEncoder", new ObjectEncoder)
+    //      pipeline.addLast("proxyServerToRemote-encrypt", new EncryptEncoder)
+    //    }
+
+    val proxyHost = Try(Host(httpRequest.getUri)).getOrElse(Host(httpRequest.getHeader(HttpHeaders.Names.HOST)))
     pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
-    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
-    //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
-    addIdleChannelHandler(pipeline)
+    pipeline.addLast("proxyServerToRemote-webProxyResponseBufferDecoder", new WebProxyResponseDecoder(browserChannel))
+    pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new NetHttpResponseRelayingHandler(browserChannel))
   }
-
 }
-
 class DefaultHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
     extends HttpRequestProcessor(request, browserChannel) {
 
@@ -145,6 +245,12 @@ class DefaultHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
 
+    if (connectHost.needForward && proxyConfig.proxyToServerSSLEnable) {
+      val engine = proxyConfig.clientSSLContext.createSSLEngine
+      engine.setUseClientMode(true)
+      pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(engine))
+    }
+
     if (connectHost.needForward) {
       pipeline.addLast("proxyServerToRemote-inflater", new IgnoreEmptyBufferZlibDecoder)
       pipeline.addLast("proxyServerToRemote-objectDecoder", new ObjectDecoder(ClassResolvers.weakCachingResolver(null)))
@@ -155,7 +261,10 @@ class DefaultHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)
       pipeline.addLast("proxyServerToRemote-encrypt", new EncryptEncoder)
     }
 
-    super.proxyToServerPipeline(pipeline)
+    pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
+    //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
+    addIdleChannelHandler(pipeline)
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new NetHttpResponseRelayingHandler(browserChannel))
   }
 }
@@ -164,6 +273,8 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel
     extends HttpRequestProcessor(request, browserChannel) {
 
   require(connectHost.needForward, "The message must be need forward to remote WebProxy.")
+
+  request.setUri(Utils.stripHost(request.getUri)) //We strip the absolute URL for general web proxy server.
   val proxyHost = Try(Host(httpRequest.getUri)).getOrElse(Host(httpRequest.getHeader(HttpHeaders.Names.HOST)))
   override val httpRequestEncoder = new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel)
 
@@ -174,7 +285,16 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel
   }
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
-    super.proxyToServerPipeline(pipeline)
+    if (connectHost.needForward && proxyConfig.proxyToServerSSLEnable) {
+      val engine = proxyConfig.clientSSLContext.createSSLEngine
+      engine.setUseClientMode(true)
+      pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(engine))
+    }
+
+    pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
+    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
+    //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
+    addIdleChannelHandler(pipeline)
     pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
     pipeline.addLast("proxyServerToRemote-webProxyHttpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))

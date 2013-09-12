@@ -24,7 +24,7 @@ import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
-import org.jboss.netty.buffer.ChannelBuffer
+import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
 import java.net.InetSocketAddress
 import java.util.UUID
 import scala.collection.generic.AtomicIndexFlag
@@ -85,6 +85,26 @@ trait HttpResponseRelayingHandler {
     }
     case _ ⇒ message
   }
+}
+
+class NettyWebProxyServerHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
+
+  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
+    logger.error("############################Receive " + e.getMessage)
+    e.getMessage match {
+      case buffer: ChannelBuffer ⇒ {
+        val encrypt: ChannelBuffer = encryptor.encrypt(buffer)
+        val lengthBuffer = ChannelBuffers.directBuffer(2)
+        lengthBuffer.writeShort(encrypt.readableBytes() + 2)
+        logger.error(s"####Write data: ${encrypt.readableBytes() + 2}")
+        writeResponse(new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(lengthBuffer, encrypt)))
+      }
+      case _ ⇒
+    }
+
+  }
+
 }
 
 class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)

@@ -28,6 +28,7 @@ import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.lang3.StringUtils
+import org.jboss.netty.handler.codec.http.HttpMessageDecoder.State
 
 /**
  *
@@ -126,6 +127,17 @@ object WebProxy {
   }
 }
 
+class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
+  def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
+    logger.error(s"#######################\n ${Utils.formatMessage(msg)}")
+    msg match {
+      //      case httpRequest: HttpRequest ⇒ httpRequest.getContent
+      case httpRequest: HttpRequest ⇒ arrayToBuffer(encryptor.decrypt(httpRequest.getContent))
+      case _                        ⇒ throw new RuntimeException("Unknown message.")
+    }
+  }
+}
+
 class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, browserChannel: Channel)
     extends HttpRequestEncoder with Logging {
   def jsessionidCookie = WebProxy.jsessionidCookie(browserChannel)
@@ -145,7 +157,6 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
       case request: HttpRequest ⇒ {
 
         //        logger.error(s">>>>>>>>>>>>>>>>>>>>>>>>> Send request: ${channel.getAttachment} --- ${request.getUri}")
-        request.setUri(Utils.stripHost(request.getUri))
         val encodedProxyRequest = super.encode(ctx, channel, request).asInstanceOf[ChannelBuffer]
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
         wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment)
@@ -194,7 +205,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
   //TODO:Do we need synchronize it?
   var buffers = ChannelBuffers.EMPTY_BUFFER
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
-    logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
+    logger.error(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
       case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
         logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), UTF8.name())}}")
@@ -215,7 +226,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         ChannelBuffers.EMPTY_BUFFER
       }
       case chunk: HttpChunk if !chunk.isLast ⇒ {
-
+        chunk.getContent
         def isConsistentPacket(buffer: ChannelBuffer) = buffer.readableBytes() >= 2 && buffer.getShort(0) == buffer.readableBytes()
 
         buffers = ChannelBuffers.wrappedBuffer(buffers, chunk.getContent)

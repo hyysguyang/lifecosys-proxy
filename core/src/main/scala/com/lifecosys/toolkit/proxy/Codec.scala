@@ -106,6 +106,9 @@ object WebProxy {
 
   case object Close
 
+  case object PrepareResponse
+  case object FinishResponse
+
   def jsessionidCookie(channel: Channel) = channel.getAttachment match {
     case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
       val encoder = new CookieEncoder(false)
@@ -129,7 +132,6 @@ object WebProxy {
 
 class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
-    logger.error(s"#######################\n ${Utils.formatMessage(msg)}")
     msg match {
       //      case httpRequest: HttpRequest ⇒ httpRequest.getContent
       case httpRequest: HttpRequest ⇒ arrayToBuffer(encryptor.decrypt(httpRequest.getContent))
@@ -149,8 +151,8 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
       //We may get CompositeChannelBuffer,such as for HttpRequest with content.
-      val encryptedData = encryptor.encrypt(content)
-      wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedData.length.toString)
+      val encryptedData: ChannelBuffer = encryptor.encrypt(content)
+      wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedData.readableBytes().toString)
       wrappedRequest.setContent(encryptedData)
     }
     val toBeSentMessage = msg match {
@@ -180,6 +182,27 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
 
 }
 
+class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
+  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
+    case buffer: ChannelBuffer if buffer.readableBytes() > 0 ⇒
+      logger.debug(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
+      val encrypt = encryptor.encrypt(buffer)
+      val lengthBuffer = ChannelBuffers.dynamicBuffer(2)
+      lengthBuffer.writeShort(encrypt.length + 2)
+      new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(lengthBuffer.array(), encrypt))
+    case WebProxy.PrepareResponse ⇒
+      logger.debug(s"[$channel] - Initialize chunked response")
+      val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+      response.setChunked(true)
+      response
+
+    case WebProxy.FinishResponse ⇒
+      logger.debug(s"[$channel] - Finishing response.")
+      new DefaultHttpChunkTrailer
+    case _ ⇒ msg
+  }
+}
+
 /**
  * HTTP process flow:
  * 1. Send proxy request to WebProxyServer
@@ -205,7 +228,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
   //TODO:Do we need synchronize it?
   var buffers = ChannelBuffers.EMPTY_BUFFER
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
-    logger.error(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
+    logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
       case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
         logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), UTF8.name())}}")
@@ -225,8 +248,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         //        }
         ChannelBuffers.EMPTY_BUFFER
       }
-      case chunk: HttpChunk if !chunk.isLast ⇒ {
-        chunk.getContent
+      case chunk: HttpChunk if chunk.getContent.readableBytes() > 0 && !chunk.isLast ⇒ {
         def isConsistentPacket(buffer: ChannelBuffer) = buffer.readableBytes() >= 2 && buffer.getShort(0) == buffer.readableBytes()
 
         buffers = ChannelBuffers.wrappedBuffer(buffers, chunk.getContent)

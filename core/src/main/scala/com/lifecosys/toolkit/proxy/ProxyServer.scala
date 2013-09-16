@@ -67,7 +67,9 @@ class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyCon
     pipeline.addLast("proxyServer-WebProxyHttpRequestBufferDecoder", new WebProxyHttpRequestDecoder)
     pipeline.addLast("proxyServer-WebProxyHttpRequestDecoder", new HttpRequestDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
-    pipeline.addLast("proxyServer-encoder", new HttpResponseEncoder())
+    pipeline.addLast("proxyServer-webProxyResponseEncoder", new HttpResponseEncoder())
+    pipeline.addLast("proxyServer-webProxyResponseBufferEncoder", new WebProxyResponseBufferEncoder())
+    pipeline.addLast("proxyServer-responseEncoder", new HttpResponseEncoder())
     addIdleChannelHandler(pipeline)
     pipeline.addLast("proxyServer-proxyHandler", new NettyWebProxyRequestHandler)
   }
@@ -89,7 +91,7 @@ class ProxyServer(proxyConfig: ProxyConfig) extends Logging {
   val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
 
   def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
-    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)
@@ -176,7 +178,7 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
     extends SimpleChannelUpstreamHandler with Logging {
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-    logger.error(s"[${e.getChannel}] - Receive message\n${Utils.formatMessage(e.getMessage)}")
+    logger.debug(s"[${e.getChannel}] - Receive message\n${Utils.formatMessage(e.getMessage)}")
 
     require(e.getMessage.isInstanceOf[HttpRequest], "Unsupported Request..........")
     val httpRequest = e.getMessage.asInstanceOf[HttpRequest]

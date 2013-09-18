@@ -25,16 +25,12 @@ import org.jboss.netty.channel._
 import group.ChannelGroupFuture
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.bootstrap.ServerBootstrap
-import java.util.concurrent.atomic.{ AtomicInteger, AtomicBoolean }
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
 import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.ClosedChannelException
-import java.util.UUID
-import org.jboss.netty.handler.stream.ChunkedWriteHandler
-import org.jboss.netty.handler.logging.LoggingHandler
-import org.jboss.netty.logging.InternalLogLevel
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -55,7 +51,7 @@ object ProxyServer {
 class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyConfig) {
   override def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
 
-    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)
@@ -67,6 +63,7 @@ class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyCon
     pipeline.addLast("proxyServer-WebProxyHttpRequestBufferDecoder", new WebProxyHttpRequestDecoder)
     pipeline.addLast("proxyServer-WebProxyHttpRequestDecoder", new HttpRequestDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     //      pipeline.addLast("aggregator", new ChunkAggregator(65536))
+
     pipeline.addLast("proxyServer-webProxyResponseEncoder", new HttpResponseEncoder())
     pipeline.addLast("proxyServer-webProxyResponseBufferEncoder", new WebProxyResponseBufferEncoder())
     pipeline.addLast("proxyServer-responseEncoder", new HttpResponseEncoder())
@@ -91,7 +88,7 @@ class ProxyServer(proxyConfig: ProxyConfig) extends Logging {
   val serverBootstrap = new ServerBootstrap(proxyConfig.serverSocketChannelFactory)
 
   def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
-    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)

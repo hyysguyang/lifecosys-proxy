@@ -29,6 +29,7 @@ import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
 import java.nio.charset.Charset
 import org.parboiled.common.Base64
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
+import java.util.{ Timer, TimerTask }
 
 /**
  *
@@ -41,7 +42,8 @@ package object proxy {
   val DEFAULT_BUFFER_SIZE = 1024 * 8
   val UTF8: Charset = Charset.forName("UTF-8")
   val base64 = Base64.custom()
-  val timer = new HashedWheelTimer
+  val nettyTimer = new HashedWheelTimer
+  val timer = new Timer
   val hostToChannelFuture = mutable.Map[Host, Channel]()
 
   val encryptor = new DefaultEncryptor
@@ -66,7 +68,14 @@ package object proxy {
     buffer.readBytes(data)
     data
   }
+
   implicit def arrayToBuffer(data: Array[Byte]) = ChannelBuffers.wrappedBuffer(data)
+
+  implicit def functionToTimerTask(f: ⇒ Any) = new TimerTask {
+    def run() {
+      f
+    }
+  }
 
   def newClientBootstrap = {
     val proxyToServerBootstrap = new ClientBootstrap()
@@ -76,7 +85,7 @@ package object proxy {
   }
 
   def addIdleChannelHandler(pipeline: ChannelPipeline) = {
-    pipeline.addLast("idleHandler", new IdleStateHandler(timer, 0, 0, 120))
+    pipeline.addLast("idleHandler", new IdleStateHandler(nettyTimer, 0, 0, 120))
     pipeline.addLast("idleStateAwareHandler", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) = Utils.closeChannel(e.getChannel)
     })

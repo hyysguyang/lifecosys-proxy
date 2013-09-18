@@ -35,10 +35,7 @@ import java.security.cert.X509Certificate
 import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage }
 import org.apache.commons.io.{ IOUtils, HexDump }
 import java.io.{ InputStream, ByteArrayInputStream, ByteArrayOutputStream }
-import java.util.concurrent.Executors
 import scala.Some
-import com.typesafe.scalalogging.slf4j.Logger
-import org.slf4j.LoggerFactory
 
 /**
  *

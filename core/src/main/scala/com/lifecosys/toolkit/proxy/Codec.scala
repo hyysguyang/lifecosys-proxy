@@ -27,8 +27,6 @@ import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
-import org.apache.commons.lang3.StringUtils
-import org.jboss.netty.handler.codec.http.HttpMessageDecoder.State
 
 /**
  *
@@ -134,8 +132,25 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     msg match {
       //      case httpRequest: HttpRequest ⇒ httpRequest.getContent
-      case httpRequest: HttpRequest ⇒ arrayToBuffer(encryptor.decrypt(httpRequest.getContent))
-      case _                        ⇒ throw new RuntimeException("Unknown message.")
+      case httpRequest: HttpRequest ⇒
+        logger.debug(s"[$channel] - Receive request $httpRequest")
+        //        logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
+        val requestBuffer: ChannelBuffer = arrayToBuffer(encryptor.decrypt(httpRequest.getContent))
+        DefaultHttpsRequestManager.get(httpRequest.getHeader(ProxyRequestID.name)) match {
+          case Some(remoteChannel) ⇒
+
+            remoteChannel.write(requestBuffer).addListener {
+              writeFuture: ChannelFuture ⇒
+                logger.debug(s"[${channel}] - Finished write request")
+            }
+
+            null
+
+          case None ⇒ requestBuffer
+
+        }
+
+      case _ ⇒ throw new RuntimeException("Unknown message.")
     }
   }
 }
@@ -146,7 +161,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
 
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
-    logger.info(s"Prepare request to WebProxy for ${channel.getAttachment}")
+    logger.info(s"Prepare request to WebProxy for ${browserChannel.getAttachment}")
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
@@ -170,7 +185,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
-        wrappedRequest.setHeader(ProxyRequestID.name, browserChannel.getAttachment)
+        wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment) //TODO:Need use browserChannel for war-based web proxy
         //        wrappedRequest.setHeader("x-seq", channel.getAttachment)
         //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${buffer.readableBytes()}##########################")
         setContent(wrappedRequest, buffer)
@@ -183,16 +198,19 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
 }
 
 class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
+
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
-    case buffer: ChannelBuffer if buffer.readableBytes() > 0 ⇒
+
+    case buffer: ChannelBuffer ⇒
       logger.debug(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
       val encrypt = encryptor.encrypt(buffer)
       val lengthBuffer = ChannelBuffers.dynamicBuffer(2)
       lengthBuffer.writeShort(encrypt.length + 2)
       new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(lengthBuffer.array(), encrypt))
     case WebProxy.PrepareResponse ⇒
-      logger.debug(s"[$channel] - Initialize chunked response")
+      logger.debug(s"[$channel] - Initialize chunked response, requestID: ${channel.getAttachment}")
       val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+      response.setHeader(ProxyRequestID.name, channel.getAttachment.toString)
       response.setChunked(true)
       response
 
@@ -201,6 +219,7 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
       new DefaultHttpChunkTrailer
     case _ ⇒ msg
   }
+
 }
 
 /**
@@ -246,6 +265,8 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         //          browserChannel.setAttachment(jsessionid)
         //          logger.info(s"Create session for request: $jsessionid")
         //        }
+        logger.debug(s"[${channel}] - HTTPS request initialized, requestID: ${response.getHeader(ProxyRequestID.name)}")
+        channel.setAttachment(response.getHeader(ProxyRequestID.name))
         ChannelBuffers.EMPTY_BUFFER
       }
       case chunk: HttpChunk if chunk.getContent.readableBytes() > 0 && !chunk.isLast ⇒ {

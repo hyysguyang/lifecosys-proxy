@@ -32,7 +32,6 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import org.jboss.netty.handler.logging.LoggingHandler
 import org.jboss.netty.logging.InternalLogLevel
-import com.lifecosys.toolkit.proxy.NettyWebProxyServerHttpResponseRelayingHandler
 
 /**
  *
@@ -235,7 +234,7 @@ class NettyWebProxyClientHttpRequestProcessor(request: HttpRequest, browserChann
   }
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
-    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
     if (connectHost.needForward && proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
       engine.setUseClientMode(true)
@@ -467,14 +466,17 @@ class NettyWebProxyHttpsRequestProcessor(request: HttpRequest, browserChannel: C
       return
     }
 
+    DefaultHttpsRequestManager.add(browserChannel.getAttachment.toString, future.getChannel)
+    //    logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
+
     browserChannel.write(WebProxy.PrepareResponse)
 
     httpRequest.setUri(Utils.stripHost(httpRequest.getUri))
 
     val pipeline = browserChannel.getPipeline
     //Remove codec related handle for connect request, it's necessary for HTTPS.
-    List("proxyServer-WebProxyHttpRequestDecoder", "proxyServer-proxyHandler").foreach(pipeline remove _)
-    pipeline.addLast("proxyServer-connectionHandler", new NetHttpsRelayingHandler(future.getChannel))
+    //    List("proxyServer-WebProxyHttpRequestDecoder", "proxyServer-proxyHandler").foreach(pipeline remove _)
+    //    pipeline.addLast("proxyServer-connectionHandler", new NetHttpsRelayingHandler(future.getChannel))
     def sendRequestToChainedProxy {
       future.getChannel.getPipeline.addBefore("proxyServerToRemote-connectionHandler", "proxyServerToRemote-encoder", httpRequestEncoder)
       future.getChannel.write(httpRequest).addListener {
@@ -518,7 +520,7 @@ class NettyWebProxyClientHttpsRequestProcessor(request: HttpRequest, browserChan
 
   def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
 
-    //        pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
 
     if (connectHost.needForward && proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
@@ -541,7 +543,7 @@ class NettyWebProxyClientHttpsRequestProcessor(request: HttpRequest, browserChan
     pipeline.addLast("proxyServerToRemote-encoder", httpRequestEncoder)
     addIdleChannelHandler(pipeline)
 
-    pipeline.addLast("proxyServerToRemote-connectionHandler", new NetHttpsRelayingHandler(browserChannel))
+    pipeline.addLast("proxyServerToRemote-connectionHandler", new NettyWebProxyClientHttpsRelayingHandler(browserChannel))
   }
 
   def connectComplete(future: ChannelFuture): Unit = {

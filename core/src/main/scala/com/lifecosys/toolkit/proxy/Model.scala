@@ -1,7 +1,6 @@
 package com.lifecosys.toolkit.proxy
 
 import java.net.InetSocketAddress
-import com.lifecosys.toolkit.dns.DnsSec
 
 /**
  *

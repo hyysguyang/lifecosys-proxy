@@ -24,10 +24,7 @@ import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
-import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
-import java.net.InetSocketAddress
-import java.util.UUID
-import scala.collection.generic.AtomicIndexFlag
+import org.jboss.netty.buffer.ChannelBuffer
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -413,6 +410,25 @@ class NettyWebProxyServerHttpsRelayingHandler(relayingChannel: Channel)(implicit
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
     writeResponse(e.getMessage)
+    if (!relayingChannel.isConnected) {
+      Utils.closeChannel(e.getChannel)
+    }
+  }
+
+  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+    super.channelClosed(ctx, e)
+    DefaultHttpsRequestManager.remove(relayingChannel.getAttachment.toString)
+    //    logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
+    Utils.closeChannel(relayingChannel)
+  }
+}
+
+class NettyWebProxyClientHttpsRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: ProxyConfig)
+    extends BaseRelayingHandler(relayingChannel) {
+
+  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
+    writeResponse(e.getMessage)
+
     if (!relayingChannel.isConnected) {
       Utils.closeChannel(e.getChannel)
     }

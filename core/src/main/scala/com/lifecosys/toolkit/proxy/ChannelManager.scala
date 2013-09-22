@@ -4,6 +4,7 @@ import java.net.SocketAddress
 import scala.collection.immutable.Queue
 import org.jboss.netty.channel.{ Channel, ChannelFuture }
 import scala.util.{ Failure, Success, Try }
+import java.util.TimerTask
 
 /**
  *
@@ -62,6 +63,20 @@ trait HttpsRequestManager {
 }
 
 object DefaultHttpsRequestManager extends HttpsRequestManager
+
+trait TimerTaskManager {
+  protected val cachedChannelFutures = scala.collection.mutable.Map[String, TimerTask]()
+  def get(requestID: String) = synchronized(cachedChannelFutures.get(requestID))
+
+  def add(requestID: String, timerTask: TimerTask) = synchronized(cachedChannelFutures += requestID -> timerTask)
+
+  def remove(requestID: String) = synchronized(cachedChannelFutures.remove(requestID))
+  override def toString: String = {
+    s"TimerTaskManager: ${cachedChannelFutures.size} task\n" + cachedChannelFutures.mkString("\n")
+  }
+}
+
+object DefaultTimerTaskManager extends TimerTaskManager
 
 case class Request(requestID: String, browserChannel: Channel, channel: Channel)
 trait RequestManager {

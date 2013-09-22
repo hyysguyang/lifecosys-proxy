@@ -24,6 +24,8 @@ import com.lifecosys.toolkit.proxy.ChannelKey
 import scala.util.Failure
 import scala.Some
 import scala.util.Success
+import java.util.{ TimerTask, Timer }
+import com.lifecosys.toolkit.proxy.WebProxy.RequestData
 
 /**
  *
@@ -63,12 +65,20 @@ sealed trait NettyTaskSupport {
     //    logger.error(s">>>>>>>>>>>>>>>>>[${request.getHeader(ProxyRequestID.name)}}] start request... ${parseChannelKey(request)}.. ${parseChannelKey(request).proxyHost.socketAddress}")
     initializeChunkedResponse(response)
 
+    //    new Timer().scheduleAtFixedRate(new TimerTask {
+    //      def run() {
+    //        logger.error("#################write tick response######################")
+    //        writeResponse(request, response, Array[Byte]())
+    //      }
+    //    }, 10, 10)
+
+    //    logger.error("#################Create connection######################")
     try {
       connect(asyncContext, parseChannelKey(request)) match {
         case Some(channel) ⇒ {
           //          channel.setAttachment(request.getHeader(ProxyRequestID.name))
           //          logger.error(s">>>>>>>>>>>>>>>>>[${channel.getAttachment}] - connection created......${channel}")
-          synchronized(channels += request.getHeader(ProxyRequestID.name) -> channel)
+          //          synchronized(channels += request.getHeader(ProxyRequestID.name) -> channel)
           //        request.getSession(false).setAttribute(SESSION_KEY_ENDPOINT, channel)
           connectedCallback(channel)
         }
@@ -145,10 +155,13 @@ class HttpNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport w
   }
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
+
+    val requestData = RequestData(proxyRequestBuffer)
     val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) {
       channel ⇒
+        synchronized(channels += requestData.requestID -> channel)
         logger.debug(s"[$channel] - Writing proxy request:\n ${Utils.hexDumpToString(proxyRequestBuffer)}")
-        channel.write(ChannelBuffers.wrappedBuffer(proxyRequestBuffer))
+        channel.write(ChannelBuffers.wrappedBuffer(requestData.request))
     }
 
     starTask(request)(task)
@@ -162,12 +175,15 @@ class HttpsNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport 
   }
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
-    channels.get(request.getHeader(ProxyRequestID.name)) match {
+
+    val requestData = RequestData(proxyRequestBuffer)
+
+    channels.get(requestData.requestID) match {
       case Some(channel) ⇒ {
         if (channel.isConnected) {
           //          DefaultRequestManager.add(Request(request.getHeader("x-seq"), channel, channel))
           //          logger.error(s">>>>>>>>>>>>>>>>>[${request.getHeader("x-seq")}] --- [${channel}] - process request....")
-          channel.write(ChannelBuffers.wrappedBuffer(proxyRequestBuffer))
+          channel.write(ChannelBuffers.wrappedBuffer(requestData.request))
         } else {
           //todo: error process
           channel.close()
@@ -178,6 +194,8 @@ class HttpsNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport 
       case _ ⇒ {
 
         val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
+
+          synchronized(channels += requestData.requestID -> channel)
           writeResponse(request, response, Utils.connectProxyResponse.getBytes("UTF-8"))
           //          DefaultRequestManager.add(Request(request.getHeader("x-seq"), channel, channel))
           //          logger.error(s">>>>>>>>>>>>>>>>>[${request.getHeader("x-seq")}] --- [${channel}] - process connection request....")

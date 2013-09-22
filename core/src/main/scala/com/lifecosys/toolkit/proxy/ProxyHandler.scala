@@ -385,6 +385,13 @@ class NettyWebProxyServerHttpResponseRelayingHandler(browserChannel: Channel)(im
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     super.channelClosed(ctx, e)
     HttpChannelManager.removeClosedChannel(e.getChannel.getRemoteAddress)
+    //    logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
+    browserChannel.write(WebProxy.FinishResponse).addListener {
+      writeFuture: ChannelFuture ⇒
+        Utils.closeChannel(browserChannel)
+        logger.error(s"[${ctx.getChannel}] - close relaying channel")
+    }
+
   }
 }
 
@@ -411,6 +418,8 @@ class NettyWebProxyServerHttpsRelayingHandler(relayingChannel: Channel)(implicit
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
     writeResponse(e.getMessage)
     if (!relayingChannel.isConnected) {
+      DefaultTimerTaskManager.remove(relayingChannel.getAttachment.toString) foreach (_.cancel)
+      relayingChannel.write(WebProxy.FinishResponse)
       Utils.closeChannel(e.getChannel)
     }
   }
@@ -419,7 +428,12 @@ class NettyWebProxyServerHttpsRelayingHandler(relayingChannel: Channel)(implicit
     super.channelClosed(ctx, e)
     DefaultHttpsRequestManager.remove(relayingChannel.getAttachment.toString)
     //    logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
-    Utils.closeChannel(relayingChannel)
+    relayingChannel.write(WebProxy.FinishResponse).addListener {
+      writeFuture: ChannelFuture ⇒
+        Utils.closeChannel(relayingChannel)
+        logger.error(s"[${ctx.getChannel}] - close relaying channel")
+    }
+
   }
 }
 

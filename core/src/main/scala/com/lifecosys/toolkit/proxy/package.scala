@@ -71,12 +71,6 @@ package object proxy {
 
   implicit def arrayToBuffer(data: Array[Byte]) = ChannelBuffers.wrappedBuffer(data)
 
-  implicit def functionToTimerTask(f: ⇒ Any) = new TimerTask {
-    def run() {
-      f
-    }
-  }
-
   def newClientBootstrap = {
     val proxyToServerBootstrap = new ClientBootstrap()
     proxyToServerBootstrap.setOption("keepAlive", true)

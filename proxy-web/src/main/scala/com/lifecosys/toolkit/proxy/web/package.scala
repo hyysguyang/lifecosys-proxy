@@ -48,6 +48,7 @@ package object web {
     response.setHeader(HttpHeaders.Names.CONTENT_TRANSFER_ENCODING, HttpHeaders.Values.BINARY)
     // Initiate chunked encoding by flushing the headers.
     response.getOutputStream.flush()
+
   }
 
 }

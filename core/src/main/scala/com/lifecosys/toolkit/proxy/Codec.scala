@@ -27,6 +27,8 @@ import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
+import com.lifecosys.toolkit.proxy.WebProxy.RequestData
+import java.util.TimerTask
 
 /**
  *
@@ -107,6 +109,29 @@ object WebProxy {
   case object PrepareResponse
   case object FinishResponse
 
+  object RequestData {
+
+    def apply(data: ChannelBuffer): RequestData = {
+      require(data.readableBytes() > 2, "The data must be > 2 since the data should include requestID and content.")
+      val requestIDBuffer = new Array[Byte](data.readByte())
+      data.readBytes(requestIDBuffer)
+      val requestID = new String(requestIDBuffer, UTF8)
+      RequestData(requestID, data)
+    }
+
+    def toBuffer(requestData: RequestData) = {
+
+      val ri = requestData.requestID.getBytes(UTF8)
+      val requestIDBuffer = ChannelBuffers.dynamicBuffer(ri.length + 1)
+      requestIDBuffer.writeByte(ri.length)
+      requestIDBuffer.writeBytes(ri)
+      ChannelBuffers.wrappedBuffer(requestIDBuffer, requestData.request)
+    }
+  }
+  case class RequestData(requestID: String = "", request: ChannelBuffer = ChannelBuffers.EMPTY_BUFFER) {
+
+  }
+
   def jsessionidCookie(channel: Channel) = channel.getAttachment match {
     case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
       val encoder = new CookieEncoder(false)
@@ -116,14 +141,12 @@ object WebProxy {
     case _ ⇒ None
   }
 
-  def createWrappedRequest(connectHost: ConnectHost, proxyHost: Host, jsessionidCookie: Option[String]) = {
+  def createWrappedRequest(connectHost: ConnectHost, proxyHost: Host, jsessionidCookie: Option[String] = None) = {
     val wrappedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, "/proxy")
     wrappedRequest.setHeader(HttpHeaders.Names.HOST, connectHost.host.host)
     wrappedRequest.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
     wrappedRequest.setHeader(HttpHeaders.Names.USER_AGENT, "LTPC")
-    val encodedProxyHost = base64.encodeToString(encryptor.encrypt(proxyHost.toString.getBytes(UTF8)), false)
-    wrappedRequest.setHeader(ProxyHostHeader.name, encodedProxyHost)
-    jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
+
     wrappedRequest
   }
 }
@@ -136,17 +159,26 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
         logger.debug(s"[$channel] - Receive request $httpRequest")
         //        logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
         val requestBuffer: ChannelBuffer = arrayToBuffer(encryptor.decrypt(httpRequest.getContent))
-        DefaultHttpsRequestManager.get(httpRequest.getHeader(ProxyRequestID.name)) match {
+        logger.error(s"[$channel] - Receive decrypt request ${Utils.formatMessage(requestBuffer)}")
+        val requestData = RequestData(requestBuffer)
+        val requestID = requestData.requestID
+
+        logger.error(s"[$channel] - Receive decrypt request ${Utils.formatMessage(requestData.request)}")
+
+        DefaultHttpsRequestManager.get(requestID) match {
           case Some(remoteChannel) ⇒
 
-            remoteChannel.write(requestBuffer).addListener {
+            remoteChannel.write(requestData.request).addListener {
               writeFuture: ChannelFuture ⇒
                 logger.debug(s"[${channel}] - Finished write request")
             }
 
             null
 
-          case None ⇒ requestBuffer
+          case None ⇒ {
+            channel.setAttachment(requestID)
+            requestData.request
+          }
 
         }
 
@@ -176,19 +208,85 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
         //        logger.error(s">>>>>>>>>>>>>>>>>>>>>>>>> Send request: ${channel.getAttachment} --- ${request.getUri}")
         val encodedProxyRequest = super.encode(ctx, channel, request).asInstanceOf[ChannelBuffer]
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
-        wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment)
+
+        val encodedProxyHost = base64.encodeToString(encryptor.encrypt(proxyHost.toString.getBytes(UTF8)), false)
+        wrappedRequest.setHeader(ProxyHostHeader.name, encodedProxyHost)
+        jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
+
+        //        wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment)
         //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${encodedProxyRequest.readableBytes()}##########################")
-        setContent(wrappedRequest, encodedProxyRequest)
+        //        setContent(wrappedRequest, encodedProxyRequest)
+        val requestType = request.getMethod match {
+          case HttpMethod.CONNECT ⇒ HTTPS
+          case _                  ⇒ HTTP
+        }
+
+        wrappedRequest.setHeader(ProxyRequestType.name, requestType.value)
+        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, encodedProxyRequest)))
         wrappedRequest
       }
       case buffer: ChannelBuffer if buffer.readableBytes() == 0 ⇒ buffer //Process for close flush buffer.
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
+
+        val encodedProxyHost = base64.encodeToString(encryptor.encrypt(proxyHost.toString.getBytes(UTF8)), false)
+        wrappedRequest.setHeader(ProxyHostHeader.name, encodedProxyHost)
+        jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
+
+        wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
+        //        wrappedRequest.setHeader(ProxyRequestID.name, browserChannel.getAttachment) //TODO:Need use browserChannel for war-based web proxy
+        //        setContent(wrappedRequest, RequestData.toBuffer(RequestData(browserChannel.getAttachment.toString, buffer)))
+
+        //        wrappedRequest.setHeader("x-seq", channel.getAttachment)
+        //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${buffer.readableBytes()}##########################")
+        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, buffer)))
+        wrappedRequest
+      case e ⇒ e
+    }
+    super.encode(ctx, channel, toBeSentMessage)
+  }
+
+}
+class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, browserChannel: Channel)
+    extends HttpRequestEncoder with Logging {
+
+  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
+
+    logger.info(s"Prepare request to WebProxy for ${channel.getAttachment}")
+
+    def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
+      logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
+      //We may get CompositeChannelBuffer,such as for HttpRequest with content.
+      val encryptedData: ChannelBuffer = encryptor.encrypt(content)
+      wrappedRequest.setHeader(HttpHeaders.Names.CONTENT_LENGTH, encryptedData.readableBytes().toString)
+      wrappedRequest.setContent(encryptedData)
+    }
+    val toBeSentMessage = msg match {
+      case request: HttpRequest ⇒ {
+
+        //        logger.error(s">>>>>>>>>>>>>>>>>>>>>>>>> Send request: ${channel.getAttachment} --- ${request.getUri}")
+        val encodedProxyRequest = super.encode(ctx, channel, request).asInstanceOf[ChannelBuffer]
+        val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost)
+        //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${encodedProxyRequest.readableBytes()}##########################")
+
+        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, encodedProxyRequest)))
+
+        wrappedRequest
+      }
+      case buffer: ChannelBuffer if buffer.readableBytes() == 0 ⇒ buffer //Process for close flush buffer.
+      case buffer: ChannelBuffer ⇒
+        val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost)
+
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
         wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment) //TODO:Need use browserChannel for war-based web proxy
         //        wrappedRequest.setHeader("x-seq", channel.getAttachment)
         //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${buffer.readableBytes()}##########################")
-        setContent(wrappedRequest, buffer)
+        //      val requestID=channel.getAttachment.toString.getBytes(UTF8)
+        //        val requestIDBuffer = ChannelBuffers.dynamicBuffer(requestID.length+1)
+        //        requestIDBuffer.writeByte(requestID.length)
+        //        requestIDBuffer.writeBytes(requestID)
+
+        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, buffer)))
         wrappedRequest
       case e ⇒ e
     }
@@ -209,6 +307,23 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
       new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(lengthBuffer.array(), encrypt))
     case WebProxy.PrepareResponse ⇒
       logger.debug(s"[$channel] - Initialize chunked response, requestID: ${channel.getAttachment}")
+
+      val timerTask: TimerTask = new TimerTask() {
+        def run() {
+          if (channel.isConnected)
+            channel.write(ChannelBuffers.EMPTY_BUFFER).addListener {
+              writeFuture: ChannelFuture ⇒
+                logger.error(s"[${ctx.getChannel}] - Finished write tick response")
+            }
+          else
+            DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
+        }
+      }
+      DefaultTimerTaskManager.add(channel.getAttachment.toString, timerTask)
+      timer.scheduleAtFixedRate(timerTask, 1000, 1000)
+
+      logger.error(s">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
+
       val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
       response.setHeader(ProxyRequestID.name, channel.getAttachment.toString)
       response.setChunked(true)
@@ -216,6 +331,7 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
 
     case WebProxy.FinishResponse ⇒
       logger.debug(s"[$channel] - Finishing response.")
+      DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
       new DefaultHttpChunkTrailer
     case _ ⇒ msg
   }
@@ -266,7 +382,6 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         //          logger.info(s"Create session for request: $jsessionid")
         //        }
         logger.debug(s"[${channel}] - HTTPS request initialized, requestID: ${response.getHeader(ProxyRequestID.name)}")
-        channel.setAttachment(response.getHeader(ProxyRequestID.name))
         ChannelBuffers.EMPTY_BUFFER
       }
       case chunk: HttpChunk if chunk.getContent.readableBytes() > 0 && !chunk.isLast ⇒ {

@@ -29,6 +29,7 @@ import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
 import com.lifecosys.toolkit.proxy.WebProxy.RequestData
 import java.util.TimerTask
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  *
@@ -151,34 +152,73 @@ object WebProxy {
   }
 }
 
+case class RequestIndex(requestID: String, seqID: AtomicInteger, pending: scala.collection.mutable.Map[Int, ChannelBuffer])
+
+trait HttpsRequestIndexManager {
+  protected val cachedChannelFutures = scala.collection.mutable.Map[String, RequestIndex]()
+  def get(requestID: String) = synchronized(cachedChannelFutures.get(requestID))
+
+  def add(requestID: String, channel: RequestIndex) = synchronized(cachedChannelFutures += requestID -> channel)
+
+  def remove(requestID: String) = synchronized(cachedChannelFutures.remove(requestID))
+  override def toString: String = {
+    s"Requests: ${cachedChannelFutures.size} pending\n" + cachedChannelFutures.mkString("\n")
+  }
+}
+
+object DefaultHttpsRequestIndexManager extends HttpsRequestIndexManager
+
 class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     msg match {
       //      case httpRequest: HttpRequest ⇒ httpRequest.getContent
       case httpRequest: HttpRequest ⇒
-        logger.debug(s"[$channel] - Receive request $httpRequest")
+        logger.error(s"[$channel] - Receive raw request $httpRequest")
         //        logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
         val requestBuffer: ChannelBuffer = arrayToBuffer(encryptor.decrypt(httpRequest.getContent))
-        logger.error(s"[$channel] - Receive decrypt request ${Utils.formatMessage(requestBuffer)}")
         val requestData = RequestData(requestBuffer)
         val requestID = requestData.requestID
 
-        logger.error(s"[$channel] - Receive decrypt request ${Utils.formatMessage(requestData.request)}")
-
         DefaultHttpsRequestManager.get(requestID) match {
           case Some(remoteChannel) ⇒
-
-            remoteChannel.write(requestData.request).addListener {
-              writeFuture: ChannelFuture ⇒
-                logger.debug(s"[${channel}] - Finished write request")
+            if (DefaultHttpsRequestIndexManager.get(requestID).isEmpty) {
+              DefaultHttpsRequestIndexManager.add(requestID, RequestIndex(requestID, new AtomicInteger(1), scala.collection.mutable.Map[Int, ChannelBuffer]()))
             }
+
+            val requestIndex: RequestIndex = DefaultHttpsRequestIndexManager.get(requestID).get
+            val seqId = requestIndex.seqID
+
+            if (httpRequest.getHeader("x-i").toInt > seqId.get()) {
+              logger.error(s"[$requestID] - Cache NO ${httpRequest.getHeader("x-i").toInt} request to wait previous request arrive.")
+              synchronized(requestIndex.pending += httpRequest.getHeader("x-i").toInt -> requestData.request)
+            } else {
+              require(httpRequest.getHeader("x-i").toInt == seqId.get())
+              logger.error(s"[$requestID] - Receive request ${Utils.formatMessage(requestData.request)}")
+              remoteChannel.write(requestData.request).addListener {
+                writeFuture: ChannelFuture ⇒
+                  logger.error(s"[${channel}] - Finished write request ${httpRequest.getHeader("x-i")}")
+              }
+
+              seqId.incrementAndGet()
+
+              while (requestIndex.pending.contains(seqId.get())) {
+                remoteChannel.write(requestIndex.pending.get(seqId.get()).get).addListener {
+                  writeFuture: ChannelFuture ⇒
+                    logger.debug(s"[${channel}] - Finished write request ${seqId.get()}")
+                }
+                synchronized(requestIndex.pending - seqId.get())
+                seqId.incrementAndGet()
+              }
+            }
+
+            logger.error(">>>>>>>Next request: " + seqId.get())
 
             null
 
-          case None ⇒ {
+          case None ⇒
+            logger.error(s"[$channel] - Initialize request $requestID, request content: ${Utils.formatMessage(requestData.request)}")
             channel.setAttachment(requestID)
             requestData.request
-          }
 
         }
 
@@ -250,6 +290,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
 class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, browserChannel: Channel)
     extends HttpRequestEncoder with Logging {
 
+  val seqId = new AtomicInteger
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     logger.info(s"Prepare request to WebProxy for ${channel.getAttachment}")
@@ -278,7 +319,7 @@ class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host,
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost)
 
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
-        wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment) //TODO:Need use browserChannel for war-based web proxy
+        //        wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment) //TODO:Need use browserChannel for war-based web proxy
         //        wrappedRequest.setHeader("x-seq", channel.getAttachment)
         //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${buffer.readableBytes()}##########################")
         //      val requestID=channel.getAttachment.toString.getBytes(UTF8)
@@ -287,6 +328,7 @@ class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host,
         //        requestIDBuffer.writeBytes(requestID)
 
         setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, buffer)))
+        wrappedRequest.setHeader("x-i", seqId.incrementAndGet())
         wrappedRequest
       case e ⇒ e
     }
@@ -300,7 +342,7 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
 
     case buffer: ChannelBuffer ⇒
-      logger.debug(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
+      logger.error(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
       val encrypt = encryptor.encrypt(buffer)
       val lengthBuffer = ChannelBuffers.dynamicBuffer(2)
       lengthBuffer.writeShort(encrypt.length + 2)
@@ -320,9 +362,9 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
         }
       }
       DefaultTimerTaskManager.add(channel.getAttachment.toString, timerTask)
-      timer.scheduleAtFixedRate(timerTask, 1000, 1000)
+      timer.scheduleAtFixedRate(timerTask, 40000, 40000)
 
-      logger.error(s">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
+      logger.error(s">>>>>>>>>>>>>>>>Start DefaultTimerTaskManager>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
 
       val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
       response.setHeader(ProxyRequestID.name, channel.getAttachment.toString)
@@ -332,6 +374,7 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
     case WebProxy.FinishResponse ⇒
       logger.debug(s"[$channel] - Finishing response.")
       DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
+      logger.error(s">>>>>>>>>>>>>>>Finishing DefaultTimerTaskManager>>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
       new DefaultHttpChunkTrailer
     case _ ⇒ msg
   }
@@ -365,7 +408,7 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {
-      case response: HttpResponse if response.getStatus.getCode != 200 ⇒ {
+      case response: HttpResponse if response.getStatus.getCode != 200 && response.getStatus.getCode != 503 ⇒ {
         logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), UTF8.name())}}")
         throw new RuntimeException("WebProx Error:")
       }
@@ -385,6 +428,9 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         ChannelBuffers.EMPTY_BUFFER
       }
       case chunk: HttpChunk if chunk.getContent.readableBytes() > 0 && !chunk.isLast ⇒ {
+
+        logger.debug(s"[${channel}] - Receive data:\n ${Utils.formatMessage(chunk)}")
+
         def isConsistentPacket(buffer: ChannelBuffer) = buffer.readableBytes() >= 2 && buffer.getShort(0) == buffer.readableBytes()
 
         buffers = ChannelBuffers.wrappedBuffer(buffers, chunk.getContent)

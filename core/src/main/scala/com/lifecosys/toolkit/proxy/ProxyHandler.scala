@@ -95,32 +95,6 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
     def writeListener = (future: ChannelFuture) ⇒ {
       message match {
         case response: HttpMessage if !response.isChunked ⇒ {
-          //          Utils.closeChannel(e.getChannel)
-          //          DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-          //
-          //          synchronized {
-          //            val index = Option(browserChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger]
-          //            index.decrementAndGet()
-          //            browserChannel.setAttachment(index)
-          //          }
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - request completed...on ${ctx.getChannel}")
-
-          //          try {
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-          //            requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-          //              case Some(e) ⇒ synchronized(requests -= e)
-          //              case None    ⇒
-          //            }
-          //
-          //            Utils.closeChannel(e.getChannel)
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-          //          } catch {
-          //            case t ⇒ {
-          //              val re = "\n"
-          //              logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-          //            }
-          //          }
-
           if (!HttpHeaders.isKeepAlive(response))
             Utils.closeChannel(e.getChannel)
           else {
@@ -130,31 +104,6 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
           }
         }
         case chunk: HttpChunk if chunk.isLast ⇒ {
-          //          Utils.closeChannel(e.getChannel)
-          //          DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-          //          synchronized {
-          //            val index = Option(browserChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger]
-          //            index.decrementAndGet()
-          //            browserChannel.setAttachment(index)
-          //          }
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - request completed...on ${ctx.getChannel}")
-
-          //          try {
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-          //            requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-          //              case Some(e) ⇒ synchronized(requests -= e)
-          //              case None    ⇒
-          //            }
-          //
-          //            Utils.closeChannel(e.getChannel)
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-          //          } catch {
-          //            case t ⇒ {
-          //              val re = "\n"
-          //              logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-          //            }
-          //          }
-
           Utils.closeChannel(e.getChannel)
         }
         case _ ⇒
@@ -185,94 +134,16 @@ class NettyWebProxyClientHttpRelayingHandler(browserChannel: Channel)(implicit p
     def writeListener = (future: ChannelFuture) ⇒ {
       message match {
         case WebProxy.Close ⇒ {
-          //
-          //        Utils.closeChannel(e.getChannel)
-          //        DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-          //
-          //        val requestCounter = browserChannel.getAttachment.asInstanceOf[AtomicInteger]
-          //        requestCounter.decrementAndGet()
-          //        if (requestCounter == 0)
-          //          Utils.closeChannel(browserChannel)
-          //        logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - [${ctx.getChannel.getAttachment}}] request completed...on ${ctx.getChannel}")
-
-          //        try {
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-          //          requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-          //            case Some(e) ⇒ synchronized(requests -= e)
-          //            case None    ⇒
-          //          }
-          //
-          //          Utils.closeChannel(browserChannel)
-          //          e.getChannel.close()
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-          //        } catch {
-          //          case t ⇒ {
-          //            val re = "\n"
-          //            logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-          //          }
-          //        }
-
           HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
           logger.debug(s"$HttpChannelManager")
           logger.info(s"[${e.getChannel}] - Success to reuse channel.")
         }
         case response: HttpMessage if !response.isChunked ⇒ {
-          //          Utils.closeChannel(e.getChannel)
-          //          DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-          //
-          //          synchronized {
-          //            val index = Option(browserChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger]
-          //            index.decrementAndGet()
-          //            browserChannel.setAttachment(index)
-          //          }
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - request completed...on ${ctx.getChannel}")
-
-          //          try {
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-          //            requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-          //              case Some(e) ⇒ synchronized(requests -= e)
-          //              case None    ⇒
-          //            }
-          //
-          //            Utils.closeChannel(e.getChannel)
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-          //          } catch {
-          //            case t ⇒ {
-          //              val re = "\n"
-          //              logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-          //            }
-          //          }
-
           HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
           logger.debug(s"$HttpChannelManager")
           logger.info(s"[${e.getChannel}] - Success to reuse channel.")
         }
         case chunk: HttpChunk if chunk.isLast ⇒ {
-          //          Utils.closeChannel(e.getChannel)
-          //          DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-          //          synchronized {
-          //            val index = Option(browserChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger]
-          //            index.decrementAndGet()
-          //            browserChannel.setAttachment(index)
-          //          }
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - request completed...on ${ctx.getChannel}")
-
-          //          try {
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-          //            requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-          //              case Some(e) ⇒ synchronized(requests -= e)
-          //              case None    ⇒
-          //            }
-          //
-          //            Utils.closeChannel(e.getChannel)
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-          //          } catch {
-          //            case t ⇒ {
-          //              val re = "\n"
-          //              logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-          //            }
-          //          }
-
           HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
           logger.debug(s"$HttpChannelManager")
           logger.info(s"[${e.getChannel}] - Success to reuse channel.")
@@ -294,39 +165,12 @@ class NettyWebProxyServerHttpRelayingHandler(browserChannel: Channel)(implicit p
     extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
-    //    logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - receive data...on ${ctx.getChannel}")
     val message = responsePreProcess(e.getMessage)
     writeResponse(message, writeListener)
 
     def writeListener = (future: ChannelFuture) ⇒ {
       message match {
         case response: HttpMessage if !response.isChunked ⇒ {
-          //          Utils.closeChannel(e.getChannel)
-          //          DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-          //
-          //          synchronized {
-          //            val index = Option(browserChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger]
-          //            index.decrementAndGet()
-          //            browserChannel.setAttachment(index)
-          //          }
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - request completed...on ${ctx.getChannel}")
-
-          //          try {
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-          //            requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-          //              case Some(e) ⇒ synchronized(requests -= e)
-          //              case None    ⇒
-          //            }
-          //
-          //            Utils.closeChannel(e.getChannel)
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-          //          } catch {
-          //            case t ⇒ {
-          //              val re = "\n"
-          //              logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-          //            }
-          //          }
-
           writeResponse(WebProxy.FinishResponse, {
             (future: ChannelFuture) ⇒
               {
@@ -343,31 +187,6 @@ class NettyWebProxyServerHttpRelayingHandler(browserChannel: Channel)(implicit p
 
         }
         case chunk: HttpChunk if chunk.isLast ⇒ {
-          //          Utils.closeChannel(e.getChannel)
-          //          DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-          //          synchronized {
-          //            val index = Option(browserChannel.getAttachment).getOrElse(new AtomicInteger).asInstanceOf[AtomicInteger]
-          //            index.decrementAndGet()
-          //            browserChannel.setAttachment(index)
-          //          }
-          //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - request completed...on ${ctx.getChannel}")
-
-          //          try {
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-          //            requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-          //              case Some(e) ⇒ synchronized(requests -= e)
-          //              case None    ⇒
-          //            }
-          //
-          //            Utils.closeChannel(e.getChannel)
-          //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-          //          } catch {
-          //            case t ⇒ {
-          //              val re = "\n"
-          //              logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-          //            }
-          //          }
-
           writeResponse(WebProxy.FinishResponse, {
             (future: ChannelFuture) ⇒
               {
@@ -385,7 +204,6 @@ class NettyWebProxyServerHttpRelayingHandler(browserChannel: Channel)(implicit p
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     super.channelClosed(ctx, e)
     HttpChannelManager.removeClosedChannel(e.getChannel.getRemoteAddress)
-    //    logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
     browserChannel.write(WebProxy.FinishResponse).addListener {
       writeFuture: ChannelFuture ⇒
         Utils.closeChannel(browserChannel)
@@ -463,33 +281,6 @@ class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig:
     val message = responsePreProcess(e.getMessage)
     message match {
       case WebProxy.Close ⇒ {
-        //
-        //        Utils.closeChannel(e.getChannel)
-        //        DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-        //
-        //        val requestCounter = browserChannel.getAttachment.asInstanceOf[AtomicInteger]
-        //        requestCounter.decrementAndGet()
-        //        if (requestCounter == 0)
-        //          Utils.closeChannel(browserChannel)
-        //        logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] - [${ctx.getChannel.getAttachment}}] request completed...on ${ctx.getChannel}")
-
-        //        try {
-        //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - starting request completed...on ${ctx.getChannel}")
-        //          requests.filter(_._1 == browserChannel.getAttachment.toString).headOption match {
-        //            case Some(e) ⇒ synchronized(requests -= e)
-        //            case None    ⇒
-        //          }
-        //
-        //          Utils.closeChannel(browserChannel)
-        //          e.getChannel.close()
-        //          logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - request completed...on ${ctx.getChannel}")
-        //        } catch {
-        //          case t ⇒ {
-        //            val re = "\n"
-        //            logger.error(s"[${e.getChannel}] - error when closed---\n #######${browserChannel.getAttachment}######\n${requests.mkString(re)} ######", t)
-        //          }
-        //        }
-
         HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
         logger.debug(s"$HttpChannelManager")
         logger.info(s"[${e.getChannel}] - Success to reuse channel.")
@@ -510,21 +301,10 @@ class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig
     extends BaseRelayingHandler(browserChannel) {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
-    //    if (browserChannel.getPipeline.get(classOf[HttpResponseEncoder]) != null) {
-    //      logger.error("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-    //      browserChannel.getPipeline remove classOf[HttpResponseEncoder]
-    //    }
 
     e.getMessage match {
       case responseBuffer: ChannelBuffer if responseBuffer.readableBytes() > 0 ⇒ writeResponse(responseBuffer)
       case WebProxy.Close ⇒ {
-
-        //        Utils.closeChannel(e.getChannel)
-        //        DefaultRequestManager.remove(ctx.getChannel.getAttachment.toString)
-        //
-        //        //        Utils.closeChannel(browserChannel)
-        //        logger.error(s">>>>>>>>>>>>>>>>>${ctx.getChannel.getAttachment} request completed...on ${ctx.getChannel} >>>>  [${browserChannel}] - [${browserChannel.getAttachment}]")
-
         HttpsChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
         logger.debug(s"$HttpsChannelManager")
         logger.info(s"[${e.getChannel}] - Success to reuse channel.")

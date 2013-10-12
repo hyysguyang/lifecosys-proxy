@@ -151,7 +151,7 @@ class NettyWebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Ch
   override val httpRequestEncoder = new HttpRequestEncoder()
 
   override def adjustPipelineForReused(channel: Channel) {
-    channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-proxyToServerHandler", new NettyWebProxyServerHttpResponseRelayingHandler(browserChannel))
+    channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-proxyToServerHandler", new NettyWebProxyServerHttpRelayingHandler(browserChannel))
   }
 
   override def preProcess = {
@@ -219,7 +219,7 @@ class NettyWebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Ch
     addIdleChannelHandler(pipeline)
     pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-httpRequestEncoder", new HttpRequestEncoder())
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new NettyWebProxyServerHttpResponseRelayingHandler(browserChannel))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new NettyWebProxyServerHttpRelayingHandler(browserChannel))
 
   }
 }
@@ -227,12 +227,13 @@ class NettyWebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Ch
 class NettyWebProxyClientHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
     extends HttpRequestProcessor(request, browserChannel) {
   val proxyHost = Try(Host(httpRequest.getUri)).getOrElse(Host(httpRequest.getHeader(HttpHeaders.Names.HOST)))
-  override val httpRequestEncoder = new HttpRequestEncoder()
+  val httpRequestEncoder = new NettyWebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel)
 
   override def adjustPipelineForReused(channel: Channel) {
+    channel.getPipeline.replace("proxyServerToRemote-webProxyEncryptDataDecoder", "proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
     channel.getPipeline.replace("proxyServerToRemote-webProxyResponseBufferDecoder", "proxyServerToRemote-webProxyResponseBufferDecoder", new WebProxyResponseDecoder(browserChannel))
-    channel.getPipeline.replace("proxyServerToRemote-httpRequestEncoder", "proxyServerToRemote-httpRequestEncoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
-    channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-proxyToServerHandler", new NettyWebProxyClientHttpResponseRelayingHandler(browserChannel))
+    channel.getPipeline.replace("proxyServerToRemote-httpRequestEncoder", "proxyServerToRemote-httpRequestEncoder", new NettyWebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
+    channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-proxyToServerHandler", new NettyWebProxyClientHttpRelayingHandler(browserChannel))
   }
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
@@ -255,13 +256,14 @@ class NettyWebProxyClientHttpRequestProcessor(request: HttpRequest, browserChann
 
     pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-webProxyResponseBufferDecoder", new WebProxyResponseDecoder(browserChannel))
+    pipeline.addLast("proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
     pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
 
-    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
+    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", new NettyWebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
 
     addIdleChannelHandler(pipeline)
 
-    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new NettyWebProxyClientHttpResponseRelayingHandler(browserChannel))
+    pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new NettyWebProxyClientHttpRelayingHandler(browserChannel))
   }
 }
 class DefaultHttpRequestProcessor(request: HttpRequest, browserChannel: Channel)(implicit proxyConfig: ProxyConfig, connectHost: ConnectHost)
@@ -309,9 +311,10 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel
   override val httpRequestEncoder = new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel)
 
   override def adjustPipelineForReused(channel: Channel) {
+    channel.getPipeline.replace("proxyServerToRemote-webProxyEncryptDataDecoder", "proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
     channel.getPipeline.replace("proxyServerToRemote-httpRequestEncoder", "proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
-    channel.getPipeline.replace(classOf[WebProxyResponseDecoder], "proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
-    channel.getPipeline.replace(classOf[WebProxyHttpRelayingHandler], "proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
+    channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
+    channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
   }
 
   override def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
@@ -321,11 +324,14 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel
       pipeline.addFirst("proxyServerToRemote-ssl", new SslHandler(engine))
     }
 
-    pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
-    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
-    //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
     addIdleChannelHandler(pipeline)
+
+    pipeline.addLast("proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
+
+    pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
+    pipeline.addLast("proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
+    //    pipeline.addLast("proxyServerToRemote-innerHttpChunkAggregator", new InnerHttpChunkAggregator())
     pipeline.addLast("proxyServerToRemote-webProxyHttpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
   }
@@ -521,7 +527,7 @@ class NettyWebProxyClientHttpsRequestProcessor(request: HttpRequest, browserChan
 
   def proxyToServerPipeline = (pipeline: ChannelPipeline) ⇒ {
 
-    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+    //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
 
     if (connectHost.needForward && proxyConfig.proxyToServerSSLEnable) {
       val engine = proxyConfig.clientSSLContext.createSSLEngine
@@ -541,6 +547,7 @@ class NettyWebProxyClientHttpsRequestProcessor(request: HttpRequest, browserChan
 
     pipeline.addLast("proxyServerToRemote-httpResponseDecoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
     pipeline.addLast("proxyServerToRemote-webProxyResponseBufferDecoder", new WebProxyResponseDecoder(browserChannel))
+    pipeline.addLast("proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
     pipeline.addLast("proxyServerToRemote-encoder", httpRequestEncoder)
     addIdleChannelHandler(pipeline)
 
@@ -621,11 +628,13 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
           engine.setUseClientMode(true)
           pipeline.addLast("proxyServerToRemote-ssl", new SslHandler(engine))
         }
+        addIdleChannelHandler(pipeline)
+
+        pipeline.addLast("proxyServerToRemote-encoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
 
         pipeline.addLast("proxyServerToRemote-decoder", new HttpResponseDecoder(DEFAULT_BUFFER_SIZE * 2, DEFAULT_BUFFER_SIZE * 4, DEFAULT_BUFFER_SIZE * 4))
-        pipeline.addLast("proxyServerToRemote-encoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
-        addIdleChannelHandler(pipeline)
         pipeline.addLast("proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
+        pipeline.addLast("proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
         pipeline.addLast("proxyServerToRemote-connectionHandler", new WebProxyHttpsRelayingHandler(browserChannel))
     }
     proxyToServerBootstrap
@@ -649,6 +658,7 @@ class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(imp
         //            DefaultRequestManager.add(Request(channel.getAttachment.toString, browserChannel, channel))
         //            logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel}] --[${channel.getAttachment}]--  [${channel}] - Connect successful.")
 
+        channel.getPipeline.replace("proxyServerToRemote-webProxyEncryptDataDecoder", "proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
         channel.getPipeline.replace(classOf[WebProxyHttpRequestEncoder], "proxyServerToRemote-encoder", new WebProxyHttpRequestEncoder(connectHost, proxyHost, browserChannel))
         channel.getPipeline.replace(classOf[WebProxyResponseDecoder], "proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
         channel.getPipeline.replace(classOf[WebProxyHttpsRelayingHandler], "proxyServerToRemote-connectionHandler", new WebProxyHttpsRelayingHandler(browserChannel))

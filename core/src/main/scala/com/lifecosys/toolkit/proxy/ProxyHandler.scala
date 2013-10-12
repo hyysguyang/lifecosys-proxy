@@ -170,7 +170,7 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
   }
 }
 
-class NettyWebProxyClientHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+class NettyWebProxyClientHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
@@ -290,7 +290,7 @@ class NettyWebProxyClientHttpResponseRelayingHandler(browserChannel: Channel)(im
   }
 }
 
-class NettyWebProxyServerHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
+class NettyWebProxyServerHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
     extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
 
   override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
@@ -389,7 +389,7 @@ class NettyWebProxyServerHttpResponseRelayingHandler(browserChannel: Channel)(im
     browserChannel.write(WebProxy.FinishResponse).addListener {
       writeFuture: ChannelFuture ⇒
         Utils.closeChannel(browserChannel)
-        logger.error(s"[${ctx.getChannel}] - close relaying channel")
+        logger.debug(s"[${ctx.getChannel}] - close relaying channel")
     }
 
   }

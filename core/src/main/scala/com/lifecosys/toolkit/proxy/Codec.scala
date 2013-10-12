@@ -30,6 +30,7 @@ import com.typesafe.scalalogging.slf4j.Logging
 import com.lifecosys.toolkit.proxy.WebProxy.RequestData
 import java.util.TimerTask
 import java.util.concurrent.atomic.AtomicInteger
+import org.jboss.netty.handler.codec.frame.FrameDecoder
 
 /**
  *
@@ -173,7 +174,7 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
     msg match {
       //      case httpRequest: HttpRequest ⇒ httpRequest.getContent
       case httpRequest: HttpRequest ⇒
-        logger.error(s"[$channel] - Receive raw request $httpRequest")
+        logger.debug(s"[$channel] - Receive raw request $httpRequest")
         //        logger.error(s"#####################################################\n$DefaultHttpsRequestManager#####################################################")
         val requestBuffer: ChannelBuffer = arrayToBuffer(encryptor.decrypt(httpRequest.getContent))
         val requestData = RequestData(requestBuffer)
@@ -189,34 +190,58 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
             val seqId = requestIndex.seqID
 
             if (httpRequest.getHeader("x-i").toInt > seqId.get()) {
-              logger.error(s"[$requestID] - Cache NO ${httpRequest.getHeader("x-i").toInt} request to wait previous request arrive.")
+              logger.info(s"[$requestID] - Pending NO ${httpRequest.getHeader("x-i").toInt} request to wait previous request arrive.")
               synchronized(requestIndex.pending += httpRequest.getHeader("x-i").toInt -> requestData.request)
             } else {
               require(httpRequest.getHeader("x-i").toInt == seqId.get())
-              logger.error(s"[$requestID] - Receive request ${Utils.formatMessage(requestData.request)}")
-              remoteChannel.write(requestData.request).addListener {
+              //              logger.error(s"[$requestID] - Receive request ${Utils.formatMessage(requestData.request)}")
+              val request: ChannelBuffer = requestData.request
+              val tempBuffer: ChannelBuffer = ChannelBuffers.copiedBuffer(request)
+              remoteChannel.write(request).addListener {
                 writeFuture: ChannelFuture ⇒
-                  logger.error(s"[${channel}] - Finished write request ${httpRequest.getHeader("x-i")}")
+                  logger.debug(s"[${channel}] - Finished write request ${seqId.get()}--> ${Utils.formatMessage(tempBuffer)}")
+                  logger.debug(s"[${channel}] - Finished write request ${httpRequest.getHeader("x-i")}")
+                  it
+                  logger.debug(s"[${channel}] - completed...")
               }
 
               seqId.incrementAndGet()
 
-              while (requestIndex.pending.contains(seqId.get())) {
-                remoteChannel.write(requestIndex.pending.get(seqId.get()).get).addListener {
+              def writePendingRequest {
+                val buffer: ChannelBuffer = requestIndex.pending.get(seqId.get()).get
+                val tempBuffer = ChannelBuffers.copiedBuffer(buffer)
+                remoteChannel.write(buffer).addListener {
                   writeFuture: ChannelFuture ⇒
-                    logger.debug(s"[${channel}] - Finished write request ${seqId.get()}")
-                }
-                synchronized(requestIndex.pending - seqId.get())
-                seqId.incrementAndGet()
-              }
-            }
+                    logger.debug(s"[${channel}] - Finished write request ${seqId.get()}--> ${Utils.formatMessage(tempBuffer)}")
+                    synchronized(requestIndex.pending - seqId.get())
+                    seqId.incrementAndGet()
 
-            logger.error(">>>>>>>Next request: " + seqId.get())
+                    it
+                    logger.debug(s"[${channel}] - completed...")
+                }
+              }
+
+              def it {
+                requestIndex.pending.get(seqId.get()) match {
+                  case Some(buffer) ⇒ writePendingRequest
+                  case None         ⇒ logger.debug(">>>>>>>Next request: " + seqId.get())
+                }
+              }
+
+              //              while (requestIndex.pending.contains(seqId.get())) {
+              //                remoteChannel.write(requestIndex.pending.get(seqId.get()).get).addListener {
+              //                  writeFuture: ChannelFuture ⇒
+              //                    logger.debug(s"[${channel}] - Finished write request ${seqId.get()}")
+              //                }
+              //                synchronized(requestIndex.pending - seqId.get())
+              //                seqId.incrementAndGet()
+              //              }
+            }
 
             null
 
           case None ⇒
-            logger.error(s"[$channel] - Initialize request $requestID, request content: ${Utils.formatMessage(requestData.request)}")
+            logger.debug(s"[$channel] - Initialize request $requestID, request content: ${Utils.formatMessage(requestData.request)}")
             channel.setAttachment(requestID)
             requestData.request
 
@@ -287,6 +312,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
   }
 
 }
+
 class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, browserChannel: Channel)
     extends HttpRequestEncoder with Logging {
 
@@ -342,11 +368,12 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
 
     case buffer: ChannelBuffer ⇒
-      logger.error(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
-      val encrypt = encryptor.encrypt(buffer)
-      val lengthBuffer = ChannelBuffers.dynamicBuffer(2)
-      lengthBuffer.writeShort(encrypt.length + 2)
-      new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(lengthBuffer.array(), encrypt))
+      logger.debug(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
+      val encrypt = encryptor.encrypt(buffer) //bufferToArray(buffer)
+      val lengthBuffer = ChannelBuffers.dynamicBuffer(4)
+      lengthBuffer.writeInt(encrypt.length)
+      val wrappedBuffer: ChannelBuffer = ChannelBuffers.wrappedBuffer(lengthBuffer.array(), encrypt)
+      new DefaultHttpChunk(wrappedBuffer)
     case WebProxy.PrepareResponse ⇒
       logger.debug(s"[$channel] - Initialize chunked response, requestID: ${channel.getAttachment}")
 
@@ -364,7 +391,7 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
       DefaultTimerTaskManager.add(channel.getAttachment.toString, timerTask)
       timer.scheduleAtFixedRate(timerTask, 40000, 40000)
 
-      logger.error(s">>>>>>>>>>>>>>>>Start DefaultTimerTaskManager>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
+      logger.debug(s">>>>>>>>>>>>>>>>Start DefaultTimerTaskManager>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
 
       val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
       response.setHeader(ProxyRequestID.name, channel.getAttachment.toString)
@@ -374,11 +401,31 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
     case WebProxy.FinishResponse ⇒
       logger.debug(s"[$channel] - Finishing response.")
       DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
-      logger.error(s">>>>>>>>>>>>>>>Finishing DefaultTimerTaskManager>>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
+      logger.debug(s">>>>>>>>>>>>>>>Finishing DefaultTimerTaskManager>>>>>>>>>>>>>>>>>$DefaultTimerTaskManager")
       new DefaultHttpChunkTrailer
     case _ ⇒ msg
   }
 
+}
+
+class EncryptDataFrameDecoder extends FrameDecoder with Logging {
+
+  def decode(ctx: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer): AnyRef = {
+    logger.debug(s"[$channel] - Receive data: ${Utils.formatMessage(buffer)}")
+
+    if (buffer.readableBytes() < 4) {
+      return null
+    }
+    val length = buffer.getInt(buffer.readerIndex())
+    if (length + 4 > buffer.readableBytes()) {
+      null
+    } else {
+      buffer.readInt()
+      val dataPacket = buffer.readBytes(length)
+      ChannelBuffers.wrappedBuffer(encryptor.decrypt(dataPacket))
+    }
+
+  }
 }
 
 /**
@@ -412,6 +459,10 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         logger.warn(s"Web proxy error,\n${IOUtils.toString(response.getContent.array(), UTF8.name())}}")
         throw new RuntimeException("WebProx Error:")
       }
+      case response: HttpResponse if response.getStatus.getCode == 503 ⇒ {
+        logger.debug(s"Web proxy timeout,\n${IOUtils.toString(response.getContent.array(), UTF8.name())}}")
+        ChannelBuffers.EMPTY_BUFFER
+      }
       case response: HttpResponse if !response.isChunked ⇒ { //For https data relay
         logger.info("Proxy request relay to remote server by WebProxy successful.")
         WebProxy.Close
@@ -427,20 +478,68 @@ class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder w
         logger.debug(s"[${channel}] - HTTPS request initialized, requestID: ${response.getHeader(ProxyRequestID.name)}")
         ChannelBuffers.EMPTY_BUFFER
       }
-      case chunk: HttpChunk if chunk.getContent.readableBytes() > 0 && !chunk.isLast ⇒ {
+      case chunk: HttpChunk if !chunk.isLast ⇒ {
 
-        logger.debug(s"[${channel}] - Receive data:\n ${Utils.formatMessage(chunk)}")
+        //        logger.error(s"####################[${channel}] - Receive response:\n ${Utils.formatMessage(chunk.getContent)}")
+        chunk.getContent
+        //        synchronized {
+        //          //          logger.error(s"####################[${channel}] - Receive response:\n ${Utils.formatMessage(chunk)}")
+        //          def isConsistentPacket(buffer: ChannelBuffer) = buffer.readableBytes() >= 2 && buffer.readableBytes() >= buffer.getShort(0)
+        //
+        //          buffers = arrayToBuffer(buffers.array() ++ chunk.getContent.array())
+        //
+        //          var records = Array[Byte]()
+        //          while (isConsistentPacket(buffers)) {
+        //            val dataPacket = new Array[Byte](buffers.readShort - 2)
+        //            buffers.readBytes(dataPacket)
+        //            logger.error(s"####################Receive response:${dataPacket.length}")
+        //            //            ctx.sendUpstream(new UpstreamMessageEvent(channel, arrayToBuffer(dataPacket), channel.getRemoteAddress))
+        //            records = records ++ dataPacket
+        //            buffers = ChannelBuffers.copiedBuffer(buffers)
+        //          }
+        //
+        //          def readData(dataPacket: ChannelBuffer): ChannelBuffer = {
+        //            dataPacket.readShort()
+        //            //          val data = new Array[Byte](dataPacket.readableBytes())
+        //            //          dataPacket.readBytes(data)
+        //            //          logger.error(s">>>>>>>>>>>>>>>>>>[${channel}] - Receive data:\n ${Utils.formatMessage(dataPacket)}")
+        //            ChannelBuffers.wrappedBuffer( /*encryptor.decrypt(data)*/ dataPacket)
+        //          }
+        //
+        //          if (buffers.readableBytes() > 0) {
+        //            logger.error(s"####################Pending: ${Utils.formatMessage(ChannelBuffers.copiedBuffer(buffers))}")
+        //          }
+        //
+        //          arrayToBuffer(records)
+        //
+        //        }
+        //        def receivedData: ChannelBuffer = {
+        //          def readData: ChannelBuffer = {
+        //            buffers.readShort()
+        //            val data = new Array[Byte](buffers.readableBytes())
+        //            buffers.readBytes(data)
+        //            buffers = ChannelBuffers.EMPTY_BUFFER
+        //            logger.error(s">>>>>>>>>>[${channel}] - Receive data:\n ${Utils.hexDumpToString(data)}")
+        //            ChannelBuffers.wrappedBuffer( /*encryptor.decrypt(data)*/ data)
+        //          }
+        //
+        //          while(isConsistentPacket(buffers)){
+        //            Channels.fireMessageReceived(browserChannel, readData)
+        //          }
+        //          ChannelBuffers.EMPTY_BUFFER
+        //          if (!isConsistentPacket(buffers))
+        //          ChannelBuffers.EMPTY_BUFFER
+        //          else {
+        //
+        //            readData
+        //            val wrappedBuffer: ChannelBuffer = ChannelBuffers.wrappedBuffer(readData, receivedData)
+        //            logger.error(s"------------------>[${channel}] - Receive response:\n ${Utils.formatMessage(ChannelBuffers.copiedBuffer(wrappedBuffer))}")
+        //            wrappedBuffer
 
-        def isConsistentPacket(buffer: ChannelBuffer) = buffer.readableBytes() >= 2 && buffer.getShort(0) == buffer.readableBytes()
-
-        buffers = ChannelBuffers.wrappedBuffer(buffers, chunk.getContent)
-        if (isConsistentPacket(buffers)) {
-          buffers.readShort()
-          val data = new Array[Byte](buffers.readableBytes())
-          buffers.readBytes(data)
-          buffers = ChannelBuffers.EMPTY_BUFFER
-          ChannelBuffers.wrappedBuffer(encryptor.decrypt(data))
-        } else ChannelBuffers.EMPTY_BUFFER
+        //            ChannelBuffers.EMPTY_BUFFER
+        //          }
+        //        }
+        //        receivedData
       }
       case chunk: HttpChunk if chunk.isLast ⇒ WebProxy.Close
       case unknownMessage                   ⇒ throw new RuntimeException(s"Received UnknownMessage: $unknownMessage")

@@ -26,9 +26,9 @@ package object web {
 
   def writeResponse(request: HttpServletRequest, response: HttpServletResponse, data: Array[Byte]) {
     val encrypt: Array[Byte] = encryptor.encrypt(data)
-    //    logger.debug(s"Write encrypt response: ${Utils.hexDumpToString(encrypt)}")
+     logger.debug(s"Write encrypt response: ${Utils.hexDumpToString(encrypt)}")
     //Write the length header of this data packet, include response data length and the length header length
-    response.getOutputStream.write(ByteBuffer.allocate(2).putShort((encrypt.length + 2).toShort).array())
+    response.getOutputStream.write(ByteBuffer.allocate(4).putInt(encrypt.length).array())
     response.getOutputStream.write(encrypt)
     response.getOutputStream.flush
   }

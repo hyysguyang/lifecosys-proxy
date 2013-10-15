@@ -19,8 +19,8 @@ object Dependencies {
 
   def container(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "container")
 
-  val netty = "io.netty" % "netty" % "3.6.5.Final"
-  val config = "com.typesafe" % "config" % "1.0.0"
+  val netty = "io.netty" % "netty" % "3.6.5.Final"  artifacts(Artifact("netty", "jar", "jar"))
+  val config = "com.typesafe" % "config" % "1.0.0"  artifacts(Artifact("config", "jar", "jar"))
   val bouncycastle = "org.bouncycastle" % "bcprov-jdk16" % "1.46"
   val jasypt = "org.jasypt" % "jasypt" % "1.9.0"
   val commonsLang = "org.apache.commons" % "commons-lang3" % "3.1"
@@ -50,7 +50,7 @@ object Dependencies {
   val scalatest = "org.scalatest" %% "scalatest" % "1.9.1"
   val sprayJson = "io.spray" %% "spray-json" % "1.2.3"
   val jettyWebApp = "org.eclipse.jetty" % "jetty-webapp" % "8.1.10.v20130312"
-  val servlet30 = "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016" artifacts Artifact("javax.servlet", "jar", "jar")
+  val servlet30 = "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016"
   val logback = "ch.qos.logback" % "logback-classic" % "1.0.12"
   val pegdown = "org.pegdown" % "pegdown" % "1.2.1"
 }

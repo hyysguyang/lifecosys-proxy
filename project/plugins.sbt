@@ -9,9 +9,12 @@ resolvers += "typesafeOnArtifactoryonline" at "http://typesafe.artifactoryonline
 resolvers += "Sonatype snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/"
 
 
-addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.6.0-SNAPSHOT")
+//please use the branch --android support-- of fxthomas' fork and change the version to 1.5.0-android-support.
+//https://github.com/fxthomas/sbt-idea
 
-addSbtPlugin("org.scala-sbt" % "sbt-android-plugin" % "0.6.3-20130429-SNAPSHOT")
+addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.0-android-support")
+
+addSbtPlugin("org.scala-sbt" % "sbt-android" % "0.7.1-SNAPSHOT")
 
 addSbtPlugin("com.lifecosys" % "sbt-dist-plugin" % "1.0.0-SNAPSHOT")
 

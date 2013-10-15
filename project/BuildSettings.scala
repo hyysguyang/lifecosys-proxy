@@ -3,10 +3,6 @@ import sbt._
 import Keys._
 import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
-import org.scalasbt.androidplugin._
-import org.scalasbt.androidplugin.AndroidKeys._
-import scala.Some
-
 
 object BuildSettings {
   val VERSION = "1.0-alpha4-SNAPSHOT"
@@ -34,8 +30,7 @@ object BuildSettings {
   )
 
   import net.virtualvoid.sbt.graph.Plugin._
-  lazy val moduleSettings =
-    basicSettings ++ formatSettings ++ graphSettings ++
+  lazy val projectBuildSettings = basicSettings ++ formatSettings ++ graphSettings ++
       seq(
         // scaladoc settings
         (scalacOptions in doc) <++= (name, version).map {
@@ -45,21 +40,14 @@ object BuildSettings {
         publishMavenStyle := true
       )
 
-  val baseAndroidSettings = Seq(
+  import sbtandroid.AndroidPlugin._
+  import sbtandroid.AndroidProjects
+  val androidSettings=AndroidProjects.Standard.defaults ++ Seq(
     versionCode := 0,
-    platformName in Android := "android-4.2",
-    useProguard in Android := true
+    platformName := "android-4.2",
+    useProguard := true,
+    keyalias := "change-me"
   )
-
-  lazy val fullAndroidSettings = baseAndroidSettings ++
-    AndroidProject.androidSettings ++
-    TypedResources.settings ++
-    AndroidManifestGenerator.settings ++
-    AndroidMarketPublish.settings ++ Seq(
-    keyalias in Android := "TODO:change-me"
-  )
-
-
 
 
   import com.lifecosys.sbt.DistPlugin

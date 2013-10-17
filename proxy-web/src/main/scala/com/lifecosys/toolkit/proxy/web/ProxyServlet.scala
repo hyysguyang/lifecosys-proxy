@@ -38,11 +38,11 @@ class ProxyServlet extends HttpServlet with Logging {
   override def service(request: HttpServletRequest, response: HttpServletResponse) {
     //    createSessionIfNecessary(request)
 
-    logger.error(s"----->Receive request: $request ")
+    //    logger.error(s"----->Receive request: $request ")
 
     //    require(StringUtils.isNotBlank(request.getHeader(ProxyRequestID.name)), "Proxy request ID must not be empty.")
     val proxyRequestBuffer: Array[Byte] = parseProxyRequest(request)
-    logger.debug(s">>>>>>>>>>>>Process proxy request:\n${Utils.hexDumpToString(proxyRequestBuffer)}")
+    //    logger.debug(s">>>>>>>>>>>>Process proxy request:\n${Utils.hexDumpToString(proxyRequestBuffer)}")
 
     proxyProcessor(request).process(proxyRequestBuffer)(request, response)
   }

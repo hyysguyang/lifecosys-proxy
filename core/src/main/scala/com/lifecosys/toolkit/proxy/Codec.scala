@@ -27,7 +27,7 @@ import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.apache.commons.io.IOUtils
 import com.typesafe.scalalogging.slf4j.Logging
-import com.lifecosys.toolkit.proxy.WebProxy.RequestData
+import com.lifecosys.toolkit.proxy.WebProxy.{ WebRequestData, RequestData }
 import java.util.TimerTask
 import java.util.concurrent.atomic.AtomicInteger
 import org.jboss.netty.handler.codec.frame.FrameDecoder
@@ -130,9 +130,38 @@ object WebProxy {
       ChannelBuffers.wrappedBuffer(requestIDBuffer, requestData.request)
     }
   }
-  case class RequestData(requestID: String = "", request: ChannelBuffer = ChannelBuffers.EMPTY_BUFFER) {
+  case class RequestData(requestID: String = "", request: ChannelBuffer = ChannelBuffers.EMPTY_BUFFER)
 
+  object WebRequestData {
+
+    def apply(data: ChannelBuffer): WebRequestData = {
+      require(data.readableBytes() > 2, "The data must be > 2 since the data should include requestID and content.")
+      val requestIDBuffer = new Array[Byte](data.readByte())
+      data.readBytes(requestIDBuffer)
+      val requestID = new String(requestIDBuffer, UTF8)
+
+      val proxyHostBuffer = new Array[Byte](data.readByte())
+      data.readBytes(proxyHostBuffer)
+      val proxyHost = new String(proxyHostBuffer, UTF8)
+
+      WebRequestData(requestID, Host(proxyHost), data)
+    }
+
+    def toBuffer(requestData: WebRequestData) = {
+
+      val ri = requestData.requestID.getBytes(UTF8)
+      val requestIDBuffer = ChannelBuffers.dynamicBuffer(ri.length + requestData.request.readableBytes())
+      requestIDBuffer.writeByte(ri.length)
+      requestIDBuffer.writeBytes(ri)
+
+      val ph = requestData.proxyHost.toString.getBytes(UTF8)
+      requestIDBuffer.writeByte(ph.length)
+      requestIDBuffer.writeBytes(ph)
+
+      ChannelBuffers.wrappedBuffer(requestIDBuffer, requestData.request)
+    }
   }
+  case class WebRequestData(requestID: String = "", proxyHost: Host, request: ChannelBuffer = ChannelBuffers.EMPTY_BUFFER)
 
   def jsessionidCookie(channel: Channel) = channel.getAttachment match {
     case Some(jsessionid) if jsessionid.isInstanceOf[Cookie] ⇒ {
@@ -258,10 +287,7 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
         val encodedProxyRequest = super.encode(ctx, channel, request).asInstanceOf[ChannelBuffer]
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
 
-        val encodedProxyHost = base64.encodeToString(encryptor.encrypt(proxyHost.toString.getBytes(UTF8)), false)
-        wrappedRequest.setHeader(ProxyHostHeader.name, encodedProxyHost)
-        jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
-
+        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, encodedProxyRequest)))
         //        wrappedRequest.setHeader(ProxyRequestID.name, channel.getAttachment)
         //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${encodedProxyRequest.readableBytes()}##########################")
         //        setContent(wrappedRequest, encodedProxyRequest)
@@ -271,16 +297,16 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
         }
 
         wrappedRequest.setHeader(ProxyRequestType.name, requestType.value)
-        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, encodedProxyRequest)))
+        setContent(wrappedRequest, WebRequestData.toBuffer(WebRequestData(channel.getAttachment.toString, proxyHost, encodedProxyRequest)))
         wrappedRequest
       }
       case buffer: ChannelBuffer if buffer.readableBytes() == 0 ⇒ buffer //Process for close flush buffer.
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost, jsessionidCookie)
-
-        val encodedProxyHost = base64.encodeToString(encryptor.encrypt(proxyHost.toString.getBytes(UTF8)), false)
-        wrappedRequest.setHeader(ProxyHostHeader.name, encodedProxyHost)
-        jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
+        //
+        //        val encodedProxyHost = base64.encodeToString(encryptor.encrypt(proxyHost.toString.getBytes(UTF8)), false)
+        //        wrappedRequest.setHeader(ProxyHostHeader.name, encodedProxyHost)
+        //        jsessionidCookie.foreach(wrappedRequest.setHeader(HttpHeaders.Names.COOKIE, _))
 
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
         //        wrappedRequest.setHeader(ProxyRequestID.name, browserChannel.getAttachment) //TODO:Need use browserChannel for war-based web proxy
@@ -288,7 +314,10 @@ class WebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, brow
 
         //        wrappedRequest.setHeader("x-seq", channel.getAttachment)
         //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${buffer.readableBytes()}##########################")
-        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, buffer)))
+        //        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, buffer)))
+
+        setContent(wrappedRequest, WebRequestData.toBuffer(WebRequestData(channel.getAttachment.toString, proxyHost, buffer)))
+
         wrappedRequest
       case e ⇒ e
     }
@@ -376,6 +405,28 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
     case _ ⇒ msg
   }
 
+}
+
+class NettyLoggingHandler extends Logging with ChannelUpstreamHandler with ChannelDownstreamHandler {
+
+  def handleUpstream(ctx: ChannelHandlerContext, e: ChannelEvent) {
+
+    e match {
+      case me: MessageEvent if me.getMessage.isInstanceOf[ChannelBuffer] ⇒
+        logger.error(s">>>>>>>>>>>[${e.getChannel.getAttachment}] - Received: ${me.getMessage.asInstanceOf[ChannelBuffer].readableBytes()}")
+      case _ ⇒
+    }
+    ctx.sendUpstream(e)
+  }
+
+  def handleDownstream(ctx: ChannelHandlerContext, e: ChannelEvent) {
+    //    e match {
+    //      case me: MessageEvent if me.getMessage.isInstanceOf[ChannelBuffer] ⇒
+    //        logger.error(s"################Send: ${Utils.formatMessage(me.getMessage.asInstanceOf[ChannelBuffer])}")
+    //      case _ ⇒
+    //    }
+    ctx.sendDownstream(e)
+  }
 }
 
 class EncryptDataFrameDecoder extends FrameDecoder with Logging {

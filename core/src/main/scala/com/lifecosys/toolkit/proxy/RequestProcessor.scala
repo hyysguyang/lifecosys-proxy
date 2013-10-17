@@ -313,7 +313,7 @@ class WebProxyHttpRequestProcessor(request: HttpRequest, browserChannel: Channel
   override def adjustPipelineForReused(channel: Channel) {
     channel.getPipeline.replace("proxyServerToRemote-webProxyEncryptDataDecoder", "proxyServerToRemote-webProxyEncryptDataDecoder", new EncryptDataFrameDecoder)
     channel.getPipeline.replace("proxyServerToRemote-httpRequestEncoder", "proxyServerToRemote-httpRequestEncoder", httpRequestEncoder)
-    channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
+    channel.getPipeline.replace("proxyServerToRemote-webProxyResponseDecoder", "proxyServerToRemote-webProxyResponseDecoder", new WebProxyResponseDecoder(browserChannel))
     channel.getPipeline.replace("proxyServerToRemote-proxyToServerHandler", "proxyServerToRemote-proxyToServerHandler", new WebProxyHttpRelayingHandler(browserChannel))
   }
 

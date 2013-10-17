@@ -25,7 +25,7 @@ import scala.util.Failure
 import scala.Some
 import scala.util.Success
 import java.util.{ TimerTask, Timer }
-import com.lifecosys.toolkit.proxy.WebProxy.RequestData
+import com.lifecosys.toolkit.proxy.WebProxy.{ WebRequestData, RequestData }
 
 /**
  *
@@ -58,7 +58,7 @@ sealed trait NettyTaskSupport {
     })
   }
 
-  def createConnection(asyncContext: AsyncContext)(connectedCallback: (Channel) ⇒ Unit) = {
+  def createConnection(asyncContext: AsyncContext, channelKey: ChannelKey)(connectedCallback: (Channel) ⇒ Unit) = {
     val request = asyncContext.getRequest.asInstanceOf[HttpServletRequest]
     val response = asyncContext.getResponse.asInstanceOf[HttpServletResponse]
     //    request.setAttribute("com.lifecosys.toolkit.proxy.request.completed",false)
@@ -74,23 +74,25 @@ sealed trait NettyTaskSupport {
 
     //    logger.error("#################Create connection######################")
     try {
-      connect(asyncContext, parseChannelKey(request)) match {
+      connect(asyncContext, channelKey) match {
         case Some(channel) ⇒ {
           //          channel.setAttachment(request.getHeader(ProxyRequestID.name))
           //          logger.error(s">>>>>>>>>>>>>>>>>[${channel.getAttachment}] - connection created......${channel}")
           //          synchronized(channels += request.getHeader(ProxyRequestID.name) -> channel)
           //        request.getSession(false).setAttribute(SESSION_KEY_ENDPOINT, channel)
+          channel.setAttachment(channelKey.sessionId)
+          DefaultHttpsRequestManager.add(channelKey.sessionId, channel)
           connectedCallback(channel)
         }
-        case None ⇒ logger.warn(s"[${request.getHeader(ProxyRequestID.name)}] Can't create connection")
+        case None ⇒ logger.warn(s"[${channelKey.sessionId}] Can't create connection")
       }
 
     } catch {
       case t: Throwable ⇒ {
-        logger.warn(s"[${request.getHeader(ProxyRequestID.name)}]  process request error.....", t)
+        logger.warn(s"[${channelKey.sessionId}]  process request error.....", t)
         writeErrorResponse(response)
         Try(asyncContext.complete())
-        logger.info(s"[${request.getHeader(ProxyRequestID.name)}]  request completed.....")
+        logger.info(s"[${channelKey.sessionId}]  request completed.....")
       }
     }
 
@@ -156,10 +158,10 @@ class HttpNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport w
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
 
-    val requestData = RequestData(proxyRequestBuffer)
-    val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) {
+    val requestData = WebRequestData(proxyRequestBuffer)
+    val channelKey = ChannelKey(requestData.requestID, requestData.proxyHost)
+    val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext, channelKey) {
       channel ⇒
-        synchronized(channels += requestData.requestID -> channel)
         logger.debug(s"[$channel] - Writing proxy request:\n ${Utils.hexDumpToString(proxyRequestBuffer)}")
         channel.write(ChannelBuffers.wrappedBuffer(requestData.request))
     }
@@ -170,15 +172,16 @@ class HttpNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport w
 
 class HttpsNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport with Logging {
   override def pipelineFactory(asyncContext: AsyncContext) = (pipeline: ChannelPipeline) ⇒ {
+    pipeline.addLast("logger", new NettyLoggingHandler)
     super.pipelineFactory(asyncContext)(pipeline)
     pipeline.addLast("handler", new ProxyResponseRelayingHandler(asyncContext))
   }
 
   def process(proxyRequestBuffer: Array[Byte])(implicit request: HttpServletRequest, response: HttpServletResponse) {
 
-    val requestData = RequestData(proxyRequestBuffer)
-
-    channels.get(requestData.requestID) match {
+    val requestData = WebRequestData(proxyRequestBuffer)
+    val channelKey = ChannelKey(requestData.requestID, requestData.proxyHost)
+    DefaultHttpsRequestManager.get(requestData.requestID) match {
       case Some(channel) ⇒ {
         if (channel.isConnected) {
           //          DefaultRequestManager.add(Request(request.getHeader("x-seq"), channel, channel))
@@ -193,9 +196,8 @@ class HttpsNettyProxyProcessor extends web.ProxyProcessor with NettyTaskSupport 
       }
       case _ ⇒ {
 
-        val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext) { channel ⇒
+        val task = (asyncContext: AsyncContext) ⇒ createConnection(asyncContext, channelKey) { channel ⇒
 
-          synchronized(channels += requestData.requestID -> channel)
           writeResponse(request, response, Utils.connectProxyResponse.getBytes("UTF-8"))
           //          DefaultRequestManager.add(Request(request.getHeader("x-seq"), channel, channel))
           //          logger.error(s">>>>>>>>>>>>>>>>>[${request.getHeader("x-seq")}] --- [${channel}] - process connection request....")
@@ -223,14 +225,14 @@ sealed class ProxyResponseRelayingHandler(val asyncContext: AsyncContext) extend
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     logger.debug(s"[${ctx.getChannel}] - channel closed..")
     Try {
-      //      logger.error(s">>>>>>>>>>>>>>>>>[${request.getHeader(ProxyRequestID.name)}] - request completed...${ctx.getChannel}")
-      synchronized(channels -= request.getHeader(ProxyRequestID.name))
+      logger.error(s">>>>>>>>>>>>>>>>>[${e.getChannel.getAttachment.toString}] - request completed...")
+      DefaultHttpsRequestManager.remove(e.getChannel.getAttachment.toString)
       Try(asyncContext.complete())
     } match {
       case Success(v) ⇒
       case Failure(t) ⇒ {
         val re = "\n"
-        logger.error(s"[${e.getChannel}] - error when closed---\n #######${request.getHeader(ProxyRequestID.name)}############", t)
+        logger.error(s"[${e.getChannel}] - error when closed---\n #######${e.getChannel.getAttachment.toString}############", t)
       }
     }
   }
@@ -282,7 +284,7 @@ sealed class HttpProxyResponseRelayingHandler(asyncContext: AsyncContext) extend
 
     def reuseChannel {
       Try {
-        synchronized(channels -= request.getHeader(ProxyRequestID.name))
+        DefaultHttpsRequestManager.remove(e.getChannel.getAttachment.toString)
         Try(asyncContext.complete())
       }
 

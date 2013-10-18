@@ -31,6 +31,8 @@ import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
 import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.ClosedChannelException
+import org.jboss.netty.handler.logging.LoggingHandler
+import org.jboss.netty.logging.InternalLogLevel
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -52,6 +54,7 @@ class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyCon
   override def proxyServerPipeline = (pipeline: ChannelPipeline) ⇒ {
 
     //    pipeline.addLast("logger", new LoggingHandler(InternalLogLevel.ERROR, true))
+
     if (proxyConfig.serverSSLEnable) {
       val engine = proxyConfig.serverSSLContext.createSSLEngine()
       engine.setUseClientMode(false)

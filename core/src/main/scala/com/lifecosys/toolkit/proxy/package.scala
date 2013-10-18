@@ -79,7 +79,7 @@ package object proxy {
   }
 
   def addIdleChannelHandler(pipeline: ChannelPipeline) = {
-    pipeline.addLast("idleHandler", new IdleStateHandler(nettyTimer, 0, 0, 120))
+    pipeline.addLast("idleHandler", new IdleStateHandler(nettyTimer, 0, 0, 240))
     pipeline.addLast("idleStateAwareHandler", new IdleStateAwareChannelHandler {
       override def channelIdle(ctx: ChannelHandlerContext, e: IdleStateEvent) = Utils.closeChannel(e.getChannel)
     })

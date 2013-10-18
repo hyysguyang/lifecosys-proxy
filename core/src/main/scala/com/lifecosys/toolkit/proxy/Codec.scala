@@ -110,6 +110,8 @@ object WebProxy {
 
   case object PrepareResponse
   case object FinishResponse
+  case object CompleteRelayDataRequest
+  case object TickResponse
 
   object RequestData {
 
@@ -143,7 +145,7 @@ object WebProxy {
 }
 
 case class RequestIndex(requestID: String, seqID: AtomicInteger, pending: scala.collection.mutable.Map[Int, ChannelBuffer])
-
+case class RequestInfo(requestID: String, sequenceID: AtomicInteger = new AtomicInteger)
 trait HttpsRequestIndexManager {
   protected val cachedChannelFutures = scala.collection.mutable.Map[String, RequestIndex]()
   def get(requestID: String) = synchronized(cachedChannelFutures.get(requestID))
@@ -184,7 +186,7 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
               require(httpRequest.getHeader("x-i").toInt == seqId.get())
               remoteChannel.write(requestData.request).addListener {
                 writeFuture: ChannelFuture ⇒
-                  logger.debug(s"[${channel}] - Finished write request: ${seqId.get()} --> ${Utils.formatMessage(requestData.request)}")
+                  logger.debug(s"[${channel}] - Finished writing request: ${seqId.get()} to remote server.")
                   writeRequestToRemte
                   logger.debug(s"[${channel}] - completed...")
               }
@@ -194,7 +196,7 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
               def writePendingRequest(buffer: ChannelBuffer) {
                 remoteChannel.write(buffer).addListener {
                   writeFuture: ChannelFuture ⇒
-                    logger.debug(s"[${channel}] - Finished write request ${seqId.get()}--> ${Utils.formatMessage(buffer)}")
+                    logger.debug(s"[${channel}] - Finished writing request: ${seqId.get()} to remote server.")
                     synchronized(requestIndex.pending - seqId.get())
                     seqId.incrementAndGet()
                     writeRequestToRemte
@@ -209,6 +211,11 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
                 }
               }
 
+            }
+
+            channel.write(WebProxy.CompleteRelayDataRequest).addListener {
+              writeFuture: ChannelFuture ⇒
+                logger.debug(s"[${channel}] - finished writing response completed...")
             }
 
             null
@@ -228,10 +235,11 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
 class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, browserChannel: Channel)
     extends HttpRequestEncoder with Logging {
 
-  val seqId = new AtomicInteger
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
     logger.debug(s"[$channel] - Prepare request to WebProxy for ${channel.getAttachment}")
+
+    val requestInfo = channel.getAttachment.asInstanceOf[RequestInfo]
 
     def setContent(wrappedRequest: DefaultHttpRequest, content: ChannelBuffer) = {
       logger.debug(s"Proxy request:\n ${Utils.formatMessage(content)}")
@@ -247,15 +255,15 @@ class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host,
         val encodedProxyRequest = super.encode(ctx, channel, request).asInstanceOf[ChannelBuffer]
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost)
         //        logger.error(s"#######${browserChannel.getAttachment} - Send data ${encodedProxyRequest.readableBytes()}##########################")
-        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, encodedProxyRequest)))
+        setContent(wrappedRequest, RequestData.toBuffer(RequestData(requestInfo.requestID, encodedProxyRequest)))
         wrappedRequest
       }
       case buffer: ChannelBuffer if buffer.readableBytes() == 0 ⇒ buffer //Process for close flush buffer.
       case buffer: ChannelBuffer ⇒
         val wrappedRequest = WebProxy.createWrappedRequest(connectHost, proxyHost)
         wrappedRequest.setHeader(ProxyRequestType.name, HTTPS.value)
-        setContent(wrappedRequest, RequestData.toBuffer(RequestData(channel.getAttachment.toString, buffer)))
-        wrappedRequest.setHeader("x-i", seqId.incrementAndGet())
+        setContent(wrappedRequest, RequestData.toBuffer(RequestData(requestInfo.requestID, buffer)))
+        wrappedRequest.setHeader("x-i", requestInfo.sequenceID.incrementAndGet())
         wrappedRequest
       case e ⇒ e
     }
@@ -266,43 +274,55 @@ class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host,
 
 class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
 
-  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = msg match {
+  override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
+    logger.debug(s"[$channel] - receive data: ${Utils.formatMessage(msg)}")
 
-    case buffer: ChannelBuffer ⇒
-      logger.debug(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
-      val encrypt = encryptor.encrypt(buffer) //bufferToArray(buffer)
-      val lengthBuffer = ChannelBuffers.dynamicBuffer(4)
-      lengthBuffer.writeInt(encrypt.length)
-      val wrappedBuffer: ChannelBuffer = ChannelBuffers.wrappedBuffer(lengthBuffer.array(), encrypt)
-      new DefaultHttpChunk(wrappedBuffer)
-    case WebProxy.PrepareResponse ⇒
-      logger.debug(s"[$channel] - Initialize chunked response, requestID: ${channel.getAttachment}")
+    msg match {
+      case buffer: ChannelBuffer if buffer.readableBytes() > 0 ⇒ writeBufferResponse(channel, buffer)
+      case WebProxy.TickResponse                               ⇒ writeBufferResponse(channel, ChannelBuffers.EMPTY_BUFFER)
+      case WebProxy.PrepareResponse ⇒
+        logger.debug(s"[$channel] - Initialize chunked response, requestID: ${channel.getAttachment}")
 
-      val timerTask: TimerTask = new TimerTask() {
-        def run() {
-          if (channel.isConnected)
-            channel.write(ChannelBuffers.EMPTY_BUFFER).addListener {
-              writeFuture: ChannelFuture ⇒
-                logger.error(s"[${ctx.getChannel}] - Finished write tick response")
-            }
-          else
-            DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
+        val timerTask: TimerTask = new TimerTask() {
+          def run() {
+            if (channel.isConnected)
+              channel.write(WebProxy.TickResponse).addListener {
+                writeFuture: ChannelFuture ⇒
+                  logger.error(s"[${ctx.getChannel}] - Finished write tick response")
+              }
+            else
+              DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
+          }
         }
+        DefaultTimerTaskManager.add(channel.getAttachment.toString, timerTask)
+        timer.scheduleAtFixedRate(timerTask, 40000, 40000)
+
+        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+        response.setChunked(true)
+        response
+      case WebProxy.CompleteRelayDataRequest ⇒ {
+        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+        response.setHeader(HttpHeaders.Names.CONTENT_LENGTH, 0)
+        logger.error(s">>>>>>>>>>>>>>>>$channel #### -\n ${Utils.formatMessage(response)}")
+        response
       }
-      DefaultTimerTaskManager.add(channel.getAttachment.toString, timerTask)
-      timer.scheduleAtFixedRate(timerTask, 40000, 40000)
+      case WebProxy.FinishResponse ⇒
+        logger.debug(s"[$channel] - Finishing response.")
+        DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
+        new DefaultHttpChunkTrailer
+      case _ ⇒ msg
+    }
 
-      val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
-      response.setChunked(true)
-      response
-
-    case WebProxy.FinishResponse ⇒
-      logger.debug(s"[$channel] - Finishing response.")
-      DefaultTimerTaskManager.remove(channel.getAttachment.toString) foreach (_.cancel)
-      new DefaultHttpChunkTrailer
-    case _ ⇒ msg
   }
 
+  def writeBufferResponse(channel: Channel, buffer: ChannelBuffer): DefaultHttpChunk = {
+    logger.debug(s"[$channel] - Writing response \n ${Utils.formatMessage(buffer)}")
+    val encrypt = /*encryptor.encrypt(buffer) */ bufferToArray(buffer)
+    val lengthBuffer = ChannelBuffers.dynamicBuffer(4)
+    lengthBuffer.writeInt(encrypt.length)
+    val wrappedBuffer: ChannelBuffer = ChannelBuffers.wrappedBuffer(lengthBuffer.array(), encrypt)
+    new DefaultHttpChunk(wrappedBuffer)
+  }
 }
 
 class NettyLoggingHandler extends Logging with ChannelUpstreamHandler with ChannelDownstreamHandler {
@@ -311,18 +331,18 @@ class NettyLoggingHandler extends Logging with ChannelUpstreamHandler with Chann
 
     e match {
       case me: MessageEvent if me.getMessage.isInstanceOf[ChannelBuffer] ⇒
-        logger.error(s">>>>>>>>>>>[${e.getChannel.getAttachment}] - Received: ${me.getMessage.asInstanceOf[ChannelBuffer].readableBytes()}")
+        logger.error(s">>>>>>>>>>>[${e.getChannel.getAttachment}] - Received: ${Utils.formatMessage(me.getMessage.asInstanceOf[ChannelBuffer])}")
       case _ ⇒
     }
     ctx.sendUpstream(e)
   }
 
   def handleDownstream(ctx: ChannelHandlerContext, e: ChannelEvent) {
-    //    e match {
-    //      case me: MessageEvent if me.getMessage.isInstanceOf[ChannelBuffer] ⇒
-    //        logger.error(s"################Send: ${Utils.formatMessage(me.getMessage.asInstanceOf[ChannelBuffer])}")
-    //      case _ ⇒
-    //    }
+    e match {
+      case me: MessageEvent if me.getMessage.isInstanceOf[ChannelBuffer] ⇒
+        logger.error(s"################Send: ${Utils.formatMessage(me.getMessage.asInstanceOf[ChannelBuffer])}")
+      case _ ⇒
+    }
     ctx.sendDownstream(e)
   }
 }
@@ -337,7 +357,7 @@ class EncryptDataFrameDecoder extends FrameDecoder with Logging {
     }
     if (isConsistentPacket(buffer)) {
       val dataPacket = buffer.readBytes(buffer.readInt())
-      ChannelBuffers.wrappedBuffer(encryptor.decrypt(dataPacket))
+      ChannelBuffers.wrappedBuffer( /*encryptor.decrypt(dataPacket)*/ dataPacket)
     } else null
 
   }

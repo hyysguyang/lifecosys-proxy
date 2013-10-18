@@ -29,7 +29,7 @@ import org.jboss.netty.buffer.{ ChannelBuffers, ChannelBuffer }
 import java.nio.charset.Charset
 import org.parboiled.common.Base64
 import org.jboss.netty.handler.timeout.{ IdleStateEvent, IdleStateAwareChannelHandler, IdleStateHandler }
-import java.util.{ Timer, TimerTask }
+import java.util.Timer
 
 /**
  *

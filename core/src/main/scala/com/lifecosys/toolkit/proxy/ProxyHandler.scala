@@ -24,7 +24,6 @@ import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import java.nio.channels.ClosedChannelException
 import com.typesafe.scalalogging.slf4j.Logging
-import org.jboss.netty.buffer.ChannelBuffer
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -249,7 +248,7 @@ class NettyWebProxyServerHttpsRelayingHandler(relayingChannel: Channel)(implicit
     relayingChannel.write(WebProxy.FinishResponse).addListener {
       writeFuture: ChannelFuture ⇒
         Utils.closeChannel(relayingChannel)
-        logger.error(s"[${ctx.getChannel}] - close relaying channel")
+        logger.debug(s"[${ctx.getChannel}] - close relaying channel")
     }
 
   }
@@ -269,55 +268,6 @@ class NettyWebProxyClientHttpsRelayingHandler(relayingChannel: Channel)(implicit
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
     super.channelClosed(ctx, e)
     Utils.closeChannel(relayingChannel)
-  }
-}
-
-class WebProxyHttpRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) with HttpResponseRelayingHandler {
-
-  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
-
-    //    logger.error(s">>>>>>>>>>>>>>>>>[${browserChannel.getAttachment}] - receive data ...${e.getMessage} on ${ctx.getChannel}")
-    val message = responsePreProcess(e.getMessage)
-    message match {
-      case WebProxy.Close ⇒ {
-        HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-        logger.debug(s"$HttpChannelManager")
-        logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-      }
-      case _ ⇒ writeResponse(message)
-    }
-  }
-
-  //DO NOT CLOSE browser channel
-  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    super.channelClosed(ctx, e)
-    logger.debug(s"[${ctx.getChannel}] - channel closed..")
-    HttpChannelManager.removeClosedChannel(e.getChannel.getRemoteAddress)
-  }
-}
-
-class WebProxyHttpsRelayingHandler(browserChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends BaseRelayingHandler(browserChannel) {
-
-  override def processMessage(ctx: ChannelHandlerContext, e: MessageEvent) {
-
-    e.getMessage match {
-      case responseBuffer: ChannelBuffer if responseBuffer.readableBytes() > 0 ⇒ writeResponse(responseBuffer)
-      case WebProxy.Close ⇒ {
-        HttpsChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-        logger.debug(s"$HttpsChannelManager")
-        logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-      }
-      case _ ⇒
-    }
-  }
-
-  //DO NOT CLOSE browser channel
-  override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    super.channelClosed(ctx, e)
-    logger.debug(s"[${ctx.getChannel}] - channel closed..")
-    HttpsChannelManager.removeClosedChannel(e.getChannel.getRemoteAddress)
   }
 }
 

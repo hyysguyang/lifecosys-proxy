@@ -14,7 +14,7 @@ object LifecosysToolkitBuild extends Build {
   // -------------------------------------------------------------------------------------------------------------------
 
   lazy val root = Project("lifecosys-toolkit", file("."))
-    .aggregate(core, proxy, proxyWeb, android)
+    .aggregate(core, proxy, android)
     .settings(basicSettings: _*)
     .settings(noPublishing: _*)
 
@@ -37,16 +37,6 @@ object LifecosysToolkitBuild extends Build {
     .settings(distSettings ++ Seq(additionalFiles in com.lifecosys.sbt.DistPlugin.Dist <<= includeFiles): _*)
     //.settings((AkkaKernelPlugin.distSettings ++ Seq(distMainClass in Dist := "com.lifecosys.toolkit.proxy.ProxyServerLauncher" )):_*)
     .settings(libraryDependencies ++= runtime() ++ test(junit, scalatest, fluentHC))
-
-  lazy val proxyWeb = Project("ProxyWeb", file("proxy-web"))
-    .dependsOn(core)
-    .settings(projectBuildSettings: _*)
-    .settings(jettySettings: _*)
-    .settings(libraryDependencies ++=
-//    test(sprayTestkit) ++
-      compile(servlet30) ++
-      container(jettyWebApp)
-  )
 
   import sbtandroid.AndroidPlugin._
   lazy val android = Project("Android", file("android"))

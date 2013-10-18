@@ -126,7 +126,7 @@ object Utils {
       //    val splitLine="-------------------------------------------------------------------------\n"
       val splitLine = "##################################################################"
       val output = new ByteArrayOutputStream()
-      HexDump.dump(bytes, bytes.length, output, 0)
+      HexDump.dump(bytes.take(bytes.length), 0, output, 0)
       splitLine + s"Length: ${bytes.length}\n" + IOUtils.toString(new ByteArrayInputStream(output.toByteArray)) + splitLine
     } else {
       "##############################EMPTY BUFFER###############################"

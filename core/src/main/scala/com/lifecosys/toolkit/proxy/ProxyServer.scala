@@ -31,8 +31,6 @@ import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
 import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.ClosedChannelException
-import java.util.TimerTask
-import org.jboss.netty.buffer.ChannelBuffers
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
@@ -209,8 +207,6 @@ class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
   def requestProcessor(httpRequest: HttpRequest, ctx: ChannelHandlerContext): RequestProcessor = {
     implicit val connectHost = proxyConfig.getChainProxyManager.getConnectHost(httpRequest.getUri).get
     val requestProcessor = connectHost.serverType match {
-      case WebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new WebProxyHttpsRequestProcessor(httpRequest, ctx.getChannel)
-      case WebProxyType ⇒ new WebProxyHttpRequestProcessor(httpRequest, ctx.getChannel)
       case NettyWebProxyType if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NettyWebProxyClientHttpsRequestProcessor(httpRequest, ctx.getChannel)
       case NettyWebProxyType ⇒ new NettyWebProxyClientHttpRequestProcessor(httpRequest, ctx.getChannel)
       case other if HttpMethod.CONNECT == httpRequest.getMethod ⇒ new NetHttpsRequestProcessor(httpRequest, ctx.getChannel)

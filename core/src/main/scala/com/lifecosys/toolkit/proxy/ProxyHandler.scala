@@ -94,18 +94,8 @@ class NetHttpResponseRelayingHandler(browserChannel: Channel)(implicit proxyConf
 
     def writeListener = (future: ChannelFuture) ⇒ {
       message match {
-        case response: HttpMessage if !response.isChunked ⇒ {
-          if (!HttpHeaders.isKeepAlive(response))
-            Utils.closeChannel(e.getChannel)
-          else {
-            HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-            logger.debug(s"$HttpChannelManager")
-            logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-          }
-        }
-        case chunk: HttpChunk if chunk.isLast ⇒ {
-          Utils.closeChannel(e.getChannel)
-        }
+        case response: HttpMessage if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
+        case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
         case _ ⇒
       }
     }
@@ -130,27 +120,15 @@ class NettyWebProxyClientHttpRelayingHandler(browserChannel: Channel)(implicit p
       case _              ⇒ writeResponse(message, writeListener)
 
     }
-
     def writeListener = (future: ChannelFuture) ⇒ {
       message match {
-        case WebProxy.Close ⇒ {
-          HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-          logger.debug(s"$HttpChannelManager")
-          logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-        }
-        case response: HttpMessage if !response.isChunked ⇒ {
-          HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-          logger.debug(s"$HttpChannelManager")
-          logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-        }
-        case chunk: HttpChunk if chunk.isLast ⇒ {
-          HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-          logger.debug(s"$HttpChannelManager")
-          logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-        }
+        case response: HttpMessage if !response.isChunked ⇒ Utils.closeChannel(e.getChannel)
+        case chunk: HttpChunk if chunk.isLast ⇒ Utils.closeChannel(e.getChannel)
+        case WebProxy.Close ⇒ Utils.closeChannel(e.getChannel)
         case _ ⇒
       }
     }
+
   }
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
@@ -172,27 +150,13 @@ class NettyWebProxyServerHttpRelayingHandler(browserChannel: Channel)(implicit p
       message match {
         case response: HttpMessage if !response.isChunked ⇒ {
           writeResponse(WebProxy.FinishResponse, {
-            (future: ChannelFuture) ⇒
-              {
-                if (!HttpHeaders.isKeepAlive(response))
-                  Utils.closeChannel(e.getChannel)
-                else {
-                  HttpChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-                  logger.debug(s"$HttpChannelManager")
-                  logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-                }
-                logger.debug(s"[${future.getChannel}] - Write data to channel  completed.")
-              }
+            (future: ChannelFuture) ⇒ Utils.closeChannel(e.getChannel)
           })
 
         }
         case chunk: HttpChunk if chunk.isLast ⇒ {
           writeResponse(WebProxy.FinishResponse, {
-            (future: ChannelFuture) ⇒
-              {
-                Utils.closeChannel(e.getChannel)
-                logger.debug(s"[${future.getChannel}] - Write data to channel  completed.")
-              }
+            (future: ChannelFuture) ⇒ Utils.closeChannel(e.getChannel)
           })
 
         }
@@ -232,8 +196,9 @@ class NettyWebProxyServerHttpsRelayingHandler(relayingChannel: Channel)(implicit
     writeResponse(e.getMessage)
     if (!relayingChannel.isConnected) {
       DefaultTimerTaskManager.remove(relayingChannel.getAttachment.toString) foreach (_.cancel)
-      relayingChannel.write(WebProxy.FinishResponse)
-      Utils.closeChannel(e.getChannel)
+      relayingChannel.write(WebProxy.FinishResponse).addListener({
+        (future: ChannelFuture) ⇒ Utils.closeChannel(e.getChannel)
+      })
     }
   }
 
@@ -251,11 +216,7 @@ class NettyWebProxyClientHttpsRelayingHandler(browserChannel: Channel)(implicit 
 
     e.getMessage match {
       case responseBuffer: ChannelBuffer if responseBuffer.readableBytes() > 0 ⇒ writeResponse(responseBuffer)
-      case WebProxy.Close ⇒ {
-        HttpsChannelManager.add(e.getChannel.getRemoteAddress, Channels.succeededFuture(e.getChannel))
-        logger.debug(s"$HttpsChannelManager")
-        logger.info(s"[${e.getChannel}] - Success to reuse channel.")
-      }
+      case WebProxy.Close ⇒ Utils.closeChannel(e.getChannel)
       case _ ⇒
     }
   }

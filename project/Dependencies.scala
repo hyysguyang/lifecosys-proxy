@@ -26,7 +26,12 @@ object Dependencies {
   val commonsLang = "org.apache.commons" % "commons-lang3" % "3.1"
   val commonsIO = "commons-io" % "commons-io" % "2.4"
   val scalalogging = "com.typesafe" %% "scalalogging-slf4j" % "1.1.0-SNAPSHOT"
-  val slf4jLog4j12 = "org.slf4j" % "slf4j-log4j12" % "1.7.5"
+
+  val slf4jVersion = "1.7.6-SNAPSHOT"
+  val slf4jApi = "org.slf4j" % "slf4j-api" % slf4jVersion
+  val slf4jLog4j12 = "org.slf4j" % "slf4j-log4j12" % slf4jVersion
+  val slf4jAndroid =  "org.slf4j" % "slf4j-android" % slf4jVersion
+
   val log4j = "log4j" % "log4j" % "1.2.17"
   val fluentHC = "org.apache.httpcomponents" % "fluent-hc" % "4.3-beta2"
   val dnsjava = "dnsjava" % "dnsjava" % "2.1.1"

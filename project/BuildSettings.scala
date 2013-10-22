@@ -5,7 +5,7 @@ import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 
 object BuildSettings {
-  val VERSION = "1.0-beta1"
+  val VERSION = "1.0-beta2-SNAPSHOT"
 
   val basicSettings = Defaults.defaultSettings ++ seq(
     version := VERSION,

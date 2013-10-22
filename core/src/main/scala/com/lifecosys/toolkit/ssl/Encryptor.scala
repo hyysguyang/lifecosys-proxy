@@ -12,6 +12,7 @@ import javax.crypto.{ CipherInputStream, Cipher }
 import javax.crypto.spec.{ IvParameterSpec, SecretKeySpec }
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.io.InputStream
+import org.jasypt.encryption.pbe.StandardPBEByteEncryptor
 
 trait Encryptor {
   def encrypt(plainData: Array[Byte]): Array[Byte]
@@ -20,6 +21,22 @@ trait Encryptor {
 }
 
 class DefaultEncryptor extends Encryptor {
+
+  val encryptor = createEncryptor
+
+  def createEncryptor = {
+    val standardEncryptor = new StandardPBEByteEncryptor
+    standardEncryptor.setProviderName("BC")
+    standardEncryptor.setAlgorithm("PBEWithSHAAnd3KeyTripleDES")
+    standardEncryptor.setPassword("""nFJ@54GiretJGEg32%##43bdfw v345&78(&!~_r5w5 b^%%^875345@$$#@@$24!@#(@$$@%$@ VCDN{}Po}}PV D[GEJ G_""")
+    standardEncryptor
+  }
+
+  def encrypt(plainData: Array[Byte]): Array[Byte] = synchronized(encryptor.encrypt(plainData))
+
+  def decrypt(encryptedData: Array[Byte]): Array[Byte] = synchronized(encryptor.decrypt(encryptedData))
+}
+class JceEncryptor extends Encryptor {
   //Such as AES.
   val ALGORITHM = "AES"
   val HASH_ALGORITHM = "SHA-256"

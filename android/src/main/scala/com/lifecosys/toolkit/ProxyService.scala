@@ -24,17 +24,16 @@ import android.app.Service
 import android.content.Intent
 import android.os._
 import android.widget.Toast
-import logging.{ AndroidInternalLoggerFactory, Logger }
-import proxy.{ GFWProgrammaticCertificationProxyConfig, ProxyServer }
-import org.jboss.netty.logging.InternalLoggerFactory
+import com.lifecosys.toolkit.proxy.{ Utils, GFWProgrammaticCertificationProxyConfig, ProxyServer }
+import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
+import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  * @author <a href="mailto:hyysguyang@gamil.com">Young Gu</a>
  * @author <a href="mailto:Young.Gu@lifecosys.com">Young Gu</a>
  * @version 1.0 12/14/12 4:11 PM
  */
-class ProxyService extends Service {
-  val logger = implicitly[Logger]
+class ProxyService extends Service with Logging {
   var proxyServer: ProxyServer = null
   val isRunning = false
   var mServiceLooper: Looper = null
@@ -45,7 +44,8 @@ class ProxyService extends Service {
     override def handleMessage(msg: Message) {
       logger.info("Proxy service starting with %s".format(msg))
 
-      InternalLoggerFactory.setDefaultFactory(new AndroidInternalLoggerFactory)
+      Utils.installJCEPolicy
+      InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
       proxyServer = ProxyServer(new GFWProgrammaticCertificationProxyConfig())
       proxyServer.start
 

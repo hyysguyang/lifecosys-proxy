@@ -75,23 +75,22 @@ abstract class HttpRequestProcessor(request: HttpRequest, browserChannel: Channe
   }
   def process = {
     logger.info(s"Process request with $connectHost")
-    createConnectionAndWriteRequest
-    //    HttpChannelManager.get(connectHost.host.socketAddress) match {
-    //      case Some(channelFuture) if channelFuture.getChannel.isConnected ⇒ {
-    //        val channel = channelFuture.getChannel
-    //        logger.debug(s"$HttpChannelManager")
-    //        logger.info(s"Use existed channel ${channel}")
-    //
-    //        channel.setAttachment(RequestInfo(UUID.randomUUID().toString))
-    //        //        DefaultRequestManager.add(Request(channel.getAttachment.toString, browserChannel, channel))
-    //
-    //        adjustPipelineForReused(channel)
-    //        channel.write(httpRequest).addListener {
-    //          writeFuture: ChannelFuture ⇒ logger.debug(s"[${channel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
-    //        }
-    //      }
-    //      case _ ⇒ createConnectionAndWriteRequest
-    //    }
+    HttpChannelManager.get(connectHost.host.socketAddress) match {
+      case Some(channelFuture) if channelFuture.getChannel.isConnected ⇒ {
+        val channel = channelFuture.getChannel
+        logger.debug(s"$HttpChannelManager")
+        logger.info(s"Use existed channel ${channel}")
+
+        channel.setAttachment(RequestInfo(UUID.randomUUID().toString))
+        //        DefaultRequestManager.add(Request(channel.getAttachment.toString, browserChannel, channel))
+
+        adjustPipelineForReused(channel)
+        channel.write(httpRequest).addListener {
+          writeFuture: ChannelFuture ⇒ logger.debug(s"[${channel}] - Finished write request: ${Utils.formatMessage(httpRequest)}")
+        }
+      }
+      case _ ⇒ createConnectionAndWriteRequest
+    }
   }
 
   def createConnectionAndWriteRequest {

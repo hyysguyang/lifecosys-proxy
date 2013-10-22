@@ -47,8 +47,6 @@ trait ProxyConfig {
 
   val proxyToServerSSLEnable: Boolean
 
-  val loggerLevel: InternalLogLevel
-
   val isLocal: Boolean
 
   val chainProxies: scala.collection.mutable.ArrayBuffer[ProxyHost]
@@ -86,8 +84,6 @@ abstract class DefaultProxyConfig(config: Option[Config] = None) extends ProxyCo
   override val port = thisConfig.getInt("port")
   override val serverSSLEnable = thisConfig.getBoolean("proxy-server.ssl.enabled")
   override val proxyToServerSSLEnable = thisConfig.getBoolean("proxy-server-to-remote.ssl.enabled")
-
-  override val loggerLevel = InternalLogLevel.valueOf(thisConfig.getString("logger-level"))
 
   override val serverSocketChannelFactory = new NioServerSocketChannelFactory(serverExecutor, serverExecutor)
   override val clientSocketChannelFactory = new NioClientSocketChannelFactory(clientExecutor, clientExecutor)

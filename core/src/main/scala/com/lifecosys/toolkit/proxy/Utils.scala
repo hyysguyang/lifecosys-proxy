@@ -36,6 +36,7 @@ import org.jboss.netty.handler.codec.http.{ HttpChunk, HttpMessage }
 import org.apache.commons.io.{ IOUtils, HexDump }
 import java.io.{ InputStream, ByteArrayInputStream, ByteArrayOutputStream }
 import scala.Some
+import scala.util.Try
 
 /**
  *
@@ -69,6 +70,17 @@ object Utils {
   val inflater = new Inflater
 
   var channelFutures = scala.collection.mutable.MutableList[ChannelFuture]()
+
+  /**
+   * Just to avoid the security exception since we need strong encryption.
+   */
+  def installJCEPolicy = {
+    Try {
+      val field = Class.forName("javax.crypto.JceSecurity").getDeclaredField("isRestricted")
+      field.setAccessible(true)
+      field.set(null, java.lang.Boolean.FALSE)
+    }
+  }
 
   lazy val cryptor = {
     val standardEncryptor = new StandardPBEByteEncryptor

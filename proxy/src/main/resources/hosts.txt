@@ -728,21 +728,6 @@
 0.0.0.0	wwis-dubc1-vip60.adobe.com
 #Adobe Activation END
 
-#YouTube START
-203.208.46.206	accounts.youtube.com
-203.208.46.206	apiblog.youtube.com
-203.208.46.206	help.youtube.com
-203.208.46.206	i.ytimg.com
-203.208.46.206	i1.ytimg.com
-203.208.46.206	i2.ytimg.com
-203.208.46.206	i3.ytimg.com
-203.208.46.206	i4.ytimg.com
-203.208.46.206	insight.youtube.com
-203.208.46.206	m.youtube.com
-203.208.46.206	s.ytimg.com
-203.208.46.206	www.youtube.com
-203.208.46.206	ytimg.l.google.com
-#YouTube END
 
 #GitHub START
 204.232.175.78	documentcloud.github.com

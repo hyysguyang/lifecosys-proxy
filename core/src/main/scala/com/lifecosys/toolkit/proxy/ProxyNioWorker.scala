@@ -1,10 +1,10 @@
 package com.lifecosys.toolkit.proxy
 
+import com.typesafe.scalalogging.LazyLogging
 import org.jboss.netty.channel.ReceiveBufferSizePredictor
 import org.jboss.netty.buffer.{ ChannelBufferFactory, ChannelBuffer }
 import java.util.concurrent.Executor
 import org.jboss.netty.channel.socket.nio.{ NioSocketChannel, NioWorker }
-import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.{ ClosedChannelException, SocketChannel, SelectionKey }
 import java.nio.ByteBuffer
 import org.jboss.netty.channel.Channels._
@@ -15,7 +15,7 @@ import org.jboss.netty.channel.Channels._
  * @author Young Gu
  * @version 1.0 7/17/13 10:37 AM
  */
-class ProxyNioWorker(executor: Executor) extends NioWorker(executor, null) with Logging {
+class ProxyNioWorker(executor: Executor) extends NioWorker(executor, null) with LazyLogging {
   override def read(k: SelectionKey): Boolean = {
     val ch: SocketChannel = k.channel.asInstanceOf[SocketChannel]
     val channel: NioSocketChannel = k.attachment.asInstanceOf[NioSocketChannel]

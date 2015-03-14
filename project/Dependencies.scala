@@ -2,13 +2,6 @@ import sbt._
 
 object Dependencies {
 
-  val resolutionRepos = Seq(
-    "Local Maven Repository" at "file:////Develop/MavenRepository",
-    "spray repo" at "http://repo.spray.io/",
-    Opts.resolver.sonatypeReleases,
-    Opts.resolver.sonatypeSnapshots
-  )
-
   def compile(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "compile")
 
   def provided(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "provided")
@@ -25,34 +18,24 @@ object Dependencies {
   val jasypt = "org.jasypt" % "jasypt" % "1.9.0"
   val commonsLang = "org.apache.commons" % "commons-lang3" % "3.1"
   val commonsIO = "commons-io" % "commons-io" % "2.4"
-  val scalalogging = "com.typesafe" %% "scalalogging-slf4j" % "1.1.0-SNAPSHOT"
+  val scalalogging = "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0"
 
-  val slf4jVersion = "1.7.6-SNAPSHOT"
-  val slf4jApi = "org.slf4j" % "slf4j-api" % slf4jVersion
-  val slf4jLog4j12 = "org.slf4j" % "slf4j-log4j12" % slf4jVersion
-  val slf4jAndroid =  "org.slf4j" % "slf4j-android" % slf4jVersion
+  val log4j = "org.slf4j" % "slf4j-log4j12" % "1.7.8"
 
-  val log4j = "log4j" % "log4j" % "1.2.17"
+
+//  val slf4jAndroid =  "org.slf4j" % "slf4j-android" % slf4jVersion
+
   val fluentHC = "org.apache.httpcomponents" % "fluent-hc" % "4.3-beta2"
   val dnsjava = "dnsjava" % "dnsjava" % "2.1.1"
 
   val junit = "junit" % "junit" % "4.8.2"
-
-  val sprayVersion = "1.1-SNAPSHOT"
-  val sprayRouting = "io.spray" % "spray-routing" % sprayVersion
-  val sprayCan = "io.spray" % "spray-can" % sprayVersion
-  val sprayCaching = "io.spray" % "spray-caching" % sprayVersion
-  val sprayServlet = "io.spray" % "spray-servlet" % sprayVersion
-  val sprayTestkit = "io.spray" % "spray-testkit" % sprayVersion
-  val spray = Seq(sprayCan, sprayRouting, sprayCaching, sprayServlet)
-
 
   val scalaReflect = "org.scala-lang" % "scala-reflect" % "2.10.1"
   val akkaActor = "com.typesafe.akka" %% "akka-actor" % "2.1.2"
   val akkaSlf4j = "com.typesafe.akka" %% "akka-slf4j" % "2.1.2"
   val parboiled = "org.parboiled" %% "parboiled-scala" % "1.1.5"
   val shapeless = "com.chuusai" %% "shapeless" % "1.2.4"
-  val scalatest = "org.scalatest" %% "scalatest" % "1.9.1"
+  val scalatest = "org.scalatest" %% "scalatest" % "2.2.4"
   val sprayJson = "io.spray" %% "spray-json" % "1.2.3"
   val jettyWebApp = "org.eclipse.jetty" % "jetty-webapp" % "8.1.10.v20130312"
   val servlet30 = "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016"

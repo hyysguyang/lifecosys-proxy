@@ -20,13 +20,13 @@
 
 package com.lifecosys.toolkit.proxy
 
+import com.typesafe.scalalogging.LazyLogging
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.channel._
 import org.jboss.netty.buffer.{ ChannelBuffer, ChannelBuffers }
 import org.jboss.netty.handler.codec.compression.{ ZlibEncoder, ZlibDecoder }
 import org.jboss.netty.handler.codec.oneone.{ OneToOneDecoder, OneToOneEncoder }
 import org.apache.commons.io.IOUtils
-import com.typesafe.scalalogging.slf4j.Logging
 import com.lifecosys.toolkit.proxy.WebProxy.RequestData
 import java.util.TimerTask
 import java.util.concurrent.atomic.AtomicInteger
@@ -160,7 +160,7 @@ trait HttpsRequestIndexManager {
 
 object DefaultHttpsRequestIndexManager extends HttpsRequestIndexManager
 
-class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
+class WebProxyHttpRequestDecoder extends OneToOneDecoder with LazyLogging {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     msg match {
       //      case httpRequest: HttpRequest ⇒ httpRequest.getContent
@@ -233,7 +233,7 @@ class WebProxyHttpRequestDecoder extends OneToOneDecoder with Logging {
 }
 
 class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host, browserChannel: Channel)
-    extends HttpRequestEncoder with Logging {
+    extends HttpRequestEncoder with LazyLogging {
 
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: Any): AnyRef = {
 
@@ -272,7 +272,7 @@ class NettyWebProxyHttpRequestEncoder(connectHost: ConnectHost, proxyHost: Host,
 
 }
 
-class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
+class WebProxyResponseBufferEncoder extends OneToOneEncoder with LazyLogging {
 
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     logger.debug(s"[$channel] - receive data: ${Utils.formatMessage(msg)}")
@@ -325,7 +325,7 @@ class WebProxyResponseBufferEncoder extends OneToOneEncoder with Logging {
   }
 }
 
-class NettyLoggingHandler extends Logging with ChannelUpstreamHandler with ChannelDownstreamHandler {
+class NettyLoggingHandler extends LazyLogging with ChannelUpstreamHandler with ChannelDownstreamHandler {
 
   def handleUpstream(ctx: ChannelHandlerContext, e: ChannelEvent) {
 
@@ -347,7 +347,7 @@ class NettyLoggingHandler extends Logging with ChannelUpstreamHandler with Chann
   }
 }
 
-class EncryptDataFrameDecoder extends FrameDecoder with Logging {
+class EncryptDataFrameDecoder extends FrameDecoder with LazyLogging {
 
   def decode(ctx: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer): AnyRef = {
     logger.debug(s"[$channel] - Receive data: ${Utils.formatMessage(buffer)}")
@@ -384,7 +384,7 @@ class EncryptDataFrameDecoder extends FrameDecoder with Logging {
  *
  * @param browserChannel
  */
-class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder with Logging {
+class WebProxyResponseDecoder(browserChannel: Channel) extends OneToOneDecoder with LazyLogging {
   def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
     logger.debug(s"[${channel}] - Receive message\n ${Utils.formatMessage(msg)}")
     msg match {

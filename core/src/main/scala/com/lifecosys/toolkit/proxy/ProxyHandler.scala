@@ -20,10 +20,10 @@
 
 package com.lifecosys.toolkit.proxy
 
+import com.typesafe.scalalogging.LazyLogging
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.http._
 import java.nio.channels.ClosedChannelException
-import com.typesafe.scalalogging.slf4j.Logging
 import java.util.concurrent.atomic.AtomicInteger
 import org.jboss.netty.buffer.ChannelBuffer
 
@@ -36,7 +36,7 @@ import org.jboss.netty.buffer.ChannelBuffer
  */
 
 abstract class BaseRelayingHandler(relayingChannel: Channel)(implicit proxyConfig: ProxyConfig)
-    extends SimpleChannelUpstreamHandler with Logging {
+    extends SimpleChannelUpstreamHandler with LazyLogging {
 
   val defaultWriteListener = (future: ChannelFuture) ⇒ {
     logger.debug(s"[${future.getChannel}] - Write data to channel $relayingChannel completed.")

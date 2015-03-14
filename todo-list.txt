@@ -1,4 +1,0 @@
-1. Unify the chainProxy to format host:port.        -       Done
-2. Performance enhancement.                         -       Done
-3. Revert the close support for WebProxy.
-4. Android application is broken now.

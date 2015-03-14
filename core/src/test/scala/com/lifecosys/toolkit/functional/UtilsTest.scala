@@ -20,7 +20,6 @@
 
 package com.lifecosys.toolkit.functional
 
-import org.junit.Assert
 import java.security.spec.RSAPrivateCrtKeySpec
 import java.math.BigInteger
 import java.net.InetSocketAddress
@@ -149,7 +148,7 @@ class UtilsTest extends FeatureSpec with BeforeAndAfterAll {
       try {
         Utils.extractHost("127.0.0.1:899000")
       } catch {
-        case e: Exception ⇒ Assert.assertTrue(true)
+        case e: Exception ⇒ assert(true)
       }
     }
   }

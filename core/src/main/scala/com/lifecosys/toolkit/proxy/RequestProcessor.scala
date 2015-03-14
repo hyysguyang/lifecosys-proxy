@@ -20,19 +20,18 @@
 
 package com.lifecosys.toolkit.proxy
 
-import org.jboss.netty.handler.codec.http._
-import org.jboss.netty.channel._
-import org.jboss.netty.handler.ssl.SslHandler
-import org.jboss.netty.buffer.ChannelBuffers
-import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
-import com.typesafe.scalalogging.slf4j.Logging
-import scala.util.Try
+import java.nio.channels.ClosedChannelException
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
-import com.lifecosys.toolkit.proxy.Host
-import java.nio.channels.ClosedChannelException
-import org.jboss.netty.logging.InternalLogLevel
-import org.jboss.netty.handler.logging.LoggingHandler
+
+import com.typesafe.scalalogging.LazyLogging
+import org.jboss.netty.buffer.ChannelBuffers
+import org.jboss.netty.channel._
+import org.jboss.netty.handler.codec.http._
+import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectDecoder, ObjectEncoder }
+import org.jboss.netty.handler.ssl.SslHandler
+
+import scala.util.Try
 
 /**
  *
@@ -42,7 +41,7 @@ import org.jboss.netty.handler.logging.LoggingHandler
  * @version 1.0 1/1/13 5:50 PM
  */
 
-trait RequestProcessor extends Logging {
+trait RequestProcessor extends LazyLogging {
   def process
   def httpRequestEncoder: HttpMessageEncoder
   def httpRequest: HttpRequest
@@ -488,7 +487,7 @@ class NettyWebProxyClientHttpsRequestProcessor(request: HttpRequest, browserChan
 }
 
 class WebProxyHttpsRequestHandler(connectHost: ConnectHost, proxyHost: Host)(implicit proxyConfig: ProxyConfig)
-    extends SimpleChannelUpstreamHandler with Logging {
+    extends SimpleChannelUpstreamHandler with LazyLogging {
 
   val requestInfo = RequestInfo(UUID.randomUUID().toString)
 

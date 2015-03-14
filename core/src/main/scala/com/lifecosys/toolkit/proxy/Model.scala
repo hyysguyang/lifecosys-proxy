@@ -14,7 +14,7 @@ object Host {
     Host(hostAndPort._1, hostAndPort._2)
   }
 
-  def apply(socketAddress: InetSocketAddress): Host = Host(socketAddress.getHostString, socketAddress.getPort)
+  def apply(socketAddress: InetSocketAddress): Host = Host(socketAddress.getHostName, socketAddress.getPort)
 }
 
 case class Host(host: String, port: Int, ip: Option[String] = None) {

@@ -25,14 +25,12 @@ import org.apache.http.{ NoHttpResponseException, HttpHost }
 import java.net.InetSocketAddress
 import org.apache.http.conn.scheme.Scheme
 import org.apache.http.conn.ssl.SSLSocketFactory
-import org.junit.{ Assert, Test }
 import org.jboss.netty.channel.ChannelException
 import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
 import ProxyTestUtils._
 import com.lifecosys.toolkit.proxy._
 import com.typesafe.config.ConfigFactory
 import org.jboss.netty.handler.codec.http.{ HttpMethod, HttpVersion, DefaultHttpRequest }
-import scala.Some
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import scala.util.Try
@@ -352,8 +350,7 @@ class ChainedProxyManagerTest extends BaseFunSuite with BeforeAndAfter {
     assert(host === None)
   }
 
-  @Test
-  def testChainedProxyManager {
+  test("Chained Proxy Manager") {
     val config =
       """
         |chain-proxy = [
@@ -366,11 +363,11 @@ class ChainedProxyManagerTest extends BaseFunSuite with BeforeAndAfter {
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://facebook.com/")
     val host = new GFWChainProxyManager().getConnectHost(request.getUri)(new DefaultStaticCertificationProxyConfig(Some(ConfigFactory.load(ConfigFactory.parseString(config))))).get
-    Assert.assertFalse(host.host.socketAddress == new InetSocketAddress("localhost", 8081))
+
+    assert(host.host.socketAddress != new InetSocketAddress("localhost", 8081))
   }
 
-  @Test
-  def testPerformanceGFW {
+  test("Performance GFW") {
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://twitter.com")
     val manager = new GFWChainProxyManager()
@@ -386,7 +383,7 @@ class ChainedProxyManagerTest extends BaseFunSuite with BeforeAndAfter {
     manager.getConnectHost(request.getUri)(createProxyConfig())
     manager.getConnectHost(request.getUri)(createProxyConfig())
     println("################################" + (System.currentTimeMillis() - now))
-    Assert.assertFalse(host.host.socketAddress == new InetSocketAddress("localhost", 8081))
+    assert(host.host.socketAddress != new InetSocketAddress("localhost", 8081))
   }
 
 }

@@ -20,9 +20,10 @@
 
 package com.lifecosys.toolkit.proxy
 
+import com.typesafe.scalalogging.LazyLogging
+
 import io.Source
 import java.util.concurrent.atomic.AtomicInteger
-import com.typesafe.scalalogging.slf4j.Logging
 
 /**
  *
@@ -69,7 +70,7 @@ object SmartHostFailedHostProcess extends FailedHostProcess {
   def report()(implicit proxyConfig: ProxyConfig) {}
 }
 
-trait ChainProxyManager extends Logging {
+trait ChainProxyManager extends LazyLogging {
 
   def failedHostProcess: FailedHostProcess = NullFailedHostProcess
 

@@ -21,6 +21,7 @@
 package com.lifecosys.toolkit.proxy
 
 import java.net.InetSocketAddress
+import com.typesafe.scalalogging.LazyLogging
 import org.jboss.netty.channel._
 import group.ChannelGroupFuture
 import org.jboss.netty.handler.codec.http._
@@ -29,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.JavaConversions._
 import org.jboss.netty.handler.ssl.SslHandler
 import org.jboss.netty.handler.codec.serialization.{ ClassResolvers, ObjectEncoder, ObjectDecoder }
-import com.typesafe.scalalogging.slf4j.Logging
 import java.nio.channels.ClosedChannelException
 import org.jboss.netty.handler.logging.LoggingHandler
 import org.jboss.netty.logging.InternalLogLevel
@@ -81,7 +81,7 @@ class NettyWebProxyServer(proxyConfig: ProxyConfig) extends ProxyServer(proxyCon
  *
  * @param proxyConfig
  */
-class ProxyServer(proxyConfig: ProxyConfig) extends Logging {
+class ProxyServer(proxyConfig: ProxyConfig) extends LazyLogging {
   require(proxyConfig != null)
 
   implicit val currentProxyConfig = proxyConfig
@@ -177,7 +177,7 @@ class NettyWebProxyRequestHandler(implicit proxyConfig: ProxyConfig) extends Pro
   }
 }
 class ProxyRequestHandler(implicit proxyConfig: ProxyConfig)
-    extends SimpleChannelUpstreamHandler with Logging {
+    extends SimpleChannelUpstreamHandler with LazyLogging {
 
   override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
     logger.debug(s"[${e.getChannel}] - Receive message\n${Utils.formatMessage(e.getMessage)}")

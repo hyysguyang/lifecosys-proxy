@@ -3,6 +3,7 @@ import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.ArrayList
+import com.typesafe.scalalogging.Logger
 import org.xbill.DNS.RRset
 import org.xbill.DNS.Name
 import org.xbill.DNS.Resolver
@@ -20,7 +21,6 @@ import org.xbill.DNS.DNSSEC
 import org.xbill.DNS.ExtendedResolver
 import org.xbill.DNS.ExtendedFlags
 import org.slf4j.LoggerFactory
-import com.typesafe.scalalogging.slf4j.Logger
 import scala.util.Try
 
 /**

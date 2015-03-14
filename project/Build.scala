@@ -1,3 +1,4 @@
+import com.typesafe.sbt.SbtNativePackager.packageArchetype
 import sbt._
 import Keys._
 
@@ -28,6 +29,7 @@ object ProxyBuild extends Build {
   lazy val proxy = Project("proxy", file("proxy"))
     .dependsOn(core % "compile->compile;test->test")
     .settings(projectBuildSettings: _*)
+    .settings(packageArchetype.java_application: _*)
 
 //  import sbtandroid.AndroidPlugin._
 //  lazy val android = Project("Android", file("android"))

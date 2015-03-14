@@ -37,7 +37,7 @@ import scala.Some
 object ProxyServerLauncher {
 
   def main(args: Array[String]) {
-    //    System.setProperty("javax.net.debug", "all")
+    //    Systemlep-0001.herokuapp.com.setProperty("javax.net.debug", "all")
     Utils.installJCEPolicy
     InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
     Security.addProvider(new BouncyCastleProvider)
@@ -47,7 +47,7 @@ object ProxyServerLauncher {
       new GFWStaticCertificationProxyConfig(Some(config))
     else
       new DefaultStaticCertificationProxyConfig(Some(config))
-    ProxyServer(proxyConfig).start
+    ProxyServer(new DefaultStaticCertificationProxyConfig(Some(config))).start
   }
 
 }

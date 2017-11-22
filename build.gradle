@@ -1,0 +1,61 @@
+buildscript {
+    ext.kotlinVersion = "1.1.2-4"
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+        classpath("org.jetbrains.kotlin:kotlin-allopen:${kotlinVersion}")
+        classpath("org.jetbrains.kotlin:kotlin-noarg:$kotlinVersion")
+    }
+}
+
+def kotlinVersion = ext.kotlinVersion
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+apply plugin: "kotlin"
+apply plugin: 'application'
+
+buildDir = "target"
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+
+dependencies {
+    compile("org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion")
+    compile("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
+    compile("org.littleshoot:littleproxy:1.1.2")
+
+    compile 'org.slf4j:slf4j-log4j12:1.7.25'
+}
+//https://kotlinlang.org/docs/reference/java-to-kotlin-interop.html#package-level-functions
+mainClassName = "com.lifecosys.proxy.Launcher"
+applicationName = 'lifecosys-proxy'
+
+startScripts {
+    doLast {
+        //NOTE: export LIFECOSYS_PROXY_OPTS="-Xmx128m -Xms128m -Dfile-encoding=UTF-8"
+        unixScript.text = unixScript.text.replace('CLASSPATH=$APP_HOME', 'CLASSPATH=$APP_HOME/config:$APP_HOME')
+    }
+}
+
+distributions {
+    main {
+        baseName = applicationName
+        contents {
+            from('install/config') {
+                into "config"
+            }
+        }
+    }
+}

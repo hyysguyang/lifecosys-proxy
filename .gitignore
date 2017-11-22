@@ -3,6 +3,7 @@
 *.log
 classes
 target
+build
 target-eclipse
 
 # sbt specific
